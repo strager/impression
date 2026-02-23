@@ -406,9 +406,11 @@ let workerPostMessage: (msg: WorkerRequest) => void = () => {
 async function initWorker(): Promise<void> {
 	if ("Worker" in globalThis) {
 		// Browser: use standard Web Worker
-		const workerUrl = new URL("./ranking.worker.ts", import.meta.url);
-		// eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- globalThis.Worker not typed without DOM lib
-		const w = new (globalThis as unknown as { Worker: new (url: URL, opts: { type: string }) => { postMessage(msg: WorkerRequest): void; addEventListener(event: string, handler: (event: { data: WorkerResponse }) => void): void } }).Worker(workerUrl, { type: "module" });
+		// The `new Worker(new URL(...), ...)` pattern must be a single expression
+		// so Vite can statically detect and bundle the worker for production builds.
+		// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- dual-compiled: error in backend tsconfig but not frontend
+		// @ts-ignore -- Worker is a DOM global (valid in frontend tsconfig but not backend)
+		const w: { postMessage(msg: WorkerRequest): void; addEventListener(event: "message", handler: (event: { data: WorkerResponse }) => void): void } = new Worker(new URL("./ranking.worker.ts", import.meta.url), { type: "module" });
 		w.addEventListener("message", (event) => {
 			handleWorkerResponse(event.data);
 		});
@@ -419,9 +421,9 @@ async function initWorker(): Promise<void> {
 	}
 
 	// Node: use worker_threads
-	const { Worker } = await import("node:worker_threads");
+	const { Worker: NodeWorker } = await import("node:worker_threads");
 	const workerPath = new URL("./ranking.worker.ts", import.meta.url);
-	const w = new Worker(workerPath);
+	const w = new NodeWorker(workerPath);
 	w.on("message", (data: WorkerResponse) => {
 		handleWorkerResponse(data);
 	});
