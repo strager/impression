@@ -142,6 +142,7 @@ h1 {
 	flex-direction: column;
 	gap: var(--space-2);
 	font-family: inherit;
+	-webkit-tap-highlight-color: transparent;
 }
 
 .ranking-card.blank {
