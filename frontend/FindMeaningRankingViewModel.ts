@@ -127,15 +127,16 @@ export class FindMeaningRankingViewModel {
 		});
 	}
 
-	async undo(): Promise<void> {
+	async undo(): Promise<string> {
 		if (this.ranking === null || this.ranking.round === 0) {
 			throw new Error("Cannot undo: no comparisons to undo");
 		}
-		await this.ranking.undoLastComparison();
+		const undone = await this.ranking.undoLastComparison();
 		await this.showNextPair();
 		this.saveProgress(false);
 
 		capture("ranking_undone", { session_id: this.sessionId });
+		return undone.winner;
 	}
 
 	finalize(): void {

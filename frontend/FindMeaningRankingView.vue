@@ -42,10 +42,18 @@ async function handleCardTap(index: 0 | 1): Promise<void> {
 
 async function handleUndo(): Promise<void> {
 	if (loading.value) return;
+	if (selectedIndex.value !== null) {
+		selectedIndex.value = null;
+		return;
+	}
 	loading.value = true;
 	try {
-		await vm.undo();
-		selectedIndex.value = null;
+		const winnerId = await vm.undo();
+		const pair = vm.currentPair;
+		if (pair !== null) {
+			const idx = pair.findIndex((c) => c.id === winnerId);
+			selectedIndex.value = idx === 0 || idx === 1 ? idx : null;
+		}
 	} finally {
 		loading.value = false;
 	}
@@ -81,7 +89,7 @@ function handleFinish(): void {
 				</template>
 			</div>
 			<div class="undo-area">
-				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo || loading" @click="handleUndo">Undo</AppButton>
+				<AppButton variant="secondary" emphasis="muted" :disabled="(selectedIndex === null && !vm.canUndo) || loading" @click="handleUndo">Undo</AppButton>
 			</div>
 		</div>
 
