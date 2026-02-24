@@ -104,6 +104,7 @@ async function main(): Promise<void> {
 	console.log();
 
 	rl.close();
+	process.exit();
 }
 
 main().catch((err: unknown) => {
