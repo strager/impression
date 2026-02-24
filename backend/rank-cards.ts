@@ -17,30 +17,25 @@ async function main(): Promise<void> {
 	while (!ranking.stopped) {
 		const { a, b } = await ranking.selectPair();
 
-		// Randomize display order to control for position bias
-		const showAFirst = Math.random() < 0.5;
-		const left = showAFirst ? a : b;
-		const right = showAFirst ? b : a;
-
 		console.log(`--- Round ${String(ranking.round + 1)} ---`);
-		console.log(`  A: [${left.source}] "${left.description}"`);
-		console.log(`  B: [${right.source}] "${right.description}"`);
+		console.log(`  A: [${a.source}] "${a.description}"`);
+		console.log(`  B: [${b.source}] "${b.description}"`);
 
 		let choice: MeaningCard | null = null;
 		while (choice === null) {
 			const answer = await rl.question("  Your choice (A/B): ");
 			const normalized = answer.trim().toUpperCase();
 			if (normalized === "A") {
-				choice = left;
+				choice = a;
 			} else if (normalized === "B") {
-				choice = right;
+				choice = b;
 			} else {
 				console.log('  Please enter "A" or "B".');
 			}
 		}
 
 		const winner = choice;
-		const loser = winner === left ? right : left;
+		const loser = winner === a ? b : a;
 		const { stopReason } = await ranking.recordComparison(winner, loser);
 
 		// Show progress
