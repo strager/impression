@@ -14,6 +14,18 @@
 //   - Active learning (computeInformationGain, selectPair): pick the most
 //     informative pair to compare next
 //   - Stopping rules: confidence separation, stability, hard cap
+//   - Adaptive K reduction: when items near the K boundary have similar
+//     strength, stop early with fewer items (e.g. top-3 or top-4 instead
+//     of top-5) rather than grinding through the full comparison budget.
+//     The effectiveK getter reports how many items were actually selected.
+//
+// Stopping rule order (checked after every comparison):
+//   1. Confidence stop (full K) — top-K LCBs exceed non-top-K UCBs
+//   2. Adaptive K reduction — reduced K passes confidence with a z-score
+//      that starts high (reluctance) and decays linearly to the base z
+//   3. Stability stop (full K) — top-K set unchanged for stabilityWindow
+//   4. Max comparisons — hard budget; scans reduced K values for
+//      confidence or stability before falling back to full K
 //
 // References:
 //   Bradley & Terry (1952), Luce (1959), Caron & Doucet (2012),
@@ -22,17 +34,25 @@
 //   Kaufmann & Kalyanakrishnan (2013)
 // ============================================================
 
-import type { RemainingEstimate, WinLoss } from "./ranking-math.ts";
-import { argsortDescending, checkConfidenceStop, checkStabilityStop, estimateStabilityStop } from "./ranking-math.ts";
+import type { KWeight, RemainingEstimate, WinLoss } from "./ranking-math.ts";
+import { argsortDescending, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, estimateStabilityStop } from "./ranking-math.ts";
 import type { BayesianRefitRequest, BayesianRefitResponse, SelectPairRequest, SelectPairResponse, WorkerRequest, WorkerResponse } from "./ranking-worker-protocol.ts";
 
 // Re-export all pure math functions so existing imports from ranking.ts keep working.
-export { argsortDescending, bayesianRefit, boxMuller, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, makeXorshift, normalCDF, selectPair, sigmoid, topKEntropy } from "./ranking-math.ts";
-export type { RemainingEstimate, WinLoss } from "./ranking-math.ts";
+export { argsortDescending, bayesianRefit, boxMuller, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, makeXorshift, normalCDF, selectPair, sigmoid, topKEntropy } from "./ranking-math.ts";
+export type { KWeight, RemainingEstimate, WinLoss } from "./ranking-math.ts";
 
 export interface RankingConfig {
 	/** Number of top items to identify. */
 	k: number;
+	/** Minimum acceptable K for adaptive K reduction.
+	 * Must satisfy 1 <= minK <= k. Defaults to min(3, k). */
+	minK: number;
+	/** Extra z-score penalty at round 0 for reduced-K stopping, decays
+	 * linearly to 0 at maxComparisons. Higher values make the algorithm
+	 * more reluctant to reduce K early. The effective z-score for reduced-K
+	 * checks is: z + kReductionReluctance * (1 - round / maxComparisons). */
+	kReductionReluctance: number;
 	/** Z-score for confidence-based stopping (e.g. 1.96 for 95%). */
 	z: number;
 	/** Number of consecutive stable rounds before stopping. */
@@ -59,16 +79,25 @@ export interface ComparisonRecord<T> {
 	loser: T;
 }
 
+interface ReducedKStabilityEntry {
+	readonly k: number;
+	readonly topK: readonly number[];
+	readonly stableCount: number;
+}
+
 interface HistoryEntry {
 	readonly winnerIndex: number;
 	readonly loserIndex: number;
 	readonly topK: readonly number[];
 	readonly stableCount: number;
 	readonly flip: boolean | null;
+	readonly reducedKStability: readonly ReducedKStabilityEntry[];
 }
 
 const DEFAULT_CONFIG: RankingConfig = {
 	k: 5,
+	minK: 3,
+	kReductionReluctance: 1.0,
 	z: 1.96,
 	stabilityWindow: 10,
 	maxComparisons: 80,
@@ -111,10 +140,18 @@ export class Ranking<T> {
 	private _round: number;
 	private _stopped: boolean;
 	private _stopReason: StopReason | null;
+	private _effectiveK: number;
 
 	constructor(items: readonly T[], config?: Partial<RankingConfig>) {
 		this._items = items;
 		this._config = { ...DEFAULT_CONFIG, ...config };
+		// If minK wasn't explicitly provided, clamp it to k
+		if (config?.minK === undefined) {
+			this._config.minK = Math.min(this._config.minK, this._config.k);
+		}
+		if (this._config.minK < 1 || this._config.minK > this._config.k) {
+			throw new Error(`minK must be between 1 and k (got minK=${String(this._config.minK)}, k=${String(this._config.k)})`);
+		}
 		this._n = items.length;
 		this._mu = new Float64Array(this._n);
 		this._sigma = new Float64Array(this._n).fill(Math.sqrt(this._config.priorVariance));
@@ -123,6 +160,7 @@ export class Ranking<T> {
 		this._round = 0;
 		this._stopped = false;
 		this._stopReason = null;
+		this._effectiveK = this._config.k;
 	}
 
 	private _indexOf(item: T): number {
@@ -158,6 +196,27 @@ export class Ranking<T> {
 		return flips;
 	}
 
+	/**
+	 * Build round-dependent weights for multi-objective pair selection.
+	 *
+	 * Full K always gets weight 1.0. Reduced K values (k-1 down to minK)
+	 * get weight equal to progress (round / maxComparisons), so early
+	 * rounds focus on the full K objective while later rounds increasingly
+	 * gather information useful for reduced K values too.
+	 *
+	 * Weights are normalized to sum to 1.
+	 */
+	private _computeKWeights(): KWeight[] {
+		const { k, minK, maxComparisons } = this._config;
+		const progress = this._round / maxComparisons;
+		const candidates: KWeight[] = [{ k, weight: 1.0 }];
+		for (let rk = k - 1; rk >= minK; rk--) {
+			candidates.push({ k: rk, weight: progress });
+		}
+		const total = candidates.reduce((sum, c) => sum + c.weight, 0);
+		return candidates.map((c) => ({ k: c.k, weight: c.weight / total }));
+	}
+
 	private async _selectPairOnWorker(mu: Float64Array, sigma: Float64Array, history: WinLoss[]): Promise<[number, number]> {
 		await ensureWorker();
 		const id = nextRequestId++;
@@ -167,7 +226,7 @@ export class Ranking<T> {
 			mu,
 			sigma,
 			history,
-			k: this._config.k,
+			kWeights: this._computeKWeights(),
 			n: this._n,
 			priorVariance: this._config.priorVariance,
 			recencyDiscount: this._config.recencyDiscount,
@@ -185,6 +244,7 @@ export class Ranking<T> {
 		round: number,
 		previousTopK: readonly number[] | null,
 		stableCount: number,
+		previousReducedKStability: readonly ReducedKStabilityEntry[],
 	): Promise<{
 		mu: Float64Array;
 		sigma: Float64Array;
@@ -195,6 +255,8 @@ export class Ranking<T> {
 		flip: boolean | null;
 		stopped: boolean;
 		stopReason: StopReason | null;
+		effectiveK: number;
+		reducedKStability: readonly ReducedKStabilityEntry[];
 	}> {
 		const newHistory: WinLoss[] = [...history, [wi, li]];
 		const newRound = round + 1;
@@ -213,26 +275,62 @@ export class Ranking<T> {
 		const newMu = response.mu instanceof Float64Array ? response.mu : new Float64Array(response.mu);
 		const newSigma = response.sigma instanceof Float64Array ? response.sigma : new Float64Array(response.sigma);
 
-		// Confidence-based stop
-		if (checkConfidenceStop(newMu, newSigma, this._config.k, this._config.z, this._config.confidenceThreshold)) {
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: this._topKFromMu(newMu), stableCount, flip: null, stopped: true, stopReason: "confidence" };
+		const { k, minK, z, confidenceThreshold, stabilityWindow, maxComparisons, kReductionReluctance } = this._config;
+
+		// Update reduced-K stability tracking
+		const newReducedKStability: ReducedKStabilityEntry[] = [];
+		for (let rk = k - 1; rk >= minK; rk--) {
+			const prev = previousReducedKStability.find((e) => e.k === rk);
+			const prevTopK = prev !== undefined ? prev.topK : null;
+			const prevStableCount = prev !== undefined ? prev.stableCount : 0;
+			const stabResult = checkStabilityStop(newMu, rk, prevTopK, prevStableCount, stabilityWindow);
+			newReducedKStability.push({ k: rk, topK: stabResult.topK, stableCount: stabResult.stableCount });
 		}
 
-		// Stability stop
-		const stability = checkStabilityStop(newMu, this._config.k, previousTopK, stableCount, this._config.stabilityWindow);
+		// 1. Confidence stop (full K)
+		if (checkConfidenceStop(newMu, newSigma, k, z, confidenceThreshold)) {
+			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: this._topKFromMu(newMu), stableCount, flip: null, stopped: true, stopReason: "confidence", effectiveK: k, reducedKStability: newReducedKStability };
+		}
+
+		// 2. Adaptive K reduction
+		const reducedZ = z + kReductionReluctance * (1 - newRound / maxComparisons);
+		const adaptiveK = checkAdaptiveKReduction(newMu, newSigma, k, minK, reducedZ, confidenceThreshold);
+		if (adaptiveK !== null) {
+			const adaptiveTopK = argsortDescending(newMu)
+				.slice(0, adaptiveK)
+				.sort((a, b) => a - b);
+			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: adaptiveTopK, stableCount, flip: null, stopped: true, stopReason: "confidence", effectiveK: adaptiveK, reducedKStability: newReducedKStability };
+		}
+
+		// 3. Stability stop (full K)
+		const stability = checkStabilityStop(newMu, k, previousTopK, stableCount, stabilityWindow);
 		const flip = previousTopK !== null ? stability.stableCount === 0 : null;
 		const newTopK = stability.topK;
 		const newStableCount = stability.stableCount;
 		if (stability.stopped) {
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "stability" };
+			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "stability", effectiveK: k, reducedKStability: newReducedKStability };
 		}
 
-		// Hard cap
-		if (newRound >= this._config.maxComparisons) {
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "max-comparisons" };
+		// 4. Max comparisons fallback with reduced-K scan
+		if (newRound >= maxComparisons) {
+			// Scan reduced K values descending, pick largest that passes either
+			// reduced-confidence (reducedZ = z since reluctance is gone) or reduced-stability
+			for (let rk = k - 1; rk >= minK; rk--) {
+				if (checkConfidenceStop(newMu, newSigma, rk, z, confidenceThreshold)) {
+					const fallbackTopK = argsortDescending(newMu)
+						.slice(0, rk)
+						.sort((a, b) => a - b);
+					return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: fallbackTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "confidence", effectiveK: rk, reducedKStability: newReducedKStability };
+				}
+				const rkEntry = newReducedKStability.find((e) => e.k === rk);
+				if (rkEntry !== undefined && rkEntry.stableCount >= stabilityWindow) {
+					return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: rkEntry.topK, stableCount: newStableCount, flip, stopped: true, stopReason: "stability", effectiveK: rk, reducedKStability: newReducedKStability };
+				}
+			}
+			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "max-comparisons", effectiveK: k, reducedKStability: newReducedKStability };
 		}
 
-		return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: false, stopReason: null };
+		return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: false, stopReason: null, effectiveK: k, reducedKStability: newReducedKStability };
 	}
 
 	private _speculateAfterPairSelection(i: number, j: number): void {
@@ -241,8 +339,9 @@ export class Ranking<T> {
 		const current = this._history.at(-1);
 		const previousTopK = current === undefined ? null : current.topK;
 		const stableCount = current === undefined ? 0 : current.stableCount;
+		const reducedKStability = current === undefined ? [] : current.reducedKStability;
 		const speculate = async (wi: number, li: number): Promise<void> => {
-			const result = await this._recordComparisonPure(this._mu, this._sigma, history, wi, li, this._round, previousTopK, stableCount);
+			const result = await this._recordComparisonPure(this._mu, this._sigma, history, wi, li, this._round, previousTopK, stableCount, reducedKStability);
 			if (!result.stopped) {
 				await this._selectPairOnWorker(result.mu, result.sigma, result.history);
 			}
@@ -272,8 +371,9 @@ export class Ranking<T> {
 		const current = this._history.at(-1);
 		const previousTopK = current === undefined ? null : current.topK;
 		const stableCount = current === undefined ? 0 : current.stableCount;
+		const reducedKStability = current === undefined ? [] : current.reducedKStability;
 
-		const result = await this._recordComparisonPure(this._mu, this._sigma, this._historyAsWinLoss(this._history), wi, li, this._round, previousTopK, stableCount);
+		const result = await this._recordComparisonPure(this._mu, this._sigma, this._historyAsWinLoss(this._history), wi, li, this._round, previousTopK, stableCount, reducedKStability);
 
 		this._mu = result.mu;
 		this._sigma = result.sigma;
@@ -283,11 +383,13 @@ export class Ranking<T> {
 			topK: result.topK,
 			stableCount: result.stableCount,
 			flip: result.flip,
+			reducedKStability: result.reducedKStability,
 		});
 		this._comparisonRecords.push({ winner, loser });
 		this._round = result.round;
 		this._stopped = result.stopped;
 		this._stopReason = result.stopReason;
+		this._effectiveK = result.effectiveK;
 
 		return { stopped: result.stopped, stopReason: result.stopReason };
 	}
@@ -299,6 +401,7 @@ export class Ranking<T> {
 
 		this._stopped = false;
 		this._stopReason = null;
+		this._effectiveK = this._config.k;
 
 		this._history.pop();
 		const record = this._comparisonRecords.pop();
@@ -331,7 +434,11 @@ export class Ranking<T> {
 			indices.push(i);
 		}
 		indices.sort((a, b) => this._mu[b] - this._mu[a]);
-		return indices.slice(0, this._config.k).map((i) => this._items[i]);
+		return indices.slice(0, this._effectiveK).map((i) => this._items[i]);
+	}
+
+	get effectiveK(): number {
+		return this._effectiveK;
 	}
 
 	get round(): number {
@@ -367,12 +474,36 @@ export class Ranking<T> {
 		copy._round = this._round;
 		copy._stopped = this._stopped;
 		copy._stopReason = this._stopReason;
+		copy._effectiveK = this._effectiveK;
 		return copy;
 	}
 
 	estimateRemaining(): RemainingEstimate {
 		const maxRemaining = Math.max(0, this._config.maxComparisons - this._round);
 		return estimateStabilityStop(this._flipHistoryFromHistory(), this._stableCountFromHistory(), this._config.stabilityWindow, maxRemaining);
+	}
+
+	debugState(): {
+		mu: Float64Array;
+		sigma: Float64Array;
+		effectiveK: number;
+		fullKStableCount: number;
+		reducedKStability: readonly ReducedKStabilityEntry[];
+		kWeights: KWeight[];
+		config: RankingConfig;
+		round: number;
+	} {
+		const current = this._history.at(-1);
+		return {
+			mu: this._mu,
+			sigma: this._sigma,
+			effectiveK: this._effectiveK,
+			fullKStableCount: current === undefined ? 0 : current.stableCount,
+			reducedKStability: current === undefined ? [] : current.reducedKStability,
+			kWeights: this._computeKWeights(),
+			config: this._config,
+			round: this._round,
+		};
 	}
 }
 

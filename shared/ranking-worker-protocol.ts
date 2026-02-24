@@ -1,4 +1,4 @@
-import type { WinLoss } from "./ranking-math.ts";
+import type { KWeight, WinLoss } from "./ranking-math.ts";
 
 export interface SelectPairRequest {
 	type: "selectPair";
@@ -6,7 +6,7 @@ export interface SelectPairRequest {
 	mu: Float64Array;
 	sigma: Float64Array;
 	history: WinLoss[];
-	k: number;
+	kWeights: KWeight[];
 	n: number;
 	priorVariance: number;
 	recencyDiscount: number;

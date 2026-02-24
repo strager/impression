@@ -177,7 +177,8 @@ describe("finalize", () => {
 		vm.finalize();
 		const chosen = loadChosenCardIds(sid());
 		expect(chosen).not.toBeNull();
-		expect(chosen!.length).toBe(5);
+		expect(chosen!.length).toBeGreaterThanOrEqual(3);
+		expect(chosen!.length).toBeLessThanOrEqual(5);
 	});
 });
 
@@ -195,11 +196,13 @@ describe("full ranking run", () => {
 			await vm.choose(index);
 		}
 
-		expect(vm.topK.length).toBe(5);
+		expect(vm.topK.length).toBeGreaterThanOrEqual(3);
+		expect(vm.topK.length).toBeLessThanOrEqual(5);
 		vm.finalize();
 		const chosen = loadChosenCardIds(sid());
 		expect(chosen).not.toBeNull();
-		expect(chosen!.length).toBe(5);
+		expect(chosen!.length).toBeGreaterThanOrEqual(3);
+		expect(chosen!.length).toBeLessThanOrEqual(5);
 	});
 
 	it("shows isComplete reactively when resuming a finished ranking", async () => {

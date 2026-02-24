@@ -34,7 +34,7 @@ continue to the prioritizing step.
 ## Step 2: Ranking
 
 In this step, you narrow down the cards that passed the initial sort to
-your top 5 through a series of head-to-head comparisons.
+your top 3–5 through a series of head-to-head comparisons.
 
 You are shown two cards side by side and choose which one resonates with
 you more. The card you do not choose is eliminated. A new pair is drawn
@@ -47,9 +47,11 @@ you might see the label _"Social commitment"_ above the statement _"I
 intervene when I see injustice being done"_. This additional context
 helps you make more deliberate choices.
 
-Comparisons continue until exactly 5 cards remain. Those 5 become your
-final selection, and you are taken to your results. A progress indicator
-shows how many comparisons are left.
+Comparisons continue until the algorithm is confident in your top
+selections — typically 5, but sometimes 3 or 4 if the remaining
+positions are too close to call. Those become your final selection, and
+you are taken to your results. A progress indicator shows how many
+comparisons are left.
 
 ## Step 3: Editing your selection
 

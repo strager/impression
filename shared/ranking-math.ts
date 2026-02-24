@@ -19,6 +19,16 @@ export type WinLoss = readonly [winner: number, loser: number];
 
 export type RemainingEstimate = { low: number; mid: number; high: number } | null;
 
+/**
+ * A (k, weight) pair for multi-objective pair selection.
+ * computeInformationGain accepts an array of these to evaluate
+ * information gain as a weighted sum across multiple K values.
+ */
+export interface KWeight {
+	readonly k: number;
+	readonly weight: number;
+}
+
 /** Create a xorshift32 PRNG returning values in (0, 1). */
 export function makeXorshift(seed: number): () => number {
 	let state = seed === 0 ? 1 : seed;
@@ -44,7 +54,7 @@ export function makeXorshift(seed: number): () => number {
  *   recently-shown items. Default 1.0.
  * @returns [i, j] — the most informative pair of indices
  */
-export function selectPair(mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], k: number, n: number, priorVariance: number, recencyDiscount = 1.0): [number, number] {
+export function selectPair(mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], kOrWeights: number | readonly KWeight[], n: number, priorVariance: number, recencyDiscount = 1.0): [number, number] {
 	let bestPair: [number, number] = [0, 1];
 	let bestGain = -Infinity;
 
@@ -53,7 +63,7 @@ export function selectPair(mu: Float64Array, sigma: Float64Array, history: reado
 
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
-			let gain = computeInformationGain(i, j, mu, sigma, history, k, n, priorVariance);
+			let gain = computeInformationGain(i, j, mu, sigma, history, kOrWeights, n, priorVariance);
 
 			// Penalize pairs that include items from the last comparison.
 			// Gain is negative (higher = better), so dividing by a value < 1
@@ -83,6 +93,12 @@ export function selectPair(mu: Float64Array, sigma: Float64Array, history: reado
  * refits the model for each, computes the resulting top-k entropy, and
  * returns the negative expected posterior entropy (higher = more informative).
  *
+ * @param kOrWeights - either a single k (number) or an array of KWeight
+ *   for multi-objective evaluation. When given KWeight[], the information
+ *   gain is a weighted sum of topKEntropy across all K values. bayesianRefit
+ *   is called once per outcome regardless; only topKEntropy (cheap) is
+ *   called multiple times. Weights below 0.01 are skipped.
+ *
  * Chaloner, K., & Verdinelli, I. (1995). "Bayesian Experimental Design:
  *   A Review." Statistical Science, 10(3), 273-304.
  *
@@ -92,21 +108,28 @@ export function selectPair(mu: Float64Array, sigma: Float64Array, history: reado
  * Pfeiffer, T., Gao, X. A., Chen, Y., Mao, A., & Rand, D. G. (2012).
  *   "Adaptive Polling for Information Aggregation." AAAI, 26(1).
  */
-export function computeInformationGain(i: number, j: number, mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], k: number, n: number, priorVariance: number): number {
+export function computeInformationGain(i: number, j: number, mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], kOrWeights: number | readonly KWeight[], n: number, priorVariance: number): number {
+	const weights: readonly KWeight[] = typeof kOrWeights === "number" ? [{ k: kOrWeights, weight: 1 }] : kOrWeights;
+
 	const pIWins = sigmoid(mu[i] - mu[j]);
 	const pJWins = 1 - pIWins;
 
 	// Simulate outcome: i beats j
 	const historyI: WinLoss[] = [...history, [i, j]];
 	const refitI = bayesianRefit(historyI, n, priorVariance);
-	const entropyIfIWins = topKEntropy(refitI.mu, refitI.sigma, k);
 
 	// Simulate outcome: j beats i
 	const historyJ: WinLoss[] = [...history, [j, i]];
 	const refitJ = bayesianRefit(historyJ, n, priorVariance);
-	const entropyIfJWins = topKEntropy(refitJ.mu, refitJ.sigma, k);
 
-	const expectedPosteriorEntropy = pIWins * entropyIfIWins + pJWins * entropyIfJWins;
+	// Compute weighted sum of topKEntropy across K objectives
+	let expectedPosteriorEntropy = 0;
+	for (const { k, weight } of weights) {
+		if (weight < 0.01) continue;
+		const entropyIfIWins = topKEntropy(refitI.mu, refitI.sigma, k);
+		const entropyIfJWins = topKEntropy(refitJ.mu, refitJ.sigma, k);
+		expectedPosteriorEntropy += weight * (pIWins * entropyIfIWins + pJWins * entropyIfJWins);
+	}
 
 	return -expectedPosteriorEntropy; // higher is better (lower expected entropy)
 }
@@ -683,6 +706,24 @@ export function choleskySolve(l: Float64Array, b: Float64Array, n: number): void
 		}
 		b[i] = (b[i] - sum) / l[i * n + i];
 	}
+}
+
+/**
+ * Check if the ranking can stop early with a reduced K value.
+ *
+ * Loops from k-1 down to minK, returning the largest K that passes
+ * checkConfidenceStop, or null if none pass. The caller typically
+ * passes a z-score higher than the base z (the "reluctance" penalty)
+ * that decays over time, so early rounds require very strong evidence
+ * while later rounds accept the same threshold as full-K confidence.
+ */
+export function checkAdaptiveKReduction(mu: Float64Array, sigma: Float64Array, k: number, minK: number, z: number, confidenceThreshold: number): number | null {
+	for (let reducedK = k - 1; reducedK >= minK; reducedK--) {
+		if (checkConfidenceStop(mu, sigma, reducedK, z, confidenceThreshold)) {
+			return reducedK;
+		}
+	}
+	return null;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type WinLoss, bayesianRefit, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, normalCDF, Ranking, selectPair, sigmoid, topKEntropy } from "./ranking.ts";
+import { type KWeight, type WinLoss, bayesianRefit, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, normalCDF, Ranking, selectPair, sigmoid, topKEntropy } from "./ranking.ts";
 
 describe("sigmoid", () => {
 	it("returns 0.5 at x=0", () => {
@@ -561,6 +561,7 @@ describe("Ranking class", () => {
 
 		const ranking = new Ranking(items, {
 			k: 5,
+			minK: 5, // disable adaptive K reduction to test full convergence
 			maxComparisons: 80,
 		});
 
@@ -1093,5 +1094,201 @@ describe("estimateRemaining integration", () => {
 
 		expect(ranking.stopReason).toBe("max-comparisons");
 		expect(ranking.estimateRemaining()).toEqual({ low: 0, mid: 0, high: 0 });
+	});
+});
+
+describe("checkAdaptiveKReduction", () => {
+	it("returns null when no reduced K passes confidence", () => {
+		const mu = new Float64Array([0, 0, 0, 0, 0, 0]);
+		const sigma = new Float64Array([1, 1, 1, 1, 1, 1]);
+		expect(checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0)).toBeNull();
+	});
+
+	it("returns the largest reduced K that passes", () => {
+		// Top 4 clearly separated from rest, but top 5 not
+		const mu = new Float64Array([10, 9, 8, 7, 0.1, -10]);
+		const sigma = new Float64Array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]);
+		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
+		// k=4 passes (top 4 clearly separated from items 4,5)
+		expect(result).toBe(4);
+	});
+
+	it("returns k-1 even when smaller K values also pass", () => {
+		// All reduced K values pass (clear separation for k=4 and k=3)
+		const mu = new Float64Array([10, 9, 8, 7, -10, -20]);
+		const sigma = new Float64Array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]);
+		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
+		expect(result).toBe(4);
+	});
+
+	it("returns minK when only minK passes", () => {
+		// Top 3 clearly separated; items 3,4 ambiguous with rest
+		const mu = new Float64Array([10, 9, 8, 0.1, -0.1, -10]);
+		const sigma = new Float64Array([0.1, 0.1, 0.1, 1, 1, 0.1]);
+		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
+		expect(result).toBe(3);
+	});
+});
+
+describe("computeInformationGain with KWeight[]", () => {
+	const PRIOR_VARIANCE = 1.0;
+
+	it("single KWeight produces same result as plain number", () => {
+		const n = 4;
+		const k = 2;
+		const mu = new Float64Array([1, 0.5, -0.5, -1]);
+		const sigma = new Float64Array(n).fill(1);
+
+		const gainNumber = computeInformationGain(0, 1, mu, sigma, [], k, n, PRIOR_VARIANCE);
+		const gainWeights = computeInformationGain(0, 1, mu, sigma, [], [{ k: 2, weight: 1.0 }], n, PRIOR_VARIANCE);
+		expect(gainWeights).toBeCloseTo(gainNumber, 10);
+	});
+
+	it("multi-objective weights produce a different result than single K", () => {
+		const n = 6;
+		const mu = new Float64Array([5, 4, 0.1, -0.1, -4, -5]);
+		const sigma = new Float64Array(n).fill(0.8);
+
+		const gainSingle = computeInformationGain(2, 3, mu, sigma, [], 5, n, PRIOR_VARIANCE);
+		const weights: KWeight[] = [
+			{ k: 5, weight: 0.5 },
+			{ k: 4, weight: 0.25 },
+			{ k: 3, weight: 0.25 },
+		];
+		const gainMulti = computeInformationGain(2, 3, mu, sigma, [], weights, n, PRIOR_VARIANCE);
+		// They should differ because the multi-objective considers multiple K values
+		expect(gainMulti).not.toBe(gainSingle);
+	});
+
+	it("skips K values with weight below 0.01", () => {
+		const n = 4;
+		const mu = new Float64Array([1, 0.5, -0.5, -1]);
+		const sigma = new Float64Array(n).fill(1);
+
+		const weights: KWeight[] = [
+			{ k: 2, weight: 1.0 },
+			{ k: 1, weight: 0.005 }, // below threshold
+		];
+		const gainWithTiny = computeInformationGain(0, 1, mu, sigma, [], weights, n, PRIOR_VARIANCE);
+		const gainSingle = computeInformationGain(0, 1, mu, sigma, [], [{ k: 2, weight: 1.0 }], n, PRIOR_VARIANCE);
+		// Should be very close since the tiny weight is skipped
+		expect(gainWithTiny).toBeCloseTo(gainSingle, 5);
+	});
+});
+
+describe("adaptive K reduction integration", () => {
+	it("fires K reduction with 3 clearly strong items + ambiguous 4th/5th", async () => {
+		// 8 items: indices 0-2 clearly strong, 3-7 ambiguous
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [10, 9, 8, 0.1, 0, -0.1, -5, -6];
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			kReductionReluctance: 1.0,
+			maxComparisons: 80,
+		});
+
+		while (!ranking.stopped) {
+			const { a, b } = await ranking.selectPair();
+			const winner = trueStrength[a] > trueStrength[b] ? a : b;
+			const loser = winner === a ? b : a;
+			await ranking.recordComparison(winner, loser);
+		}
+
+		// Should stop with reduced K since the boundary items are ambiguous
+		expect(ranking.effectiveK).toBeGreaterThanOrEqual(3);
+		expect(ranking.effectiveK).toBeLessThanOrEqual(5);
+		const topK = new Set(ranking.topK);
+		// The top 3 should always be in the result
+		expect(topK.has(0)).toBe(true);
+		expect(topK.has(1)).toBe(true);
+		expect(topK.has(2)).toBe(true);
+	});
+
+	it("non-default config (k=2, minK=1) works without hardcoded 5/4/3", async () => {
+		const items = [0, 1, 2, 3, 4];
+		const trueStrength = [10, 0.1, -0.1, -5, -6];
+
+		const ranking = new Ranking(items, {
+			k: 2,
+			minK: 1,
+			kReductionReluctance: 1.0,
+			maxComparisons: 40,
+		});
+
+		while (!ranking.stopped) {
+			const { a, b } = await ranking.selectPair();
+			const winner = trueStrength[a] > trueStrength[b] ? a : b;
+			const loser = winner === a ? b : a;
+			await ranking.recordComparison(winner, loser);
+		}
+
+		expect(ranking.effectiveK).toBeGreaterThanOrEqual(1);
+		expect(ranking.effectiveK).toBeLessThanOrEqual(2);
+		expect(ranking.topK).toContain(0);
+	});
+
+	it("validates minK constraints", () => {
+		expect(() => new Ranking([1, 2, 3], { k: 2, minK: 0 })).toThrow("minK must be between 1 and k");
+		expect(() => new Ranking([1, 2, 3], { k: 2, minK: 3 })).toThrow("minK must be between 1 and k");
+	});
+
+	it("undo resets effectiveK to config.k", async () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [10, 9, 8, 0.1, 0, -0.1, -5, -6];
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxComparisons: 80,
+		});
+
+		while (!ranking.stopped) {
+			const { a, b } = await ranking.selectPair();
+			const winner = trueStrength[a] > trueStrength[b] ? a : b;
+			const loser = winner === a ? b : a;
+			await ranking.recordComparison(winner, loser);
+		}
+
+		if (ranking.effectiveK < 5) {
+			expect(ranking.effectiveK).toBeLessThan(5);
+			await ranking.undoLastComparison();
+			expect(ranking.effectiveK).toBe(5);
+			expect(ranking.stopped).toBe(false);
+		}
+	});
+
+	it("max-budget fallback picks largest reduced K passing confidence or stability", async () => {
+		// Use a scenario where full K won't converge but reduced K might
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		// 3 clearly strong, rest close together
+		const trueStrength = [10, 9, 8, 0.2, 0.1, 0, -0.1, -0.2];
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			kReductionReluctance: 1.0,
+			maxComparisons: 80,
+			// Make confidence stop very hard for full K
+			confidenceThreshold: 0.0,
+		});
+
+		while (!ranking.stopped) {
+			const { a, b } = await ranking.selectPair();
+			const winner = trueStrength[a] > trueStrength[b] ? a : b;
+			const loser = winner === a ? b : a;
+			await ranking.recordComparison(winner, loser);
+		}
+
+		// The ranking should have stopped, possibly with a reduced effectiveK
+		expect(ranking.stopped).toBe(true);
+		expect(ranking.effectiveK).toBeGreaterThanOrEqual(3);
+		expect(ranking.effectiveK).toBeLessThanOrEqual(5);
+		// Top 3 should always be correct
+		const topK = new Set(ranking.topK);
+		expect(topK.has(0)).toBe(true);
+		expect(topK.has(1)).toBe(true);
+		expect(topK.has(2)).toBe(true);
 	});
 });

@@ -157,6 +157,7 @@ export class FindMeaningRankingViewModel {
 			stop_reason: this._ranking.value.stopReason ?? "unknown",
 			total_time_ms: Math.round(performance.now() - this._phaseStartedAtMs),
 			chosen_count: chosenIds.length,
+			effective_k: this._ranking.value.effectiveK,
 		});
 	}
 
