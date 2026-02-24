@@ -88,15 +88,16 @@ function handleFinish(): void {
 					<div class="ranking-card blank" aria-hidden="true" />
 				</template>
 			</div>
-			<div class="undo-area">
-				<AppButton variant="secondary" emphasis="muted" :disabled="(selectedIndex === null && !vm.canUndo) || loading" @click="handleUndo">Undo</AppButton>
-			</div>
 		</div>
 
 		<div v-else class="end-state">
 			<h2>You're done!</h2>
 			<p>Your top sources of meaning have been identified.</p>
 			<AppButton variant="primary" @click="handleFinish">Explore Meaning</AppButton>
+		</div>
+
+		<div class="undo-area">
+			<AppButton variant="secondary" emphasis="muted" :disabled="(selectedIndex === null && !vm.canUndo) || loading" @click="handleUndo">Undo</AppButton>
 		</div>
 	</main>
 </template>
@@ -195,6 +196,7 @@ h1 {
 
 .undo-area {
 	text-align: center;
+	margin-top: var(--space-4);
 }
 
 .end-state {
