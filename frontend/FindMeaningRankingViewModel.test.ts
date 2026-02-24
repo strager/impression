@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { Window } from "happy-dom";
+import { watchSyncEffect } from "vue";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
@@ -199,5 +200,35 @@ describe("full ranking run", () => {
 		const chosen = loadChosenCardIds(sid());
 		expect(chosen).not.toBeNull();
 		expect(chosen!.length).toBe(5);
+	});
+
+	it("shows isComplete reactively when resuming a finished ranking", async () => {
+		// Complete a ranking and save the result.
+		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
+		setupSwipeProgressAllSwiped(cardIds);
+		const vm1 = new FindMeaningRankingViewModel(sid());
+		await vm1.initialize();
+		while (!vm1.isComplete) {
+			await vm1.choose(0);
+		}
+		// vm1 saved the completed ranking to localStorage.
+
+		// Simulate a page refresh: create a new ViewModel and initialize it.
+		const vm2 = new FindMeaningRankingViewModel(sid());
+
+		// Track what Vue's reactivity system sees for isComplete.
+		let isComplete: boolean | undefined;
+		watchSyncEffect(() => {
+			isComplete = vm2.isComplete;
+		});
+
+		// Before initialize, isComplete should be false.
+		expect(isComplete).toBe(false);
+
+		await vm2.initialize();
+
+		// After replaying a completed ranking, the reactive value of
+		// isComplete must be true so Vue re-renders to the end-state.
+		expect(isComplete).toBe(true);
 	});
 });

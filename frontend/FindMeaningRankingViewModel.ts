@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { type ShallowRef, ref, shallowRef, triggerRef } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
@@ -12,7 +12,9 @@ const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 export class FindMeaningRankingViewModel {
 	private readonly sessionId: string;
 	private readonly _currentPair = ref<[MeaningCard, MeaningCard] | null>(null);
-	private ranking: Ranking<string> | null = null;
+	// You should manually trigger this ref when calling mutating methods of
+	// Ranking.
+	private readonly _ranking: ShallowRef<Ranking<string> | null> = shallowRef(null);
 	private cardIds: string[] = [];
 	private _phaseStartedAtMs = 0;
 	private _pairShownAtMs = 0;
@@ -22,12 +24,12 @@ export class FindMeaningRankingViewModel {
 	}
 
 	get isComplete(): boolean {
-		return this.ranking?.stopped === true;
+		return this._ranking.value?.stopped === true;
 	}
 
 	get topK(): readonly MeaningCard[] {
-		if (this.ranking === null) return [];
-		return this.ranking.topK.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
+		if (this._ranking.value === null) return [];
+		return this._ranking.value.topK.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
 	}
 
 	get currentPair(): [MeaningCard, MeaningCard] | null {
@@ -35,15 +37,15 @@ export class FindMeaningRankingViewModel {
 	}
 
 	get round(): number {
-		return this.ranking?.round ?? 0;
+		return this._ranking.value?.round ?? 0;
 	}
 
 	get canUndo(): boolean {
-		return this.ranking !== null && this.ranking.round > 0;
+		return this._ranking.value !== null && this._ranking.value.round > 0;
 	}
 
 	get estimatedRemaining(): RemainingEstimate {
-		return this.ranking?.estimateRemaining() ?? null;
+		return this._ranking.value?.estimateRemaining() ?? null;
 	}
 
 	async initialize(): Promise<"ready" | "no-data" | "skip"> {
@@ -73,16 +75,17 @@ export class FindMeaningRankingViewModel {
 		}
 
 		const resumedFromRound = saved?.comparisons.length ?? 0;
-		this.ranking = new Ranking(resolvedCardIds, { k: 5 });
+		this._ranking.value = new Ranking(resolvedCardIds, { k: 5 });
 
 		if (saved !== null) {
 			for (const comp of saved.comparisons) {
-				if (this.ranking.stopped) break;
-				await this.ranking.recordComparison(comp.winner, comp.loser);
+				if (this._ranking.value.stopped) break;
+				await this._ranking.value.recordComparison(comp.winner, comp.loser);
+				triggerRef(this._ranking);
 			}
 		}
 
-		if (!this.ranking.stopped) {
+		if (!this._ranking.value.stopped) {
 			await this.showNextPair();
 		}
 
@@ -96,7 +99,7 @@ export class FindMeaningRankingViewModel {
 	}
 
 	async choose(index: 0 | 1): Promise<void> {
-		if (this.ranking === null || this.ranking.stopped) {
+		if (this._ranking.value === null || this._ranking.value.stopped) {
 			throw new Error("Cannot choose: ranking is null or stopped");
 		}
 		const pair = this._currentPair.value;
@@ -109,7 +112,8 @@ export class FindMeaningRankingViewModel {
 		const now = performance.now();
 		const timeOnPairMs = Math.round(now - this._pairShownAtMs);
 
-		const result = await this.ranking.recordComparison(winner.id, loser.id);
+		const result = await this._ranking.value.recordComparison(winner.id, loser.id);
+		triggerRef(this._ranking);
 
 		if (result.stopped) {
 			this.saveProgress(true);
@@ -118,20 +122,21 @@ export class FindMeaningRankingViewModel {
 			this.saveProgress(false);
 		}
 
-		const est = this.ranking.estimateRemaining();
+		const est = this._ranking.value.estimateRemaining();
 		capture("ranking_comparison_made", {
 			session_id: this.sessionId,
 			time_on_pair_ms: timeOnPairMs,
-			comparisons_so_far: this.ranking.round,
+			comparisons_so_far: this._ranking.value.round,
 			estimated_remaining: est !== null ? Math.ceil(est.mid) : -1,
 		});
 	}
 
 	async undo(): Promise<string> {
-		if (this.ranking === null || this.ranking.round === 0) {
+		if (this._ranking.value === null || this._ranking.value.round === 0) {
 			throw new Error("Cannot undo: no comparisons to undo");
 		}
-		const undone = await this.ranking.undoLastComparison();
+		const undone = await this._ranking.value.undoLastComparison();
+		triggerRef(this._ranking);
 		await this.showNextPair();
 		this.saveProgress(false);
 
@@ -140,37 +145,37 @@ export class FindMeaningRankingViewModel {
 	}
 
 	finalize(): void {
-		if (this.ranking === null) {
+		if (this._ranking.value === null) {
 			throw new Error("Cannot finalize: ranking is null");
 		}
-		const chosenIds = this.ranking.topK;
+		const chosenIds = this._ranking.value.topK;
 		saveChosenCardIds(this.sessionId, [...chosenIds]);
 
 		capture("ranking_completed", {
 			session_id: this.sessionId,
-			comparisons_made: this.ranking.round,
-			stop_reason: this.ranking.stopReason ?? "unknown",
+			comparisons_made: this._ranking.value.round,
+			stop_reason: this._ranking.value.stopReason ?? "unknown",
 			total_time_ms: Math.round(performance.now() - this._phaseStartedAtMs),
 			chosen_count: chosenIds.length,
 		});
 	}
 
 	private saveProgress(complete: boolean): void {
-		if (this.ranking === null) {
+		if (this._ranking.value === null) {
 			throw new Error("Cannot save progress: ranking is null");
 		}
 		saveRanking(this.sessionId, {
 			cardIds: this.cardIds,
-			comparisons: this.ranking.history.map((c) => ({ winner: c.winner, loser: c.loser })),
+			comparisons: this._ranking.value.history.map((c) => ({ winner: c.winner, loser: c.loser })),
 			complete,
 		});
 	}
 
 	private async showNextPair(): Promise<void> {
-		if (this.ranking === null) {
+		if (this._ranking.value === null) {
 			throw new Error("Cannot show next pair: ranking is null");
 		}
-		const { a, b } = await this.ranking.selectPair();
+		const { a, b } = await this._ranking.value.selectPair();
 		const cardA = cardsById.get(a);
 		const cardB = cardsById.get(b);
 		if (cardA === undefined || cardB === undefined) {
