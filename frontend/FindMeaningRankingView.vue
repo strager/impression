@@ -70,7 +70,7 @@ function handleFinish(): void {
 		<header>
 			<h1>Find Meaning — Rank</h1>
 			<p class="instruction">Choose which source of meaning resonates with you more.</p>
-			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining.mid))} ${Math.ceil(vm.estimatedRemaining.mid) === 1 ? "comparison" : "comparisons"} remaining.` : "&nbsp;" }}</p>
+			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null || vm.estimatedRemaining.mid === 0 }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining.mid))} ${Math.ceil(vm.estimatedRemaining.mid) === 1 ? "comparison" : "comparisons"} remaining.` : "&nbsp;" }}</p>
 		</header>
 
 		<div v-if="!vm.isComplete" class="ranking-area">
