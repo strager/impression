@@ -502,7 +502,7 @@ export const MEANING_STATEMENTS: readonly MeaningStatement[] = [
 	{
 		id: "83",
 		meaningId: "attentiveness",
-		statement: "I want to experience every moment of my life to the full",
+		statement: "I want to experience every moment of my life to the fullest",
 		isPrimary: true,
 	},
 	{
