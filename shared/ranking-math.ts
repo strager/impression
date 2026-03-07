@@ -1,752 +1,668 @@
 // ============================================================
-// Top-k Identification via Bayesian Bradley-Terry
-// with Information-Gain Pair Selection — Pure Math Functions
+// MaxDiff (Best-Worst Scaling) — Pure Math Functions
 // ============================================================
 //
-// This module contains the stateless mathematical functions used by
-// the Ranking class. It is designed to be imported by the worker
-// script without triggering circular dependencies.
+// Sequential logit model for MaxDiff observations:
+//   P(best=b | set S)       = softmax(u over S)[b]
+//   P(worst=w | S\{b})      = softmax(-u over S\{b})[w]
 //
-// topKEntropy uses a sum-of-marginals surrogate rather than the
-// true joint top-k set entropy H(S). The original Monte Carlo
-// estimator of H(S) was too slow for interactive use despite being
-// a closer approximation of the optimal objective. The surrogate
-// is deterministic and faster but not guaranteed to preserve pair
-// ordering in all cases.
+// MLE with L2 regularization + Laplace approximation for
+// uncertainty (inverse Hessian as approximate covariance).
 // ============================================================
 
-export type WinLoss = readonly [winner: number, loser: number];
+export interface MaxDiffObservation {
+	set: number[];
+	best: number;
+	worst: number;
+}
 
 export type RemainingEstimate = { low: number; mid: number; high: number } | null;
 
-/**
- * A (k, weight) pair for multi-objective pair selection.
- * computeInformationGain accepts an array of these to evaluate
- * information gain as a weighted sum across multiple K values.
- */
-export interface KWeight {
-	readonly k: number;
-	readonly weight: number;
+export interface XorshiftRng {
+	/** Return next value in (0, 1). */
+	next(): number;
+	/** Current internal state (readable/restorable). */
+	state: number;
 }
 
 /** Create a xorshift32 PRNG returning values in (0, 1). */
-export function makeXorshift(seed: number): () => number {
+export function makeXorshift(seed: number): XorshiftRng {
 	let state = seed === 0 ? 1 : seed;
-	return () => {
-		state ^= state << 13;
-		state ^= state >> 17;
-		state ^= state << 5;
-		return (state >>> 0) / 0x100000000;
-	};
-}
-
-/**
- * Evaluate all possible pairs and return the one whose comparison would
- * teach us the most about which items are in the top-k.
- *
- * Exhaustive search over all C(N,2) pairs using computeInformationGain.
- * Applies a recency discount to pairs containing items from the last
- * comparison to reduce repeated presentations of the same item.
- *
- * @param recencyDiscount - multiplier in (0, 1] applied to the information
- *   gain of pairs that include items from the most recent comparison.
- *   1.0 = no discount; 0.5 = halve the effective informativeness of
- *   recently-shown items. Default 1.0.
- * @returns [i, j] — the most informative pair of indices
- */
-export function selectPair(mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], kOrWeights: number | readonly KWeight[], n: number, priorVariance: number, recencyDiscount = 1.0): [number, number] {
-	let bestPair: [number, number] = [0, 1];
-	let bestGain = -Infinity;
-
-	// Extract the last pair from history for recency discounting
-	const lastPair = history.length > 0 ? history[history.length - 1] : null;
-
-	for (let i = 0; i < n; i++) {
-		for (let j = i + 1; j < n; j++) {
-			let gain = computeInformationGain(i, j, mu, sigma, history, kOrWeights, n, priorVariance);
-
-			// Penalize pairs that include items from the last comparison.
-			// Gain is negative (higher = better), so dividing by a value < 1
-			// makes the gain more negative (worse), discouraging repeat items.
-			if (lastPair !== null && recencyDiscount < 1) {
-				if (i === lastPair[0] || i === lastPair[1]) {
-					gain /= recencyDiscount;
-				}
-				if (j === lastPair[0] || j === lastPair[1]) {
-					gain /= recencyDiscount;
-				}
-			}
-
-			if (gain > bestGain) {
-				bestGain = gain;
-				bestPair = [i, j];
-			}
-		}
-	}
-
-	return bestPair;
-}
-
-/**
- * Compute the expected information gain about the top-k identity from
- * comparing items i vs j. Simulates both outcomes ("i wins" and "j wins"),
- * refits the model for each, computes the resulting top-k entropy, and
- * returns the negative expected posterior entropy (higher = more informative).
- *
- * @param kOrWeights - either a single k (number) or an array of KWeight
- *   for multi-objective evaluation. When given KWeight[], the information
- *   gain is a weighted sum of topKEntropy across all K values. bayesianRefit
- *   is called once per outcome regardless; only topKEntropy (cheap) is
- *   called multiple times. Weights below 0.01 are skipped.
- *
- * Chaloner, K., & Verdinelli, I. (1995). "Bayesian Experimental Design:
- *   A Review." Statistical Science, 10(3), 273-304.
- *
- * MacKay, D. J. C. (1992). "Information-Based Objective Functions for Active
- *   Model Selection." Neural Computation, 4(4), 590-604.
- *
- * Pfeiffer, T., Gao, X. A., Chen, Y., Mao, A., & Rand, D. G. (2012).
- *   "Adaptive Polling for Information Aggregation." AAAI, 26(1).
- */
-export function computeInformationGain(i: number, j: number, mu: Float64Array, sigma: Float64Array, history: readonly WinLoss[], kOrWeights: number | readonly KWeight[], n: number, priorVariance: number): number {
-	const weights: readonly KWeight[] = typeof kOrWeights === "number" ? [{ k: kOrWeights, weight: 1 }] : kOrWeights;
-
-	const pIWins = sigmoid(mu[i] - mu[j]);
-	const pJWins = 1 - pIWins;
-
-	// Simulate outcome: i beats j
-	const historyI: WinLoss[] = [...history, [i, j]];
-	const refitI = bayesianRefit(historyI, n, priorVariance);
-
-	// Simulate outcome: j beats i
-	const historyJ: WinLoss[] = [...history, [j, i]];
-	const refitJ = bayesianRefit(historyJ, n, priorVariance);
-
-	// Compute weighted sum of topKEntropy across K objectives
-	let expectedPosteriorEntropy = 0;
-	for (const { k, weight } of weights) {
-		if (weight < 0.01) continue;
-		const entropyIfIWins = topKEntropy(refitI.mu, refitI.sigma, k);
-		const entropyIfJWins = topKEntropy(refitJ.mu, refitJ.sigma, k);
-		expectedPosteriorEntropy += weight * (pIWins * entropyIfIWins + pJWins * entropyIfJWins);
-	}
-
-	return -expectedPosteriorEntropy; // higher is better (lower expected entropy)
-}
-
-/**
- * Stop when the weakest top-k item's lower confidence bound exceeds the
- * strongest non-top-k item's upper confidence bound.
- *
- * Kalyanakrishnan, S., Tewari, A., Auer, P., & Stone, P. (2012). "PAC
- *   Subset Selection in Stochastic Multi-Armed Bandits." ICML.
- *
- * Kaufmann, E., & Kalyanakrishnan, S. (2013). "Information Complexity in
- *   Bandit Subset Selection." COLT.
- *
- * @param mu - MAP strength estimates
- * @param sigma - marginal standard deviations
- * @param k - number of top items
- * @param z - confidence level (e.g. 1.96 for 95%)
- * @param confidenceThreshold - gap must exceed this value (default 0)
- */
-export function checkConfidenceStop(mu: Float64Array, sigma: Float64Array, k: number, z: number, confidenceThreshold: number): boolean {
-	const constraint = findBindingConstraint(mu, sigma, k, z);
-	if (constraint === null) return true; // k >= n, all items in top-k
-	return constraint.weakestLcb - constraint.strongestUcb > confidenceThreshold;
-}
-
-/**
- * Find the binding constraint for confidence-based stopping: the weakest
- * top-k item (lowest LCB) and the strongest non-top-k item (highest UCB).
- *
- * Returns null when k >= n (all items are in the top-k).
- */
-function findBindingConstraint(mu: Float64Array, sigma: Float64Array, k: number, z: number): { weakestIdx: number; weakestLcb: number; strongestIdx: number; strongestUcb: number } | null {
-	const sorted = argsortDescending(mu);
-	const topK = sorted.slice(0, k);
-	const rest = sorted.slice(k);
-
-	if (rest.length === 0) return null;
-
-	let weakestIdx = topK[0];
-	let weakestLcb = mu[topK[0]] - z * sigma[topK[0]];
-	for (const i of topK) {
-		const lcb = mu[i] - z * sigma[i];
-		if (lcb < weakestLcb) {
-			weakestLcb = lcb;
-			weakestIdx = i;
-		}
-	}
-
-	let strongestIdx = rest[0];
-	let strongestUcb = mu[rest[0]] + z * sigma[rest[0]];
-	for (const j of rest) {
-		const ucb = mu[j] + z * sigma[j];
-		if (ucb > strongestUcb) {
-			strongestUcb = ucb;
-			strongestIdx = j;
-		}
-	}
-
-	return { weakestIdx, weakestLcb, strongestIdx, strongestUcb };
-}
-
-/**
- * Check if the top-k set has been unchanged for stabilityWindow rounds.
- * Returns the new stable count and the current top-k set (as a sorted array
- * of indices).
- *
- * @param mu - MAP strength estimates
- * @param k - number of top items
- * @param previousTopK - previous top-k set (sorted array of indices), or null
- * @param stableCount - current consecutive stable round count
- * @param stabilityWindow - number of consecutive stable rounds to trigger stop
- */
-export function checkStabilityStop(mu: Float64Array, k: number, previousTopK: readonly number[] | null, stableCount: number, stabilityWindow: number): { stopped: boolean; topK: number[]; stableCount: number } {
-	const sorted = argsortDescending(mu);
-	const currentTopK = sorted.slice(0, k).sort((a, b) => a - b);
-
-	let same = false;
-	if (previousTopK !== null && previousTopK.length === currentTopK.length) {
-		same = true;
-		for (let i = 0; i < currentTopK.length; i++) {
-			if (currentTopK[i] !== previousTopK[i]) {
-				same = false;
-				break;
-			}
-		}
-	}
-
-	const newStableCount = same ? stableCount + 1 : 0;
-
 	return {
-		stopped: newStableCount >= stabilityWindow,
-		topK: currentTopK,
-		stableCount: newStableCount,
+		next(): number {
+			state ^= state << 13;
+			state ^= state >> 17;
+			state ^= state << 5;
+			return (state >>> 0) / 0x100000000;
+		},
+		get state(): number {
+			return state;
+		},
+		set state(s: number) {
+			state = s;
+		},
 	};
 }
 
 /**
- * Estimate how many rounds remain until the stability stop triggers.
- *
- * Uses the empirical flip rate from a sliding window of recent rounds to
- * model the expected number of consecutive non-flip rounds needed. Produces
- * a confidence interval via a Beta posterior on the flip probability.
- *
- * @param flipHistory - boolean array: true = top-k set changed on that round
- * @param stableCount - current consecutive stable round count
- * @param stabilityWindow - number of consecutive stable rounds to trigger stop
- * @param maxRemaining - optional hard cap on remaining rounds
+ * Helper: return indices sorted by descending value.
  */
-export function estimateStabilityStop(flipHistory: readonly boolean[], stableCount: number, stabilityWindow: number, maxRemaining?: number): RemainingEstimate {
-	const cappedMaxRemaining = maxRemaining !== undefined ? Math.max(0, maxRemaining) : undefined;
-	if (cappedMaxRemaining !== undefined && cappedMaxRemaining === 0) {
-		return { low: 0, mid: 0, high: 0 };
-	}
-
-	if (flipHistory.length < stabilityWindow) return null;
-
-	const needed = stabilityWindow - stableCount;
-
-	// Empirical flip rate from sliding window with Jeffreys prior
-	const window = Math.min(15, flipHistory.length);
-	let flips = 0;
-	for (let i = flipHistory.length - window; i < flipHistory.length; i++) {
-		if (flipHistory[i]) flips++;
-	}
-	const p = (flips + 0.5) / (window + 1);
-
-	// Expected remaining rounds via Markov chain:
-	// Need `needed` consecutive non-flip rounds.
-	// E[rounds] = (1/q) * ((1/q)^needed - 1) / (1/q - 1) when p >= 0.01
-	function expectedRounds(flipProb: number, need: number): number {
-		if (need <= 0) return 0;
-		const qq = 1 - flipProb;
-		if (flipProb < 0.01) return need;
-		const invQ = 1 / qq;
-		return (invQ * (Math.pow(invQ, need) - 1)) / (invQ - 1);
-	}
-
-	const rawMid = expectedRounds(p, needed);
-
-	// Confidence interval via normal approximation to Beta posterior
-	const se = 0.675 * Math.sqrt((p * (1 - p)) / (window + 1));
-	const pLow = Math.max(0, p - se);
-	const pHigh = Math.min(0.99, p + se);
-
-	// Higher flip prob → more remaining rounds
-	const rawLow = expectedRounds(pLow, needed);
-	const rawHigh = expectedRounds(pHigh, needed);
-
-	const low = cappedMaxRemaining === undefined ? rawLow : Math.min(rawLow, cappedMaxRemaining);
-	const mid = cappedMaxRemaining === undefined ? rawMid : Math.min(rawMid, cappedMaxRemaining);
-	const high = cappedMaxRemaining === undefined ? rawHigh : Math.min(rawHigh, cappedMaxRemaining);
-
-	// Hide unreliable estimates where the confidence interval is too wide
-	if (high > 3 * low && high - low > stabilityWindow) return null;
-
-	return { low, mid, high };
-}
-
-/**
- * Helper: return indices sorted by descending mu value.
- */
-export function argsortDescending(mu: Float64Array): number[] {
+export function argsortDescending(values: Float64Array | readonly number[]): number[] {
 	const indices: number[] = [];
-	for (let i = 0; i < mu.length; i++) {
+	for (let i = 0; i < values.length; i++) {
 		indices.push(i);
 	}
-	indices.sort((a, b) => mu[b] - mu[a]);
+	indices.sort((a, b) => {
+		const va = typeof values[a] === "number" ? values[a] : 0;
+		const vb = typeof values[b] === "number" ? values[b] : 0;
+		return vb - va;
+	});
 	return indices;
 }
 
 /**
- * Standard normal CDF: P(Z ≤ x) where Z ~ N(0,1).
+ * Log-likelihood of a single MaxDiff observation under the sequential logit model.
  *
- * Uses the Abramowitz & Stegun rational approximation (formula 26.2.17).
- * Maximum absolute error ≈ 7.5 × 10⁻⁸.
+ * P(best=b, worst=w | S, u) = softmax(u over S)[b] * softmax(-u over S\{b})[w]
  */
-export function normalCDF(x: number): number {
-	if (x < -8) return 0;
-	if (x > 8) return 1;
-	const a = Math.abs(x);
-	const t = 1 / (1 + 0.2316419 * a);
-	const d = 0.3989422804014327; // 1/sqrt(2*pi)
-	const poly = t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-	const tail = d * Math.exp(-0.5 * a * a) * poly;
-	return x >= 0 ? 1 - tail : tail;
-}
+export function sequentialLogitLogLik(obs: MaxDiffObservation, u: Float64Array): number {
+	const { set, best, worst } = obs;
 
-// Gauss-Hermite quadrature nodes and weights (Q=7).
-// These integrate ∫ f(t)·exp(-t²) dt exactly for polynomial f of degree ≤ 13.
-// Source: Abramowitz & Stegun, Table 25.10.
-const GH_NODES: readonly number[] = [-2.6519613568352334, -1.6735516287674714, -0.8162878828589647, 0.0, 0.8162878828589647, 1.6735516287674714, 2.6519613568352334];
-const GH_WEIGHTS: readonly number[] = [0.0009717812450995193, 0.054515582819127044, 0.4256072526101283, 0.8102646175568073, 0.4256072526101283, 0.054515582819127044, 0.0009717812450995193];
-
-const SIGMA_EPS = 1e-15;
-const INV_SQRT_PI = 1 / Math.sqrt(Math.PI);
-
-/**
- * Compute P(at most k-1 of the items j ≠ skipIndex exceed threshold x),
- * where each item j independently exceeds x with probability qProbs[j].
- *
- * Uses dynamic programming over a Poisson binomial distribution.
- * The dp buffer (length ≥ k) is overwritten and reused across calls.
- */
-function poissonBinomialAtMostK(qProbs: Float64Array, n: number, k: number, skipIndex: number, dp: Float64Array): number {
-	// dp[m] = P(exactly m successes among items processed so far)
-	dp[0] = 1;
-	for (let m = 1; m < k; m++) dp[m] = 0;
-
-	let count = 0;
-	for (let j = 0; j < n; j++) {
-		if (j === skipIndex) continue;
-		const q = qProbs[j];
-		const limit = Math.min(count, k - 2);
-		for (let m = limit + 1; m >= 1; m--) {
-			dp[m] = dp[m] * (1 - q) + dp[m - 1] * q;
-		}
-		dp[0] *= 1 - q;
-		count++;
+	// log P(best | set) = u[best] - log(sum exp(u[j]) for j in set)
+	let maxU = -Infinity;
+	for (const j of set) {
+		if (u[j] > maxU) maxU = u[j];
 	}
-
-	// Sum dp[0..k-1] = P(at most k-1 successes)
-	let sum = 0;
-	for (let m = 0; m < k; m++) {
-		sum += dp[m];
+	let sumExp = 0;
+	for (const j of set) {
+		sumExp += Math.exp(u[j] - maxU);
 	}
-	return sum;
+	const logPBest = u[best] - maxU - Math.log(sumExp);
+
+	// log P(worst | set\{best}) using -u
+	const setMinusBest = set.filter((j) => j !== best);
+	let maxNegU = -Infinity;
+	for (const j of setMinusBest) {
+		if (-u[j] > maxNegU) maxNegU = -u[j];
+	}
+	let sumExpNeg = 0;
+	for (const j of setMinusBest) {
+		sumExpNeg += Math.exp(-u[j] - maxNegU);
+	}
+	const logPWorst = -u[worst] - maxNegU - Math.log(sumExpNeg);
+
+	return logPBest + logPWorst;
 }
 
 /**
- * Compute p_i = P(item i ∈ top-k) via Gauss-Hermite quadrature.
- *
- * Integrates over item i's score distribution and, at each quadrature
- * point, uses the Poisson binomial DP to compute the probability that
- * at most k-1 other items outscore item i.
- *
- * The dp (length ≥ k) and qProbs (length ≥ n) buffers are reused.
+ * Gradient of regularized negative log-posterior:
+ *   -sum log P(obs) + lambda * ||u||^2
  */
-function topKMarginalProb(i: number, mu: Float64Array, sigma: Float64Array, k: number, n: number, dp: Float64Array, qProbs: Float64Array): number {
-	const si = sigma[i];
+export function negLogPosteriorGradient(data: readonly MaxDiffObservation[], u: Float64Array, lambdaL2: number, n: number): Float64Array {
+	const grad = new Float64Array(n);
 
-	// If sigma_i ≈ 0, item i's score is deterministic at mu_i.
-	if (si < SIGMA_EPS) {
-		const x = mu[i];
-		for (let j = 0; j < n; j++) {
-			if (sigma[j] < SIGMA_EPS) {
-				qProbs[j] = mu[j] > x ? 1 : 0;
-			} else {
-				qProbs[j] = 1 - normalCDF((x - mu[j]) / sigma[j]);
-			}
+	for (const obs of data) {
+		const { set, best, worst } = obs;
+
+		// Softmax probabilities for best choice
+		let maxU = -Infinity;
+		for (const j of set) {
+			if (u[j] > maxU) maxU = u[j];
 		}
-		return poissonBinomialAtMostK(qProbs, n, k, i, dp);
-	}
-
-	let weightedSum = 0;
-
-	for (let q = 0; q < GH_NODES.length; q++) {
-		const x = mu[i] + si * Math.SQRT2 * GH_NODES[q];
-
-		// Compute P(item j > x) for each j
-		for (let j = 0; j < n; j++) {
-			if (sigma[j] < SIGMA_EPS) {
-				qProbs[j] = mu[j] > x ? 1 : 0;
-			} else {
-				// P(j > x) = 1 - Φ((x - μ_j) / σ_j)
-				qProbs[j] = 1 - normalCDF((x - mu[j]) / sigma[j]);
-			}
+		let sumExp = 0;
+		const expU: number[] = [];
+		for (const j of set) {
+			const e = Math.exp(u[j] - maxU);
+			expU.push(e);
+			sumExp += e;
 		}
 
-		weightedSum += GH_WEIGHTS[q] * poissonBinomialAtMostK(qProbs, n, k, i, dp);
+		// grad_i of -log P(best) = p_i - indicator(i == best)
+		for (let idx = 0; idx < set.length; idx++) {
+			const j = set[idx];
+			const p = expU[idx] / sumExp;
+			grad[j] += p - (j === best ? 1 : 0);
+		}
+
+		// Softmax probabilities for worst choice (using -u over set\{best})
+		const setMinusBest = set.filter((j) => j !== best);
+		let maxNegU = -Infinity;
+		for (const j of setMinusBest) {
+			if (-u[j] > maxNegU) maxNegU = -u[j];
+		}
+		let sumExpNeg = 0;
+		const expNegU: number[] = [];
+		for (const j of setMinusBest) {
+			const e = Math.exp(-u[j] - maxNegU);
+			expNegU.push(e);
+			sumExpNeg += e;
+		}
+
+		// grad_i of -log P(worst) = -(q_i - indicator(i == worst))
+		// = -q_i + indicator(i == worst)
+		// But since we're using -u, the chain rule gives:
+		// d/du_i [-log softmax(-u)[worst]] = q_i - indicator(i == worst)
+		// Wait, let me be careful. Let v = -u. softmax(v)[w] = exp(v_w)/sum exp(v_j).
+		// -log softmax(v)[w] = -v_w + log sum exp(v_j)
+		// d/du_i = d/dv_i * dv_i/du_i = (softmax(v)[i] - indicator(i==w)) * (-1)
+		// = -(softmax(-u)[i] - indicator(i==w))
+		// = -q_i + indicator(i==w)
+		for (let idx = 0; idx < setMinusBest.length; idx++) {
+			const j = setMinusBest[idx];
+			const q = expNegU[idx] / sumExpNeg;
+			grad[j] += -q + (j === worst ? 1 : 0);
+		}
 	}
 
-	// Gauss-Hermite computes ∫ f(t)·exp(-t²) dt; normalizing to ∫ φ(x) g(x) dx
-	// requires a factor of 1/√π after the substitution x = μ + σ√2·t.
-	return weightedSum * INV_SQRT_PI;
-}
-
-/**
- * Estimate how uncertain we still are about which K items are the best.
- *
- * Computes a surrogate for the true joint top-k set entropy H(S) using
- * the sum of per-item marginal membership entropies:
- *   H_proxy = Σ_i h(p_i), where p_i = P(item i ∈ top-k)
- * and h(p) = -p log(p) - (1-p) log(1-p) is binary entropy.
- *
- * This is an upper bound on H(S) (by subadditivity of entropy) and is
- * not guaranteed to preserve the ordering of pairs by information gain.
- * It is used as a speed-oriented surrogate: the original Monte Carlo
- * estimator of H(S) was too slow (65,000 samples per pair selection)
- * despite being a closer approximation of the optimal objective.
- *
- * Each p_i is computed via Gauss-Hermite quadrature over item i's
- * posterior score distribution, combined with a Poisson binomial DP
- * for the probability that at most k-1 other items outscore item i.
- *
- * @param mu - MAP strength estimates (length N)
- * @param sigma - marginal standard deviations (length N)
- * @param k - number of top items to identify
- */
-export function topKEntropy(mu: Float64Array, sigma: Float64Array, k: number): number {
-	const n = mu.length;
-	if (k <= 0 || k >= n) return 0;
-
-	// Pre-allocate buffers reused across items and quadrature points.
-	const dp = new Float64Array(k);
-	const qProbs = new Float64Array(n);
-
-	let entropy = 0;
+	// L2 regularization: + 2 * lambda * u_i
 	for (let i = 0; i < n; i++) {
-		const p = topKMarginalProb(i, mu, sigma, k, n, dp, qProbs);
-		if (p > 0 && p < 1) {
-			entropy -= p * Math.log(p) + (1 - p) * Math.log(1 - p);
+		grad[i] += 2 * lambdaL2 * u[i];
+	}
+
+	return grad;
+}
+
+/**
+ * Hessian of regularized negative log-posterior (dense N×N, row-major Float64Array).
+ */
+export function negLogPosteriorHessian(data: readonly MaxDiffObservation[], u: Float64Array, lambdaL2: number, n: number): Float64Array {
+	const H = new Float64Array(n * n);
+
+	for (const obs of data) {
+		const { set, best } = obs;
+
+		// Best-choice Hessian contribution: diag(p) - p*p^T
+		const probs = softmaxProbs(set, u);
+		for (let si = 0; si < set.length; si++) {
+			const i = set[si];
+			const pi = probs[si];
+			for (let sj = 0; sj < set.length; sj++) {
+				H[i * n + set[sj]] += -pi * probs[sj];
+			}
+			H[i * n + i] += pi;
+		}
+
+		// Worst-choice Hessian contribution: diag(q) - q*q^T over set\{best} with -u
+		const setMinusBest = set.filter((j) => j !== best);
+		const negU = new Float64Array(n);
+		for (let i = 0; i < n; i++) negU[i] = -u[i];
+		const qProbs = softmaxProbs(setMinusBest, negU);
+		for (let si = 0; si < setMinusBest.length; si++) {
+			const i = setMinusBest[si];
+			const qi = qProbs[si];
+			for (let sj = 0; sj < setMinusBest.length; sj++) {
+				H[i * n + setMinusBest[sj]] += -qi * qProbs[sj];
+			}
+			H[i * n + i] += qi;
 		}
 	}
 
-	return entropy;
+	// L2 regularization: + 2 * lambda * I
+	for (let i = 0; i < n; i++) {
+		H[i * n + i] += 2 * lambdaL2;
+	}
+
+	return H;
+}
+
+/** Compute softmax probabilities for indices in `set` using utilities `u`. */
+function softmaxProbs(set: readonly number[], u: Float64Array): number[] {
+	let maxVal = -Infinity;
+	for (const j of set) {
+		if (u[j] > maxVal) maxVal = u[j];
+	}
+	let sumExp = 0;
+	const probs: number[] = new Array<number>(set.length);
+	for (let i = 0; i < set.length; i++) {
+		const e = Math.exp(u[set[i]] - maxVal);
+		probs[i] = e;
+		sumExp += e;
+	}
+	for (let i = 0; i < set.length; i++) {
+		probs[i] /= sumExp;
+	}
+	return probs;
 }
 
 /**
- * Box-Muller transform: generate a standard normal sample from two uniform
- * random numbers in (0, 1).
+ * Invert a dense N×N matrix (row-major Float64Array) using Gaussian elimination
+ * with partial pivoting. Adds eps to diagonal for numerical stability.
  */
-export function boxMuller(rng: () => number): number {
-	const u1 = rng();
-	const u2 = rng();
-	return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+export function invertMatrix(h: Float64Array, n: number, eps: number): Float64Array {
+	// Build augmented matrix [H | I]
+	const aug = new Float64Array(n * 2 * n);
+	for (let i = 0; i < n; i++) {
+		for (let j = 0; j < n; j++) {
+			aug[i * 2 * n + j] = h[i * n + j];
+		}
+		aug[i * 2 * n + i] += eps;
+		aug[i * 2 * n + n + i] = 1;
+	}
+
+	const cols = 2 * n;
+
+	// Forward elimination with partial pivoting
+	for (let col = 0; col < n; col++) {
+		// Find pivot
+		let maxVal = Math.abs(aug[col * cols + col]);
+		let maxRow = col;
+		for (let row = col + 1; row < n; row++) {
+			const v = Math.abs(aug[row * cols + col]);
+			if (v > maxVal) {
+				maxVal = v;
+				maxRow = row;
+			}
+		}
+
+		// Swap rows
+		if (maxRow !== col) {
+			for (let j = 0; j < cols; j++) {
+				const tmp = aug[col * cols + j];
+				aug[col * cols + j] = aug[maxRow * cols + j];
+				aug[maxRow * cols + j] = tmp;
+			}
+		}
+
+		const pivot = aug[col * cols + col];
+
+		// Scale pivot row
+		for (let j = col; j < cols; j++) {
+			aug[col * cols + j] /= pivot;
+		}
+
+		// Eliminate column
+		for (let row = 0; row < n; row++) {
+			if (row === col) continue;
+			const factor = aug[row * cols + col];
+			for (let j = col; j < cols; j++) {
+				aug[row * cols + j] -= factor * aug[col * cols + j];
+			}
+		}
+	}
+
+	// Extract inverse from right half
+	const inv = new Float64Array(n * n);
+	for (let i = 0; i < n; i++) {
+		for (let j = 0; j < n; j++) {
+			inv[i * n + j] = aug[i * cols + n + j];
+		}
+	}
+	return inv;
 }
 
 /**
- * Full Bayesian refit of all N strength parameters.
- *
- * Instead of just guessing a single score for each item, we track how *sure*
- * we are about each score. An item that's been compared ten times has a tight
- * range. An item compared once has a wide range. This function re-estimates
- * all scores and their uncertainties from scratch given the full history.
- *
- * Maximizes the log-posterior:
- *   log P(strengths | data) =
- *     sum_{(w,l) in history} log sigma(mu_w - mu_l)    [likelihood]
- *     - sum_i  mu_i^2 / (2 * priorVariance)            [Gaussian prior]
- *
- * Pins mu[0] = 0 for identifiability (Bradley-Terry strengths are only
- * defined up to a constant). Optimizes the remaining N-1 free parameters
- * with Newton's method, then extracts sigma from the inverse Hessian
- * (Laplace approximation).
- *
- * Caron, F., & Doucet, A. (2012). "Efficient Bayesian Inference for
- *   Generalized Bradley-Terry Models." JCGS, 21(1), 174-196.
- *
- * Herbrich, R., Minka, T., & Graepel, T. (2006). "TrueSkill: A Bayesian
- *   Skill Rating System." NeurIPS, 19.
- *
- * @param history - array of [winner, loser] index pairs
- * @param n - number of items
- * @param priorVariance - prior variance for each strength parameter
- * @returns mu (MAP estimates) and sigma (marginal standard deviations)
+ * Standard normal CDF approximation (Abramowitz & Stegun 26.2.17).
  */
-export function bayesianRefit(history: readonly WinLoss[], n: number, priorVariance: number): { mu: Float64Array; sigma: Float64Array } {
-	const mu = new Float64Array(n); // all zeros
-	const sigma = new Float64Array(n);
+export function normalCdf(z: number): number {
+	if (z < -8) return 0;
+	if (z > 8) return 1;
 
-	// Edge case: no data — return prior
-	if (history.length === 0) {
-		sigma.fill(Math.sqrt(priorVariance));
+	const a1 = 0.254829592;
+	const a2 = -0.284496736;
+	const a3 = 1.421413741;
+	const a4 = -1.453152027;
+	const a5 = 1.061405429;
+	const p = 0.3275911;
+
+	const sign = z < 0 ? -1 : 1;
+	const x = Math.abs(z) / Math.SQRT2;
+	const t = 1.0 / (1.0 + p * x);
+	const y = 1.0 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+
+	return 0.5 * (1 + sign * y);
+}
+
+/**
+ * Fit MLE utilities and compute Laplace approximation covariance.
+ *
+ * Newton's method with sum(u)=0 constraint enforced by projection.
+ * Returns { mu, sigma } where sigma is the diagonal of the inverse Hessian
+ * (full covariance is also available internally but we only need the diagonal
+ * and pairwise terms for confidentTopK).
+ */
+export function fitSequentialLogitMLE(data: readonly MaxDiffObservation[], n: number, lambdaL2: number): { mu: Float64Array; sigma: Float64Array } {
+	const mu = new Float64Array(n);
+	const sigma = new Float64Array(n * n);
+
+	if (data.length === 0 || n <= 1) {
+		// Initial high uncertainty
+		const initVar = 1.0 / (2 * lambdaL2);
+		for (let i = 0; i < n; i++) {
+			sigma[i * n + i] = initVar;
+		}
 		return { mu, sigma };
 	}
 
-	// We pin mu[0] = 0 and optimize indices 1..n-1.
-	// m = n-1 is the number of free parameters.
-	const m = n - 1;
+	// Newton's method
+	const maxIter = 50;
+	const tol = 1e-8;
+	const u = new Float64Array(n);
 
-	// Working arrays for the free parameters (indices 1..n-1 of the full mu)
-	const theta = new Float64Array(m); // initialized to 0
+	for (let iter = 0; iter < maxIter; iter++) {
+		const grad = negLogPosteriorGradient(data, u, lambdaL2, n);
+		const H = negLogPosteriorHessian(data, u, lambdaL2, n);
 
-	const NEWTON_MAX_ITER = 50;
-	const NEWTON_TOL = 1e-8;
-
-	for (let iter = 0; iter < NEWTON_MAX_ITER; iter++) {
-		// Build full mu from theta (mu[0]=0, mu[i]=theta[i-1] for i>=1)
-		mu[0] = 0;
-		for (let i = 0; i < m; i++) {
-			mu[i + 1] = theta[i];
-		}
-
-		// Compute gradient and Hessian of the negative log-posterior
-		// w.r.t. the free parameters theta[0..m-1].
-		const grad = new Float64Array(m);
-		const hess = new Float64Array(m * m);
-
-		// Prior contribution: -mu_i^2 / (2*priorVariance)
-		// Gradient of negative log-posterior from prior: mu_i / priorVariance
-		// Hessian diagonal from prior: 1 / priorVariance
-		for (let i = 0; i < m; i++) {
-			grad[i] = theta[i] / priorVariance;
-			hess[i * m + i] = 1.0 / priorVariance;
-		}
-
-		// Likelihood contribution from each comparison
-		for (const [winner, loser] of history) {
-			const diff = mu[winner] - mu[loser];
-			const p = sigmoid(diff);
-			// gradient of -log(sigma(diff)) w.r.t. mu_winner is -(1-p)
-			// gradient of -log(sigma(diff)) w.r.t. mu_loser is p
-			// Hessian contribution: p*(1-p) for second derivative
-
-			const pq = p * (1 - p);
-
-			// Map full indices to free parameter indices (skip index 0)
-			const wi = winner - 1; // -1 if winner is item 0
-			const li = loser - 1;
-
-			if (wi >= 0) {
-				grad[wi] -= 1 - p;
-			}
-			if (li >= 0) {
-				grad[li] += 1 - p;
-			}
-
-			// Hessian contributions
-			if (wi >= 0) {
-				hess[wi * m + wi] += pq;
-			}
-			if (li >= 0) {
-				hess[li * m + li] += pq;
-			}
-			if (wi >= 0 && li >= 0) {
-				hess[wi * m + li] -= pq;
-				hess[li * m + wi] -= pq;
+		// Solve H * delta = -grad
+		// Simple approach: invert H, multiply
+		const Hinv = invertMatrix(H, n, 1e-8);
+		const delta = new Float64Array(n);
+		for (let i = 0; i < n; i++) {
+			for (let j = 0; j < n; j++) {
+				delta[i] -= Hinv[i * n + j] * grad[j];
 			}
 		}
 
-		// Newton step: delta = H^{-1} * grad
-		// We need to solve H * delta = grad
-		const hessL = new Float64Array(hess);
-		choleskyDecompose(hessL, m);
+		// Update
+		for (let i = 0; i < n; i++) {
+			u[i] += delta[i];
+		}
 
-		const delta = new Float64Array(grad);
-		choleskySolve(hessL, delta, m);
+		// Project to sum(u)=0
+		let sum = 0;
+		for (let i = 0; i < n; i++) sum += u[i];
+		const mean = sum / n;
+		for (let i = 0; i < n; i++) u[i] -= mean;
 
-		// Update: theta -= delta (we minimized neg log-posterior)
+		// Check convergence
 		let maxDelta = 0;
-		for (let i = 0; i < m; i++) {
-			theta[i] -= delta[i];
-			maxDelta = Math.max(maxDelta, Math.abs(delta[i]));
+		for (let i = 0; i < n; i++) {
+			const d = Math.abs(delta[i]);
+			if (d > maxDelta) maxDelta = d;
 		}
-
-		if (maxDelta < NEWTON_TOL) {
-			break;
-		}
+		if (maxDelta < tol) break;
 	}
 
-	// Final mu
-	mu[0] = 0;
-	for (let i = 0; i < m; i++) {
-		mu[i + 1] = theta[i];
-	}
+	// Copy solution
+	for (let i = 0; i < n; i++) mu[i] = u[i];
 
-	// Compute sigma from inverse Hessian at the converged point
-	// Rebuild Hessian at final theta
-	const finalHess = new Float64Array(m * m);
-	for (let i = 0; i < m; i++) {
-		finalHess[i * m + i] = 1.0 / priorVariance;
-	}
-	for (const [winner, loser] of history) {
-		const diff = mu[winner] - mu[loser];
-		const p = sigmoid(diff);
-		const pq = p * (1 - p);
-		const wi = winner - 1;
-		const li = loser - 1;
-		if (wi >= 0) {
-			finalHess[wi * m + wi] += pq;
-		}
-		if (li >= 0) {
-			finalHess[li * m + li] += pq;
-		}
-		if (wi >= 0 && li >= 0) {
-			finalHess[wi * m + li] -= pq;
-			finalHess[li * m + wi] -= pq;
-		}
-	}
-
-	choleskyDecompose(finalHess, m);
-	const inv = choleskyInverse(finalHess, m);
-
-	// sigma[0] for the pinned parameter: derive from the prior (it's pinned,
-	// but for downstream use we report the prior uncertainty since it has no
-	// data-driven update via the free parameters)
-	sigma[0] = 0; // pinned, no uncertainty
-	for (let i = 0; i < m; i++) {
-		const variance = inv[i * m + i];
-		sigma[i + 1] = Math.sqrt(Math.max(0, variance));
-	}
+	// Laplace approximation: Sigma = H^{-1} at the optimum
+	const H = negLogPosteriorHessian(data, mu, lambdaL2, n);
+	const Sigma = invertMatrix(H, n, 1e-6);
+	for (let i = 0; i < n * n; i++) sigma[i] = Sigma[i];
 
 	return { mu, sigma };
 }
 
 /**
- * The Bradley-Terry-Luce preference model.
+ * Check if the current top-k is confidently identified.
  *
- * Every item has a hidden strength score. When you compare two items, the one
- * with the higher score is more likely to win — but not guaranteed, because
- * humans are noisy. This function turns the difference in scores into a
- * probability of winning.
- *
- * Bradley, R. A., & Terry, M. E. (1952). "Rank Analysis of Incomplete Block
- *   Designs: I. The Method of Paired Comparisons." Biometrika, 39(3/4),
- *   324–345.
- *
- * Luce, R. D. (1959). Individual Choice Behavior: A Theoretical Analysis.
- *   Wiley.
+ * Uses the Gaussian approximation: u_i - u_j ~ N(mu_i - mu_j, Sigma_ii + Sigma_jj - 2*Sigma_ij)
  */
-export function sigmoid(x: number): number {
-	return 1.0 / (1.0 + Math.exp(-x));
-}
+export function confidentTopK(mu: Float64Array, sigma: Float64Array, k: number, delta: number, mode: "boundary_only" | "all_cross_pairs"): boolean {
+	const n = mu.length;
+	if (k >= n) return true;
+	if (k <= 0) return true;
 
-// ---- Linear algebra helpers (Cholesky) ----
-// These operate on dense symmetric positive-definite matrices stored as
-// Float64Array in row-major order. They are exported for testing but are
-// internal implementation details of bayesianRefit.
+	const ranking = argsortDescending(mu);
 
-/**
- * In-place Cholesky decomposition: A = L * L^T.
- * Overwrites the lower triangle of `a` with L. The upper triangle is not
- * zeroed out (callers must only read the lower triangle).
- *
- * @param a - n×n symmetric positive-definite matrix (row-major Float64Array)
- * @param n - dimension
- */
-export function choleskyDecompose(a: Float64Array, n: number): void {
-	for (let j = 0; j < n; j++) {
-		let sum = 0;
-		for (let k = 0; k < j; k++) {
-			sum += a[j * n + k] * a[j * n + k];
-		}
-		const diag = a[j * n + j] - sum;
-		if (diag <= 0) {
-			throw new Error("Matrix is not positive definite");
-		}
-		a[j * n + j] = Math.sqrt(diag);
+	function pBeats(i: number, j: number): number {
+		const meanDiff = mu[i] - mu[j];
+		const varDiff = sigma[i * n + i] + sigma[j * n + j] - 2 * sigma[i * n + j];
+		const z = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
+		return normalCdf(z);
+	}
 
-		for (let i = j + 1; i < n; i++) {
-			let s = 0;
-			for (let k = 0; k < j; k++) {
-				s += a[i * n + k] * a[j * n + k];
+	if (mode === "boundary_only") {
+		const iStar = ranking[k - 1]; // weakest within top-k
+		const jStar = ranking[k]; // strongest outside top-k
+		return pBeats(iStar, jStar) >= 1 - delta;
+	}
+
+	// all_cross_pairs
+	for (let ki = 0; ki < k; ki++) {
+		for (let oi = k; oi < n; oi++) {
+			if (pBeats(ranking[ki], ranking[oi]) < 1 - delta) {
+				return false;
 			}
-			a[i * n + j] = (a[i * n + j] - s) / a[j * n + j];
 		}
 	}
+	return true;
 }
 
 /**
- * Solve L * L^T * x = b given Cholesky factor L.
- * Forward substitution (L * y = b) then back substitution (L^T * x = y).
+ * Estimate P(current top-k set is correct) by Monte Carlo sampling
+ * from the posterior N(mu, sigma).
  *
- * @param l - n×n lower-triangular Cholesky factor (row-major)
- * @param b - right-hand side vector (overwritten with solution)
- * @param n - dimension
+ * Performs Cholesky decomposition of sigma, draws nSamples from the
+ * multivariate normal, and counts how often the top-k set matches.
  */
-export function choleskySolve(l: Float64Array, b: Float64Array, n: number): void {
-	// Forward substitution: L * y = b
+export function bayesianTopKProbability(mu: Float64Array, sigma: Float64Array, k: number, nSamples: number, rng: XorshiftRng): number {
+	const n = mu.length;
+	if (k >= n || k <= 0) return 1;
+
+	// Current top-k set
+	const currentRanking = argsortDescending(mu);
+	const currentTopK = new Set(currentRanking.slice(0, k));
+
+	// Cholesky decomposition: L such that L L^T = sigma
+	const L = new Float64Array(n * n);
 	for (let i = 0; i < n; i++) {
-		let sum = 0;
-		for (let j = 0; j < i; j++) {
-			sum += l[i * n + j] * b[j];
-		}
-		b[i] = (b[i] - sum) / l[i * n + i];
-	}
-
-	// Back substitution: L^T * x = y
-	for (let i = n - 1; i >= 0; i--) {
-		let sum = 0;
-		for (let j = i + 1; j < n; j++) {
-			sum += l[j * n + i] * b[j];
-		}
-		b[i] = (b[i] - sum) / l[i * n + i];
-	}
-}
-
-/**
- * Check if the ranking can stop early with a reduced K value.
- *
- * Loops from k-1 down to minK, returning the largest K that passes
- * checkConfidenceStop, or null if none pass. The caller typically
- * passes a z-score higher than the base z (the "reluctance" penalty)
- * that decays over time, so early rounds require very strong evidence
- * while later rounds accept the same threshold as full-K confidence.
- */
-export function checkAdaptiveKReduction(mu: Float64Array, sigma: Float64Array, k: number, minK: number, z: number, confidenceThreshold: number): number | null {
-	for (let reducedK = k - 1; reducedK >= minK; reducedK--) {
-		if (checkConfidenceStop(mu, sigma, reducedK, z, confidenceThreshold)) {
-			return reducedK;
+		for (let j = 0; j <= i; j++) {
+			let sum = 0;
+			for (let p = 0; p < j; p++) {
+				sum += L[i * n + p] * L[j * n + p];
+			}
+			if (i === j) {
+				L[i * n + j] = Math.sqrt(Math.max(sigma[i * n + j] - sum, 0));
+			} else {
+				const denom = L[j * n + j];
+				L[i * n + j] = denom > 0 ? (sigma[i * n + j] - sum) / denom : 0;
+			}
 		}
 	}
-	return null;
-}
 
-/**
- * Compute the full inverse of A given its Cholesky factor L, where A = L*L^T.
- * Returns a new Float64Array containing the n×n inverse matrix.
- *
- * @param l - n×n lower-triangular Cholesky factor (row-major)
- * @param n - dimension
- * @returns n×n inverse matrix (row-major Float64Array)
- */
-export function choleskyInverse(l: Float64Array, n: number): Float64Array {
-	const inv = new Float64Array(n * n);
-	const col = new Float64Array(n);
+	// Box-Muller + Cholesky sampling
+	let matches = 0;
+	const normals = new Float64Array(n);
+	const sample = new Float64Array(n);
 
-	for (let j = 0; j < n; j++) {
-		// Solve L * L^T * x = e_j
-		col.fill(0);
-		col[j] = 1;
-		choleskySolve(l, col, n);
+	for (let s = 0; s < nSamples; s++) {
+		// Generate standard normals via Box-Muller
+		for (let i = 0; i < n; i += 2) {
+			const u1 = rng.next();
+			const u2 = rng.next();
+			const r = Math.sqrt(-2 * Math.log(u1));
+			normals[i] = r * Math.cos(2 * Math.PI * u2);
+			if (i + 1 < n) {
+				normals[i + 1] = r * Math.sin(2 * Math.PI * u2);
+			}
+		}
+
+		// sample = mu + L * normals
 		for (let i = 0; i < n; i++) {
-			inv[i * n + j] = col[i];
+			let val = mu[i];
+			for (let j = 0; j <= i; j++) {
+				val += L[i * n + j] * normals[j];
+			}
+			sample[i] = val;
+		}
+
+		// Check if top-k set matches
+		const sampleRanking = argsortDescending(sample);
+		let match = true;
+		for (let i = 0; i < k; i++) {
+			if (!currentTopK.has(sampleRanking[i])) {
+				match = false;
+				break;
+			}
+		}
+		if (match) matches++;
+	}
+
+	return matches / nSamples;
+}
+
+/**
+ * Score a candidate task set by sum of pairwise variance.
+ * Higher = more informative (targets uncertainty reduction).
+ */
+export function scoreTaskSet(set: readonly number[], sigma: Float64Array, n: number): number {
+	let score = 0;
+	for (let i = 0; i < set.length; i++) {
+		for (let j = i + 1; j < set.length; j++) {
+			const a = set[i];
+			const b = set[j];
+			score += sigma[a * n + a] + sigma[b * n + b] - 2 * sigma[a * n + b];
+		}
+	}
+	return score;
+}
+
+/**
+ * Enumerate all C(n, m) combinations of m items from 0..n-1.
+ * Each combination is sorted ascending.
+ */
+export function enumerateCombinations(n: number, m: number): number[][] {
+	const result: number[][] = [];
+	const combo = new Array<number>(m);
+
+	function recurse(start: number, depth: number): void {
+		if (depth === m) {
+			result.push([...combo]);
+			return;
+		}
+		for (let i = start; i <= n - (m - depth); i++) {
+			combo[depth] = i;
+			recurse(i + 1, depth + 1);
 		}
 	}
 
-	return inv;
+	recurse(0, 0);
+	return result;
+}
+
+/**
+ * In-place Fisher-Yates shuffle using the provided RNG.
+ */
+export function shuffleArray(arr: unknown[], rng: XorshiftRng): void {
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(rng.next() * (i + 1));
+		const tmp = arr[i];
+		arr[i] = arr[j];
+		arr[j] = tmp;
+	}
+}
+
+/**
+ * Pair-balanced greedy shuffle: reorder triplets so that least-covered pairs
+ * are prioritized. Guarantees all pairs are covered early and pair counts
+ * stay balanced throughout.
+ *
+ * Algorithm: for each slot, find the minimum pair count, collect all remaining
+ * triplets that contain at least one pair with that count, randomly pick one.
+ */
+export function pairBalancedShuffle(triplets: number[][], n: number, rng: XorshiftRng): number[][] {
+	const pairCounts = new Int32Array(n * n);
+	const remaining = [...triplets.map((t, i) => i)]; // indices into triplets
+	const result: number[][] = [];
+
+	for (const _ of triplets) {
+		// Find minimum pair count across all C(n,2) pairs
+		let minCount = Infinity;
+		for (let i = 0; i < n; i++) {
+			for (let j = i + 1; j < n; j++) {
+				if (pairCounts[i * n + j] < minCount) {
+					minCount = pairCounts[i * n + j];
+				}
+			}
+		}
+
+		// Collect candidates: triplets containing at least one pair with minCount
+		const candidates: number[] = [];
+		for (let ri = 0; ri < remaining.length; ri++) {
+			const t = triplets[remaining[ri]];
+			let hasMin = false;
+			for (let a = 0; a < t.length && !hasMin; a++) {
+				for (let b = a + 1; b < t.length && !hasMin; b++) {
+					const lo = Math.min(t[a], t[b]);
+					const hi = Math.max(t[a], t[b]);
+					if (pairCounts[lo * n + hi] === minCount) {
+						hasMin = true;
+					}
+				}
+			}
+			if (hasMin) candidates.push(ri);
+		}
+
+		// Randomly pick one candidate
+		const pick = candidates[Math.floor(rng.next() * candidates.length)];
+		const chosen = triplets[remaining[pick]];
+		result.push(chosen);
+
+		// Update pair counts
+		for (let a = 0; a < chosen.length; a++) {
+			for (let b = a + 1; b < chosen.length; b++) {
+				const lo = Math.min(chosen[a], chosen[b]);
+				const hi = Math.max(chosen[a], chosen[b]);
+				pairCounts[lo * n + hi]++;
+			}
+		}
+
+		// Remove from remaining (swap with last)
+		remaining[pick] = remaining[remaining.length - 1];
+		remaining.pop();
+	}
+
+	return result;
+}
+
+/**
+ * Estimate remaining tasks until convergence.
+ */
+export function estimateRemainingTasks(mu: Float64Array, sigma: Float64Array, k: number, delta: number, totalTasks: number, maxTasks: number): RemainingEstimate {
+	const n = mu.length;
+	if (k >= n || k <= 0) return { low: 0, mid: 0, high: 0 };
+
+	const ranking = argsortDescending(mu);
+
+	// Gap between boundary items
+	const iStar = ranking[k - 1];
+	const jStar = ranking[k];
+	const meanDiff = mu[iStar] - mu[jStar];
+	const varDiff = sigma[iStar * n + iStar] + sigma[jStar * n + jStar] - 2 * sigma[iStar * n + jStar];
+
+	if (meanDiff <= 0) {
+		const remaining = maxTasks - totalTasks;
+		return { low: remaining, mid: remaining, high: remaining };
+	}
+
+	// Current z-score
+	const currentZ = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
+	// Target z-score for 1-delta confidence
+	const targetZ = -inverseNormalCdf(delta);
+
+	if (currentZ >= targetZ) {
+		return { low: 0, mid: 0, high: 0 };
+	}
+
+	// Rough heuristic: variance decreases roughly as 1/t
+	// So t_needed / t_current ~ (currentZ / targetZ)^(-2) ... roughly
+	// More practically: each task reduces variance by a factor
+	// We estimate: remaining ~ totalTasks * ((targetZ/currentZ)^2 - 1)
+	const ratio = currentZ > 0 ? (targetZ / currentZ) ** 2 : 10;
+	const mid = Math.min(Math.ceil(Math.max(1, totalTasks * (ratio - 1))), maxTasks - totalTasks);
+	const low = Math.min(Math.floor(mid * 0.7), maxTasks - totalTasks);
+	const high = Math.min(Math.ceil(mid * 1.3), maxTasks - totalTasks);
+
+	return { low: Math.max(0, low), mid: Math.max(0, mid), high: Math.max(0, high) };
+}
+
+function inverseNormalCdf(p: number): number {
+	// Rational approximation (Abramowitz & Stegun 26.2.23)
+	if (p <= 0) return -8;
+	if (p >= 1) return 8;
+	if (p === 0.5) return 0;
+
+	const sign = p < 0.5 ? -1 : 1;
+	const pp = p < 0.5 ? p : 1 - p;
+	const t = Math.sqrt(-2 * Math.log(pp));
+
+	const c0 = 2.515517;
+	const c1 = 0.802853;
+	const c2 = 0.010328;
+	const d1 = 1.432788;
+	const d2 = 0.189269;
+	const d3 = 0.001308;
+
+	return sign * (t - (c0 + c1 * t + c2 * t * t) / (1 + d1 * t + d2 * t * t + d3 * t * t * t));
 }

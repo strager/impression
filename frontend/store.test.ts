@@ -1015,33 +1015,43 @@ describe("loadRanking/saveRanking", () => {
 		expect(loadRanking(sid())).toBeNull();
 	});
 
-	it("returns null when comparison entry has non-string winner", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], comparisons: [{ winner: 1, loser: "b" }], complete: false }));
+	it("returns null for old pairwise format (winner/loser)", () => {
+		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], comparisons: [{ winner: "a", loser: "b" }], complete: false }));
+		expect(loadRanking(sid())).toBeNull();
+	});
+
+	it("returns null when comparison entry has missing set", () => {
+		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ best: "a", worst: "c" }], complete: false }));
+		expect(loadRanking(sid())).toBeNull();
+	});
+
+	it("returns null when comparison set is too short", () => {
+		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ set: ["a"], best: "a", worst: "a" }], complete: false }));
 		expect(loadRanking(sid())).toBeNull();
 	});
 
 	it("round-trips saved ranking data", () => {
 		saveRanking(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: false,
 		});
 		expect(loadRanking(sid())).toEqual({
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: false,
 		});
 	});
 
 	it("round-trips complete ranking", () => {
 		saveRanking(sid(), {
-			cardIds: ["a", "b"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			cardIds: ["a", "b", "c"],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: true,
 		});
 		expect(loadRanking(sid())).toEqual({
-			cardIds: ["a", "b"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			cardIds: ["a", "b", "c"],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: true,
 		});
 	});
@@ -1063,7 +1073,7 @@ describe("detectSessionPhase", () => {
 	it("returns 'prioritize' when ranking data exists and not complete", () => {
 		saveRanking(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: false,
 		});
 		expect(detectSessionPhase(sid())).toBe("prioritize");
@@ -1071,8 +1081,8 @@ describe("detectSessionPhase", () => {
 
 	it("returns 'prioritize-complete' when ranking is complete", () => {
 		saveRanking(sid(), {
-			cardIds: ["a", "b"],
-			comparisons: [{ winner: "a", loser: "b" }],
+			cardIds: ["a", "b", "c"],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: true,
 		});
 		expect(detectSessionPhase(sid())).toBe("prioritize-complete");
@@ -1084,7 +1094,7 @@ describe("detectSessionPhase", () => {
 	});
 
 	it("explore takes priority over ranking data", () => {
-		saveRanking(sid(), { cardIds: ["a", "b"], comparisons: [], complete: false });
+		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
 		saveChosenCardIds(sid(), ["a"]);
 		expect(detectSessionPhase(sid())).toBe("explore");
 	});
@@ -1094,7 +1104,7 @@ describe("detectSessionPhase", () => {
 			shuffledCardIds: ["a", "b"],
 			swipeHistory: [{ cardId: "a", direction: "agree" }],
 		});
-		saveRanking(sid(), { cardIds: ["a", "b"], comparisons: [], complete: false });
+		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
 		expect(detectSessionPhase(sid())).toBe("prioritize");
 	});
 

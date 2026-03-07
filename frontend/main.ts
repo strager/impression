@@ -72,6 +72,11 @@ const router = createRouter({
 			name: "styleGuide",
 			component: () => import("./StyleGuideView.vue"),
 		},
+		{
+			path: "/ranking-convergence",
+			name: "rankingConvergence",
+			component: () => import("./RankingConvergenceView.vue"),
+		},
 	],
 });
 

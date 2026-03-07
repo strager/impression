@@ -46,14 +46,15 @@ export interface SwipeProgress {
 	swipeHistory: SwipeRecord[];
 }
 
-export interface RankingComparison {
-	winner: string;
-	loser: string;
+export interface MaxDiffComparison {
+	set: string[];
+	best: string;
+	worst: string;
 }
 
 export interface RankingProgress {
 	cardIds: string[];
-	comparisons: RankingComparison[];
+	comparisons: MaxDiffComparison[];
 	complete: boolean;
 }
 
@@ -385,12 +386,12 @@ export function loadRanking(sessionId: string): RankingProgress | null {
 	if (typeof parsed.complete !== "boolean") {
 		return null;
 	}
-	const comparisons: RankingComparison[] = [];
+	const comparisons: MaxDiffComparison[] = [];
 	for (const entry of parsed.comparisons) {
-		if (!isObjectRecord(entry) || typeof entry.winner !== "string" || typeof entry.loser !== "string") {
+		if (!isObjectRecord(entry) || !isStringArray(entry.set) || entry.set.length < 2 || typeof entry.best !== "string" || typeof entry.worst !== "string") {
 			return null;
 		}
-		comparisons.push({ winner: entry.winner, loser: entry.loser });
+		comparisons.push({ set: entry.set, best: entry.best, worst: entry.worst });
 	}
 	return {
 		cardIds: parsed.cardIds,

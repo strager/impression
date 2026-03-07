@@ -2,92 +2,64 @@ import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 
 import { type MeaningCard, MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { argsortDescending, checkConfidenceStop, Ranking } from "../shared/ranking.ts";
+import { Ranking } from "../shared/ranking.ts";
 
 async function main(): Promise<void> {
 	const rl = readline.createInterface({ input: stdin, output: stdout });
 
 	const cards = MEANING_CARDS.slice(0, 8);
-	const ranking = new Ranking<MeaningCard>(cards);
+	const ranking = new Ranking<MeaningCard>(cards, { seed: 42 });
 
-	console.log("=== SoMeCaM Card Ranking ===");
+	console.log("=== SoMeCaM Card Ranking (MaxDiff) ===");
 	console.log(`Ranking ${String(cards.length)} cards to find your top ${String(ranking.effectiveK)}.\n`);
-	console.log("For each pair, type A or B to choose which resonates more.\n");
+	console.log("For each set of 3 cards, choose which resonates MOST and LEAST.\n");
 
 	while (!ranking.stopped) {
-		const { a, b } = await ranking.selectPair();
+		const { items: task } = ranking.selectTask();
 
-		console.log(`--- Round ${String(ranking.round + 1)} ---`);
-		console.log(`  A: [${a.source}] "${a.description}"`);
-		console.log(`  B: [${b.source}] "${b.description}"`);
+		console.log(`--- Task ${String(ranking.round + 1)} ---`);
+		task.forEach((card, i) => {
+			console.log(`  ${String(i + 1)}: [${card.source}] "${card.description}"`);
+		});
 
-		let choice: MeaningCard | null = null;
-		while (choice === null) {
-			const answer = await rl.question("  Your choice (A/B): ");
-			const normalized = answer.trim().toUpperCase();
-			if (normalized === "A") {
-				choice = a;
-			} else if (normalized === "B") {
-				choice = b;
+		let best: MeaningCard | null = null;
+		while (best === null) {
+			const answer = await rl.question(`  Which resonates MOST? (1-${String(task.length)}): `);
+			const idx = parseInt(answer.trim(), 10) - 1;
+			if (idx >= 0 && idx < task.length) {
+				best = task[idx];
 			} else {
-				console.log('  Please enter "A" or "B".');
+				console.log(`  Please enter a number between 1 and ${String(task.length)}.`);
 			}
 		}
 
-		const winner = choice;
-		const loser = winner === a ? b : a;
-		const { stopReason } = await ranking.recordComparison(winner, loser);
+		const remaining = task.filter((c) => c !== best);
+		let worst: MeaningCard | null = null;
+		while (worst === null) {
+			console.log("  Remaining:");
+			remaining.forEach((card, i) => {
+				console.log(`    ${String(i + 1)}: [${card.source}] "${card.description}"`);
+			});
+			const answer = await rl.question(`  Which resonates LEAST? (1-${String(remaining.length)}): `);
+			const idx = parseInt(answer.trim(), 10) - 1;
+			if (idx >= 0 && idx < remaining.length) {
+				worst = remaining[idx];
+			} else {
+				console.log(`  Please enter a number between 1 and ${String(remaining.length)}.`);
+			}
+		}
+
+		const { stopReason } = ranking.recordTask(best, worst);
 
 		// Show progress
-		console.log(`  Comparisons so far: ${String(ranking.round)}`);
+		console.log(`  Tasks so far: ${String(ranking.round)}`);
 		console.log(`  Current top ${String(ranking.topK.length)}: ${ranking.topK.map((c: MeaningCard) => c.source).join(", ")}`);
 
-		// Debug: adaptive K state
-		const debug = ranking.debugState();
-		const mu = debug.mu;
-		const sigma = debug.sigma;
-		const sorted = argsortDescending(mu);
-
-		// Confidence gaps per K
-		for (let dk = debug.config.k; dk >= debug.config.minK; dk--) {
-			const topKSet = sorted.slice(0, dk);
-			const restSet = sorted.slice(dk);
-			if (restSet.length === 0) continue;
-			let weakestLcb = Infinity;
-			for (const idx of topKSet) {
-				const lcb = mu[idx] - debug.config.z * sigma[idx];
-				if (lcb < weakestLcb) weakestLcb = lcb;
-			}
-			let strongestUcb = -Infinity;
-			for (const idx of restSet) {
-				const ucb = mu[idx] + debug.config.z * sigma[idx];
-				if (ucb > strongestUcb) strongestUcb = ucb;
-			}
-			const gap = weakestLcb - strongestUcb;
-			const reducedZ = debug.config.z + debug.config.kReductionReluctance * (1 - debug.round / debug.config.maxComparisons);
-			const passes = dk === debug.config.k ? checkConfidenceStop(mu, sigma, dk, debug.config.z, debug.config.confidenceThreshold) : checkConfidenceStop(mu, sigma, dk, reducedZ, debug.config.confidenceThreshold);
-			console.log(`  [k=${String(dk)}] gap=${gap.toFixed(3)} z=${dk === debug.config.k ? debug.config.z.toFixed(2) : reducedZ.toFixed(2)} pass=${String(passes)}`);
-
-			// Show top set for this K
-			const topNames = sorted.slice(0, dk).map((idx) => cards[idx].source);
-			console.log(`    top-${String(dk)}: ${topNames.join(", ")}`);
-		}
-
-		// Stability counts per K
-		const current = debug.reducedKStability;
-		const fullKStable = `k=${String(debug.config.k)}: ${String(debug.fullKStableCount)}`;
-		const reducedStab = current.map((e) => `k=${String(e.k)}: ${String(e.stableCount)}`).join(", ");
-		console.log(`  Stability: ${fullKStable}${reducedStab.length > 0 ? `, ${reducedStab}` : ""}`);
-
-		// K-weights
-		const kwStr = debug.kWeights.map((w) => `k=${String(w.k)}: ${w.weight.toFixed(2)}`).join(", ");
-		console.log(`  K-weights: ${kwStr}`);
-
-		const remaining = ranking.estimateRemaining();
-		if (remaining !== null) {
-			const lo = Math.ceil(remaining.low);
-			const mid = Math.ceil(remaining.mid);
-			const hi = Math.ceil(remaining.high);
+		const est = ranking.estimateRemaining();
+		if (est !== null) {
+			const lo = Math.ceil(est.low);
+			const mid = Math.ceil(est.mid);
+			const hi = Math.ceil(est.high);
 			console.log(`  Estimated remaining: ~${String(mid)} (${String(lo)}-${String(hi)})`);
 		}
 
@@ -109,5 +81,5 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
 	console.error(err);
-	process.exitCode = 1;
+	process.exit(1);
 });

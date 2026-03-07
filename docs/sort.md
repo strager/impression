@@ -34,12 +34,13 @@ continue to the prioritizing step.
 ## Step 2: Ranking
 
 In this step, you narrow down the cards that passed the initial sort to
-your top 3–5 through a series of head-to-head comparisons.
+your top 3–5 through a series of MaxDiff (Best-Worst Scaling) tasks.
 
-You are shown two cards side by side and choose which one resonates with
-you more. The card you do not choose is eliminated. A new pair is drawn
-from the remaining cards, and you choose again. Matchups are randomized
-so that no card is advantaged by its position in the sequence.
+You are shown three cards at a time. First, you choose which card
+resonates with you **most**. Then, from the remaining two cards, you
+choose which resonates **least**. This two-phase selection gives the
+algorithm roughly three times as much information per task compared to
+a simple head-to-head comparison.
 
 An important change happens here: each card now reveals the **name of
 its source of meaning** alongside the original statement. For example,
@@ -47,11 +48,11 @@ you might see the label _"Social commitment"_ above the statement _"I
 intervene when I see injustice being done"_. This additional context
 helps you make more deliberate choices.
 
-Comparisons continue until the algorithm is confident in your top
+Tasks continue until the algorithm is confident in your top
 selections — typically 5, but sometimes 3 or 4 if the remaining
 positions are too close to call. Those become your final selection, and
 you are taken to your results. A progress indicator shows how many
-comparisons are left.
+tasks are left.
 
 ## Step 3: Editing your selection
 
@@ -70,3 +71,9 @@ You can:
 
 Click **Done** to save your changes and return to the Explore page with
 your updated selection.
+
+## Convergence analysis
+
+Visit `/ranking-convergence` to interactively explore how many rounds
+the ranking algorithm needs to reach confidence under various oracle
+scenarios and parameter settings.

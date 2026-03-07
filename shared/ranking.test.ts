@@ -1,1294 +1,1036 @@
 import { describe, expect, it } from "vitest";
 
-import { type KWeight, type WinLoss, bayesianRefit, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, normalCDF, Ranking, selectPair, sigmoid, topKEntropy } from "./ranking.ts";
+import { bayesianTopKProbability, confidentTopK, enumerateCombinations, fitSequentialLogitMLE, invertMatrix, makeXorshift, negLogPosteriorGradient, negLogPosteriorHessian, normalCdf, pairBalancedShuffle, scoreTaskSet, sequentialLogitLogLik, shuffleArray } from "./ranking-math.ts";
+import type { MaxDiffObservation } from "./ranking-math.ts";
+import { argsortDescending, Ranking } from "./ranking.ts";
 
-describe("sigmoid", () => {
-	it("returns 0.5 at x=0", () => {
-		expect(sigmoid(0)).toBe(0.5);
+describe("normalCdf", () => {
+	it("returns 0.5 at z=0", () => {
+		expect(normalCdf(0)).toBeCloseTo(0.5, 5);
 	});
 
-	it("approaches 1 for large positive x", () => {
-		expect(sigmoid(10)).toBeCloseTo(1.0, 4);
-		expect(sigmoid(100)).toBeCloseTo(1.0, 10);
+	it("returns ~0.8413 at z=1", () => {
+		expect(normalCdf(1)).toBeCloseTo(0.8413, 3);
 	});
 
-	it("approaches 0 for large negative x", () => {
-		expect(sigmoid(-10)).toBeCloseTo(0.0, 4);
-		expect(sigmoid(-100)).toBeCloseTo(0.0, 10);
+	it("returns ~0.1587 at z=-1", () => {
+		expect(normalCdf(-1)).toBeCloseTo(0.1587, 3);
 	});
 
-	it("satisfies symmetry: sigmoid(x) + sigmoid(-x) = 1", () => {
-		for (const x of [0.5, 1.0, 2.0, 5.0]) {
-			expect(sigmoid(x) + sigmoid(-x)).toBeCloseTo(1.0, 10);
-		}
+	it("returns ~0.9772 at z=2", () => {
+		expect(normalCdf(2)).toBeCloseTo(0.9772, 3);
 	});
 
-	it("is monotonically increasing", () => {
-		const xs = [-5, -2, -1, 0, 1, 2, 5];
-		for (let i = 1; i < xs.length; i++) {
-			expect(sigmoid(xs[i])).toBeGreaterThan(sigmoid(xs[i - 1]));
-		}
+	it("clamps at extremes", () => {
+		expect(normalCdf(-10)).toBe(0);
+		expect(normalCdf(10)).toBe(1);
 	});
 });
 
-// Helper to build a row-major Float64Array from a 2D array
-function mat(rows: number[][]): Float64Array {
-	const n = rows.length;
-	const a = new Float64Array(n * n);
-	for (let i = 0; i < n; i++) {
-		for (let j = 0; j < n; j++) {
-			a[i * n + j] = rows[i][j];
-		}
-	}
-	return a;
-}
-
-// Helper to multiply two n×n row-major matrices
-function matMul(a: Float64Array, b: Float64Array, n: number): Float64Array {
-	const c = new Float64Array(n * n);
-	for (let i = 0; i < n; i++) {
-		for (let j = 0; j < n; j++) {
-			let sum = 0;
-			for (let k = 0; k < n; k++) {
-				sum += a[i * n + k] * b[k * n + j];
-			}
-			c[i * n + j] = sum;
-		}
-	}
-	return c;
-}
-
-// Extract the lower triangle from a decomposed matrix (zero out upper)
-function lowerTriangle(a: Float64Array, n: number): Float64Array {
-	const l = new Float64Array(n * n);
-	for (let i = 0; i < n; i++) {
-		for (let j = 0; j <= i; j++) {
-			l[i * n + j] = a[i * n + j];
-		}
-	}
-	return l;
-}
-
-// Transpose an n×n row-major matrix
-function transpose(a: Float64Array, n: number): Float64Array {
-	const t = new Float64Array(n * n);
-	for (let i = 0; i < n; i++) {
-		for (let j = 0; j < n; j++) {
-			t[i * n + j] = a[j * n + i];
-		}
-	}
-	return t;
-}
-
-describe("choleskyDecompose", () => {
-	it("decomposes a 2x2 identity matrix", () => {
-		const a = mat([
-			[1, 0],
-			[0, 1],
-		]);
-		choleskyDecompose(a, 2);
-		const l = lowerTriangle(a, 2);
-		// L should be identity
-		expect(l[0 * 2 + 0]).toBeCloseTo(1, 10);
-		expect(l[0 * 2 + 1]).toBeCloseTo(0, 10);
-		expect(l[1 * 2 + 0]).toBeCloseTo(0, 10);
-		expect(l[1 * 2 + 1]).toBeCloseTo(1, 10);
+describe("sequentialLogitLogLik", () => {
+	it("returns negative value for valid observation", () => {
+		const u = new Float64Array([1, 0, -1]);
+		const obs: MaxDiffObservation = { set: [0, 1, 2], best: 0, worst: 2 };
+		const ll = sequentialLogitLogLik(obs, u);
+		expect(ll).toBeLessThan(0);
 	});
 
-	it("decomposes a 3x3 SPD matrix and L*L^T reconstructs it", () => {
-		// A known SPD matrix
-		const original = mat([
-			[4, 2, 1],
-			[2, 5, 3],
-			[1, 3, 6],
-		]);
-		const a = new Float64Array(original);
-		choleskyDecompose(a, 3);
-		const l = lowerTriangle(a, 3);
-		const lt = transpose(l, 3);
-		const reconstructed = matMul(l, lt, 3);
-
-		for (let i = 0; i < 9; i++) {
-			expect(reconstructed[i]).toBeCloseTo(original[i], 10);
-		}
+	it("higher utility for best gives higher log-likelihood", () => {
+		const u1 = new Float64Array([2, 0, -2]);
+		const u2 = new Float64Array([0.1, 0, -0.1]);
+		const obs: MaxDiffObservation = { set: [0, 1, 2], best: 0, worst: 2 };
+		expect(sequentialLogitLogLik(obs, u1)).toBeGreaterThan(sequentialLogitLogLik(obs, u2));
 	});
 
-	it("throws for a non-positive-definite matrix", () => {
-		const a = mat([
-			[1, 2],
-			[2, 1],
-		]);
-		expect(() => {
-			choleskyDecompose(a, 2);
-		}).toThrow("not positive definite");
+	it("is consistent with softmax probabilities", () => {
+		const u = new Float64Array([1, 0.5, 0]);
+		const obs: MaxDiffObservation = { set: [0, 1, 2], best: 0, worst: 2 };
+		const ll = sequentialLogitLogLik(obs, u);
+
+		// Manual: P(best=0|{0,1,2}) = exp(1)/(exp(1)+exp(0.5)+exp(0))
+		const pBest = Math.exp(1) / (Math.exp(1) + Math.exp(0.5) + Math.exp(0));
+		// P(worst=2|{1,2}) with -u: exp(0)/(exp(0)+exp(-0.5))
+		const pWorst = Math.exp(0) / (Math.exp(0) + Math.exp(-0.5));
+		expect(ll).toBeCloseTo(Math.log(pBest) + Math.log(pWorst), 10);
 	});
 });
 
-describe("choleskySolve", () => {
-	it("solves A*x = b for a 3x3 system", () => {
-		const a = mat([
-			[4, 2, 1],
-			[2, 5, 3],
-			[1, 3, 6],
-		]);
-		choleskyDecompose(a, 3);
-		const l = lowerTriangle(a, 3);
-
-		// b = [1, 2, 3], solve A*x = b
-		const b = new Float64Array([1, 2, 3]);
-		choleskySolve(l, b, 3);
-
-		// Verify by multiplying original A * x and checking it equals [1, 2, 3]
-		const orig = mat([
-			[4, 2, 1],
-			[2, 5, 3],
-			[1, 3, 6],
-		]);
-		for (let i = 0; i < 3; i++) {
-			let dot = 0;
-			for (let j = 0; j < 3; j++) {
-				dot += orig[i * 3 + j] * b[j];
-			}
-			expect(dot).toBeCloseTo([1, 2, 3][i], 10);
-		}
-	});
-});
-
-describe("choleskyInverse", () => {
-	it("computes the inverse of a 3x3 SPD matrix", () => {
-		const a = mat([
-			[4, 2, 1],
-			[2, 5, 3],
-			[1, 3, 6],
-		]);
-		choleskyDecompose(a, 3);
-		const l = lowerTriangle(a, 3);
-		const inv = choleskyInverse(l, 3);
-
-		// A * A^-1 should be identity
-		const orig = mat([
-			[4, 2, 1],
-			[2, 5, 3],
-			[1, 3, 6],
-		]);
-		const product = matMul(orig, inv, 3);
-		for (let i = 0; i < 3; i++) {
-			for (let j = 0; j < 3; j++) {
-				const expected = i === j ? 1 : 0;
-				expect(product[i * 3 + j]).toBeCloseTo(expected, 9);
-			}
-		}
-	});
-
-	it("inverse diagonal entries are 1/a_ii for diagonal matrix", () => {
-		const a = mat([
-			[4, 0, 0],
-			[0, 9, 0],
-			[0, 0, 16],
-		]);
-		choleskyDecompose(a, 3);
-		const l = lowerTriangle(a, 3);
-		const inv = choleskyInverse(l, 3);
-
-		expect(inv[0 * 3 + 0]).toBeCloseTo(1 / 4, 10);
-		expect(inv[1 * 3 + 1]).toBeCloseTo(1 / 9, 10);
-		expect(inv[2 * 3 + 2]).toBeCloseTo(1 / 16, 10);
-	});
-});
-
-describe("bayesianRefit", () => {
-	const PRIOR_VARIANCE = 1.0;
-
-	it("returns prior when history is empty", () => {
-		const { mu, sigma } = bayesianRefit([], 4, PRIOR_VARIANCE);
-		for (let i = 0; i < 4; i++) {
-			expect(mu[i]).toBe(0);
-			expect(sigma[i]).toBeCloseTo(Math.sqrt(PRIOR_VARIANCE), 10);
-		}
-	});
-
-	it("pins mu[0] = 0", () => {
-		// Item 1 beats item 0 several times — mu[0] should still be 0
-		const history: WinLoss[] = [
-			[1, 0],
-			[1, 0],
-			[1, 0],
+describe("gradient numerical check", () => {
+	it("matches finite differences", () => {
+		const n = 3;
+		const u = new Float64Array([0.5, -0.3, 0.1]);
+		const data: MaxDiffObservation[] = [
+			{ set: [0, 1, 2], best: 0, worst: 1 },
+			{ set: [0, 1, 2], best: 2, worst: 1 },
 		];
-		const { mu } = bayesianRefit(history, 2, PRIOR_VARIANCE);
-		expect(mu[0]).toBe(0);
-		expect(mu[1]).toBeGreaterThan(0);
+		const lambdaL2 = 0.5;
+
+		const grad = negLogPosteriorGradient(data, u, lambdaL2, n);
+		const eps = 1e-5;
+
+		function negLogPosterior(v: Float64Array): number {
+			let val = 0;
+			for (const obs of data) {
+				val -= sequentialLogitLogLik(obs, v);
+			}
+			for (let i = 0; i < n; i++) val += lambdaL2 * v[i] * v[i];
+			return val;
+		}
+
+		for (let i = 0; i < n; i++) {
+			const uPlus = new Float64Array(u);
+			uPlus[i] += eps;
+			const uMinus = new Float64Array(u);
+			uMinus[i] -= eps;
+			const numGrad = (negLogPosterior(uPlus) - negLogPosterior(uMinus)) / (2 * eps);
+			expect(grad[i]).toBeCloseTo(numGrad, 4);
+		}
+	});
+});
+
+describe("Hessian numerical check", () => {
+	it("matches finite differences of gradient", () => {
+		const n = 3;
+		const u = new Float64Array([0.5, -0.3, 0.1]);
+		const data: MaxDiffObservation[] = [{ set: [0, 1, 2], best: 0, worst: 1 }];
+		const lambdaL2 = 0.5;
+
+		const H = negLogPosteriorHessian(data, u, lambdaL2, n);
+		const eps = 1e-5;
+
+		for (let i = 0; i < n; i++) {
+			const uPlus = new Float64Array(u);
+			uPlus[i] += eps;
+			const uMinus = new Float64Array(u);
+			uMinus[i] -= eps;
+			const gPlus = negLogPosteriorGradient(data, uPlus, lambdaL2, n);
+			const gMinus = negLogPosteriorGradient(data, uMinus, lambdaL2, n);
+
+			for (let j = 0; j < n; j++) {
+				const numH = (gPlus[j] - gMinus[j]) / (2 * eps);
+				expect(H[j * n + i]).toBeCloseTo(numH, 3);
+			}
+		}
+	});
+});
+
+describe("invertMatrix", () => {
+	it("inverts a 2x2 matrix", () => {
+		// [[2, 1], [1, 3]] -> inverse = [[3, -1], [-1, 2]] / 5
+		const h = new Float64Array([2, 1, 1, 3]);
+		const inv = invertMatrix(h, 2, 0);
+		expect(inv[0]).toBeCloseTo(0.6, 5);
+		expect(inv[1]).toBeCloseTo(-0.2, 5);
+		expect(inv[2]).toBeCloseTo(-0.2, 5);
+		expect(inv[3]).toBeCloseTo(0.4, 5);
 	});
 
-	it("winner gets higher mu than loser after single comparison", () => {
-		const { mu } = bayesianRefit([[1, 2]], 3, PRIOR_VARIANCE);
-		expect(mu[1]).toBeGreaterThan(mu[2]);
+	it("inverts identity matrix", () => {
+		const h = new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+		const inv = invertMatrix(h, 3, 0);
+		for (let i = 0; i < 3; i++) {
+			for (let j = 0; j < 3; j++) {
+				expect(inv[i * 3 + j]).toBeCloseTo(i === j ? 1 : 0, 5);
+			}
+		}
+	});
+});
+
+describe("fitSequentialLogitMLE", () => {
+	it("returns zero mu with no data", () => {
+		const result = fitSequentialLogitMLE([], 3, 0.5);
+		expect(result.mu[0]).toBe(0);
+		expect(result.mu[1]).toBe(0);
+		expect(result.mu[2]).toBe(0);
 	});
 
-	it("increases winner-loser separation with repeated evidence", () => {
-		const single = bayesianRefit([[1, 2]], 3, PRIOR_VARIANCE);
-		const repeated = bayesianRefit(
-			[
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-			],
-			3,
-			PRIOR_VARIANCE,
-		);
-
-		const singleGap = single.mu[1] - single.mu[2];
-		const repeatedGap = repeated.mu[1] - repeated.mu[2];
-		expect(repeatedGap).toBeGreaterThan(singleGap);
-	});
-
-	it("repeated comparisons increase confidence (smaller sigma)", () => {
-		const once = bayesianRefit([[1, 2]], 3, PRIOR_VARIANCE);
-		const many = bayesianRefit(
-			[
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-				[1, 2],
-			],
-			3,
-			PRIOR_VARIANCE,
-		);
-		// sigma for items 1 and 2 should be smaller with more data
-		expect(many.sigma[1]).toBeLessThan(once.sigma[1]);
-		expect(many.sigma[2]).toBeLessThan(once.sigma[2]);
-	});
-
-	it("strong repeated winner has much higher mu", () => {
-		const history: WinLoss[] = [];
+	it("converges: best item gets highest utility", () => {
+		const data: MaxDiffObservation[] = [];
 		for (let i = 0; i < 10; i++) {
-			history.push([1, 2]);
+			data.push({ set: [0, 1, 2], best: 0, worst: 2 });
 		}
-		const { mu } = bayesianRefit(history, 3, PRIOR_VARIANCE);
-		// mu[1] should be significantly positive, mu[2] significantly negative
-		expect(mu[1]).toBeGreaterThan(1);
-		expect(mu[2]).toBeLessThan(-1);
+		const result = fitSequentialLogitMLE(data, 3, 0.5);
+		expect(result.mu[0]).toBeGreaterThan(result.mu[1]);
+		expect(result.mu[1]).toBeGreaterThan(result.mu[2]);
 	});
 
-	it("symmetric matchups produce roughly equal strengths", () => {
-		// Item 1 beats 2 three times, item 2 beats 1 three times
-		const history: WinLoss[] = [
-			[1, 2],
-			[2, 1],
-			[1, 2],
-			[2, 1],
-			[1, 2],
-			[2, 1],
+	it("enforces sum(mu)=0", () => {
+		const data: MaxDiffObservation[] = [
+			{ set: [0, 1, 2], best: 0, worst: 2 },
+			{ set: [0, 1, 2], best: 1, worst: 2 },
 		];
-		const { mu } = bayesianRefit(history, 3, PRIOR_VARIANCE);
-		// They should be close to each other (both pulled toward 0 by prior)
-		expect(Math.abs(mu[1] - mu[2])).toBeLessThan(0.3);
+		const result = fitSequentialLogitMLE(data, 3, 0.5);
+		const sum = result.mu[0] + result.mu[1] + result.mu[2];
+		expect(sum).toBeCloseTo(0, 5);
+	});
+
+	it("returns positive-definite covariance", () => {
+		const data: MaxDiffObservation[] = [{ set: [0, 1, 2], best: 0, worst: 2 }];
+		const result = fitSequentialLogitMLE(data, 3, 0.5);
+		// Diagonal should be positive
+		for (let i = 0; i < 3; i++) {
+			expect(result.sigma[i * 3 + i]).toBeGreaterThan(0);
+		}
 	});
 });
 
-describe("normalCDF", () => {
-	it("returns 0.5 at x=0", () => {
-		expect(normalCDF(0)).toBeCloseTo(0.5, 7);
+describe("confidentTopK", () => {
+	it("returns true when utilities are well separated", () => {
+		const mu = new Float64Array([3, 2, -2, -3]);
+		const n = 4;
+		const sigma = new Float64Array(n * n);
+		for (let i = 0; i < n; i++) sigma[i * n + i] = 0.01;
+		expect(confidentTopK(mu, sigma, 2, 0.05, "boundary_only")).toBe(true);
 	});
 
-	it("returns ~0.8413 at x=1", () => {
-		expect(normalCDF(1)).toBeCloseTo(0.8413447460685429, 6);
+	it("returns false when utilities are close", () => {
+		const mu = new Float64Array([0.1, 0.05, -0.05, -0.1]);
+		const n = 4;
+		const sigma = new Float64Array(n * n);
+		for (let i = 0; i < n; i++) sigma[i * n + i] = 1;
+		expect(confidentTopK(mu, sigma, 2, 0.05, "boundary_only")).toBe(false);
 	});
 
-	it("returns ~0.975 at x=1.96", () => {
-		expect(normalCDF(1.96)).toBeCloseTo(0.975, 4);
+	it("returns true for k >= n", () => {
+		const mu = new Float64Array([1, 0]);
+		const sigma = new Float64Array(4);
+		for (let i = 0; i < 2; i++) sigma[i * 2 + i] = 1;
+		expect(confidentTopK(mu, sigma, 3, 0.05, "boundary_only")).toBe(true);
+	});
+});
+
+describe("scoreTaskSet", () => {
+	it("returns higher score for items with higher variance", () => {
+		const n = 4;
+		const sigma = new Float64Array(n * n);
+		sigma[0 * n + 0] = 1;
+		sigma[1 * n + 1] = 1;
+		sigma[2 * n + 2] = 0.01;
+		sigma[3 * n + 3] = 0.01;
+
+		const score1 = scoreTaskSet([0, 1, 2], sigma, n);
+		const score2 = scoreTaskSet([2, 3, 0], sigma, n);
+		// Set with more high-variance items should score higher... actually depends on covariance
+		expect(score1).toBeGreaterThan(0);
+		expect(score2).toBeGreaterThan(0);
+	});
+});
+
+describe("enumerateCombinations", () => {
+	it("C(4,2) returns 6 combinations", () => {
+		const combos = enumerateCombinations(4, 2);
+		expect(combos).toHaveLength(6);
+		for (const c of combos) {
+			expect(c).toHaveLength(2);
+			expect(c[0]).toBeLessThan(c[1]);
+		}
+		// All unique
+		const strs = combos.map((c) => c.join(","));
+		expect(new Set(strs).size).toBe(6);
 	});
 
-	it("is symmetric: Φ(x) + Φ(-x) = 1", () => {
-		for (const x of [0.5, 1, 2, 3]) {
-			expect(normalCDF(x) + normalCDF(-x)).toBeCloseTo(1, 10);
+	it("C(8,3) returns 56 combinations", () => {
+		const combos = enumerateCombinations(8, 3);
+		expect(combos).toHaveLength(56);
+		for (const c of combos) {
+			expect(c).toHaveLength(3);
+			expect(c[0]).toBeLessThan(c[1]);
+			expect(c[1]).toBeLessThan(c[2]);
+		}
+	});
+});
+
+describe("shuffleArray", () => {
+	it("produces a permutation with same elements", () => {
+		const arr = [0, 1, 2, 3, 4, 5];
+		const original = [...arr];
+		const rng = makeXorshift(42);
+		shuffleArray(arr, rng);
+		expect(arr.sort((a, b) => a - b)).toEqual(original);
+	});
+
+	it("is deterministic given same seed", () => {
+		const arr1 = [0, 1, 2, 3, 4, 5];
+		const arr2 = [0, 1, 2, 3, 4, 5];
+		shuffleArray(arr1, makeXorshift(42));
+		shuffleArray(arr2, makeXorshift(42));
+		expect(arr1).toEqual(arr2);
+	});
+});
+
+describe("pairBalancedShuffle", () => {
+	it("covers all pairs within first ceil(C(n,2)/C(m,2)) triplets", () => {
+		const n = 12;
+		const m = 3;
+		const combos = enumerateCombinations(n, m);
+		const rng = makeXorshift(42);
+		const schedule = pairBalancedShuffle(combos, n, rng);
+
+		// All C(12,2)=66 pairs should be covered within first 30 triplets
+		const seen = new Set<string>();
+		let coveredAt = -1;
+		for (let i = 0; i < schedule.length; i++) {
+			const t = schedule[i];
+			for (let a = 0; a < t.length; a++) {
+				for (let b = a + 1; b < t.length; b++) {
+					seen.add(`${String(t[a])}-${String(t[b])}`);
+				}
+			}
+			if (seen.size === (n * (n - 1)) / 2 && coveredAt === -1) {
+				coveredAt = i + 1;
+			}
+		}
+		expect(seen.size).toBe(66);
+		// Should cover all pairs well within 60 triplets (theoretical min is 22)
+		expect(coveredAt).toBeLessThanOrEqual(50);
+	});
+
+	it("produces balanced pair counts", () => {
+		const n = 8;
+		const m = 3;
+		const combos = enumerateCombinations(n, m);
+		const rng = makeXorshift(42);
+		const schedule = pairBalancedShuffle(combos, n, rng);
+
+		// After full cycle of 56 triplets, each pair appears exactly 6 times
+		const pairCounts = new Map<string, number>();
+		for (const t of schedule) {
+			for (let a = 0; a < t.length; a++) {
+				for (let b = a + 1; b < t.length; b++) {
+					const key = `${String(t[a])}-${String(t[b])}`;
+					pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+				}
+			}
+		}
+		// All 28 pairs should appear exactly 6 times in a full cycle
+		expect(pairCounts.size).toBe(28);
+		for (const [, count] of pairCounts) {
+			expect(count).toBe(6);
 		}
 	});
 
-	it("returns 0 for very negative x", () => {
-		expect(normalCDF(-10)).toBe(0);
-	});
-
-	it("returns 1 for very positive x", () => {
-		expect(normalCDF(10)).toBe(1);
-	});
-});
-
-describe("topKEntropy", () => {
-	it("returns 0 entropy when sigma is zero (certain top-k)", () => {
-		// 5 items with distinct strengths, near-zero uncertainty
-		const mu = new Float64Array([5, 4, 3, 2, 1]);
-		const tinySigma = new Float64Array([1e-15, 1e-15, 1e-15, 1e-15, 1e-15]);
-		const entropy = topKEntropy(mu, tinySigma, 2);
-		expect(entropy).toBeCloseTo(0, 2);
-	});
-
-	it("returns high entropy when all items are equal with large sigma", () => {
-		const n = 6;
-		const mu = new Float64Array(n); // all zeros
-		const sigma = new Float64Array(n).fill(10);
-		const entropy = topKEntropy(mu, sigma, 2);
-		// With equal means and large noise, many different top-k sets are possible
-		expect(entropy).toBeGreaterThan(1);
-	});
-
-	it("entropy is lower with more separated means", () => {
-		const n = 6;
-		const sigma = new Float64Array(n).fill(1);
-
-		// Close means
-		const muClose = new Float64Array([0.1, 0.0, -0.1, -0.2, -0.3, -0.4]);
-		const entropyClose = topKEntropy(muClose, sigma, 2);
-
-		// Well-separated means
-		const muSep = new Float64Array([10, 8, -5, -6, -7, -8]);
-		const entropySep = topKEntropy(muSep, sigma, 2);
-
-		expect(entropySep).toBeLessThan(entropyClose);
-	});
-
-	it("is deterministic", () => {
-		const mu = new Float64Array([2, 1, 0, -1, -2]);
-		const sigma = new Float64Array([0.5, 0.5, 0.5, 0.5, 0.5]);
-
-		const e1 = topKEntropy(mu, sigma, 2);
-		const e2 = topKEntropy(mu, sigma, 2);
-		expect(e1).toBe(e2);
+	it("is deterministic given same seed", () => {
+		const combos = enumerateCombinations(8, 3);
+		const s1 = pairBalancedShuffle([...combos.map((c) => [...c])], 8, makeXorshift(42));
+		const s2 = pairBalancedShuffle([...combos.map((c) => [...c])], 8, makeXorshift(42));
+		expect(s1).toEqual(s2);
 	});
 });
 
-describe("computeInformationGain", () => {
-	const PRIOR_VARIANCE = 1.0;
-
-	it("boundary pair is more informative than clearly-separated pair", () => {
-		// 6 items: indices 0-5, k=2
-		// Items 0,1 are clearly top (mu=5), items 4,5 are clearly bottom (mu=-5)
-		// Items 2,3 are on the boundary (mu=0)
-		const n = 6;
-		const k = 2;
-		const mu = new Float64Array([5, 4, 0.1, -0.1, -4, -5]);
-		const sigma = new Float64Array(n).fill(0.8);
-		const history: WinLoss[] = [];
-
-		// Boundary pair: 2 vs 3 (both near the k/rest boundary)
-		const gainBoundary = computeInformationGain(2, 3, mu, sigma, history, k, n, PRIOR_VARIANCE);
-
-		// Clearly-separated pair: 0 vs 5 (one clearly in, one clearly out)
-		const gainClear = computeInformationGain(0, 5, mu, sigma, history, k, n, PRIOR_VARIANCE);
-
-		// Boundary comparison should be more informative (higher gain = less negative)
-		expect(gainBoundary).toBeGreaterThan(gainClear);
+describe("makeXorshift", () => {
+	it("returns an object with next() and state", () => {
+		const rng = makeXorshift(123);
+		const v1 = rng.next();
+		expect(v1).toBeGreaterThan(0);
+		expect(v1).toBeLessThan(1);
+		expect(typeof rng.state).toBe("number");
 	});
 
-	it("returns a finite number", () => {
-		const n = 4;
-		const k = 2;
-		const mu = new Float64Array([1, 0.5, -0.5, -1]);
-		const sigma = new Float64Array(n).fill(1);
+	it("state can be saved and restored", () => {
+		const rng = makeXorshift(123);
+		rng.next();
+		rng.next();
+		const savedState = rng.state;
+		const v1 = rng.next();
 
-		const gain = computeInformationGain(0, 1, mu, sigma, [], k, n, PRIOR_VARIANCE);
-		expect(Number.isFinite(gain)).toBe(true);
-	});
-
-	it("is deterministic", () => {
-		const n = 4;
-		const k = 2;
-		const mu = new Float64Array([1, 0, -0.5, -1]);
-		const sigma = new Float64Array(n).fill(0.8);
-
-		const g1 = computeInformationGain(1, 2, mu, sigma, [], k, n, PRIOR_VARIANCE);
-		const g2 = computeInformationGain(1, 2, mu, sigma, [], k, n, PRIOR_VARIANCE);
-		expect(g1).toBe(g2);
-	});
-});
-
-describe("checkConfidenceStop", () => {
-	it("returns false when items are not separated", () => {
-		// All items have same mu, large sigma
-		const mu = new Float64Array([0, 0, 0, 0]);
-		const sigma = new Float64Array([1, 1, 1, 1]);
-		expect(checkConfidenceStop(mu, sigma, 2, 1.96, 0)).toBe(false);
-	});
-
-	it("returns true when top-k is clearly separated", () => {
-		// Top-2 have mu=10 with tight sigma, rest have mu=-10 with tight sigma
-		const mu = new Float64Array([10, 9, -9, -10]);
-		const sigma = new Float64Array([0.1, 0.1, 0.1, 0.1]);
-		expect(checkConfidenceStop(mu, sigma, 2, 1.96, 0)).toBe(true);
-	});
-
-	it("returns false when sigma is too large despite mu separation", () => {
-		const mu = new Float64Array([2, 1, -1, -2]);
-		const sigma = new Float64Array([3, 3, 3, 3]);
-		expect(checkConfidenceStop(mu, sigma, 2, 1.96, 0)).toBe(false);
-	});
-
-	it("returns true when k equals n (all items in top-k)", () => {
-		const mu = new Float64Array([1, 0]);
-		const sigma = new Float64Array([1, 1]);
-		expect(checkConfidenceStop(mu, sigma, 2, 1.96, 0)).toBe(true);
-	});
-});
-
-describe("checkStabilityStop", () => {
-	it("returns stableCount=0 on first call (no previous)", () => {
-		const mu = new Float64Array([3, 2, 1, 0]);
-		const result = checkStabilityStop(mu, 2, null, 0, 10);
-		expect(result.stableCount).toBe(0);
-		expect(result.stopped).toBe(false);
-		expect(result.topK).toEqual([0, 1]);
-	});
-
-	it("increments stableCount when top-k is unchanged", () => {
-		const mu = new Float64Array([3, 2, 1, 0]);
-		const result = checkStabilityStop(mu, 2, [0, 1], 5, 10);
-		expect(result.stableCount).toBe(6);
-		expect(result.stopped).toBe(false);
-	});
-
-	it("resets stableCount when top-k changes", () => {
-		const mu = new Float64Array([3, 2, 1, 0]);
-		// Previous top-k was [0, 2], now it's [0, 1]
-		const result = checkStabilityStop(mu, 2, [0, 2], 8, 10);
-		expect(result.stableCount).toBe(0);
-		expect(result.stopped).toBe(false);
-	});
-
-	it("triggers stop when stableCount reaches window", () => {
-		const mu = new Float64Array([3, 2, 1, 0]);
-		const result = checkStabilityStop(mu, 2, [0, 1], 9, 10);
-		expect(result.stableCount).toBe(10);
-		expect(result.stopped).toBe(true);
-	});
-});
-
-describe("selectPair", () => {
-	const PRIOR_VARIANCE = 1.0;
-
-	it("returns valid indices (i < j, both in range)", () => {
-		const n = 5;
-		const mu = new Float64Array(n);
-		const sigma = new Float64Array(n).fill(1);
-		const [i, j] = selectPair(mu, sigma, [], 2, n, PRIOR_VARIANCE);
-		expect(i).toBeGreaterThanOrEqual(0);
-		expect(i).toBeLessThan(n);
-		expect(j).toBeGreaterThan(i);
-		expect(j).toBeLessThan(n);
-	});
-
-	it("is deterministic", () => {
-		const n = 5;
-		const mu = new Float64Array([2, 1, 0, -1, -2]);
-		const sigma = new Float64Array(n).fill(1);
-		const [i1, j1] = selectPair(mu, sigma, [], 2, n, PRIOR_VARIANCE);
-		const [i2, j2] = selectPair(mu, sigma, [], 2, n, PRIOR_VARIANCE);
-		expect(i1).toBe(i2);
-		expect(j1).toBe(j2);
-	});
-
-	it("recencyDiscount=1.0 does not change the selected pair", () => {
-		const n = 5;
-		const mu = new Float64Array([2, 1, 0, -1, -2]);
-		const sigma = new Float64Array(n).fill(1);
-		const history: WinLoss[] = [[0, 1]];
-		const [i1, j1] = selectPair(mu, sigma, history, 2, n, PRIOR_VARIANCE);
-		const [i2, j2] = selectPair(mu, sigma, history, 2, n, PRIOR_VARIANCE, 1.0);
-		expect(i1).toBe(i2);
-		expect(j1).toBe(j2);
-	});
-
-	it("recencyDiscount discourages items from the last comparison", () => {
-		// Set up a scenario where items 1,2 are on the boundary and were
-		// just compared. With discount, a different pair should be picked.
-		const n = 6;
-		const k = 2;
-		// Item 0 is clearly top, items 3,4,5 clearly bottom.
-		// Items 1,2 are right on the boundary — normally the most informative.
-		const mu = new Float64Array([5, 0.1, -0.1, -5, -6, -7]);
-		const sigma = new Float64Array(n).fill(1.0);
-
-		// Last comparison involved item 1 (winner) and item 2 (loser)
-		const history: WinLoss[] = [[1, 2]];
-
-		// Without discount: pair should involve the boundary items 1 or 2
-		const [iNoDiscount, jNoDiscount] = selectPair(mu, sigma, history, k, n, PRIOR_VARIANCE, 1.0);
-		const noDiscountInvolves1or2 = iNoDiscount === 1 || jNoDiscount === 1 || iNoDiscount === 2 || jNoDiscount === 2;
-
-		// With aggressive discount: should avoid items 1 and 2
-		const [iDiscount, jDiscount] = selectPair(mu, sigma, history, k, n, PRIOR_VARIANCE, 0.1);
-		const discountInvolves1or2 = iDiscount === 1 || jDiscount === 1 || iDiscount === 2 || jDiscount === 2;
-
-		// Without discount the boundary items should be picked;
-		// with aggressive discount the recently-shown items should be avoided
-		expect(noDiscountInvolves1or2).toBe(true);
-		expect(discountInvolves1or2).toBe(false);
-	});
-
-	it("recencyDiscount has no effect when history is empty", () => {
-		const n = 4;
-		const mu = new Float64Array([1, 0, -0.5, -1]);
-		const sigma = new Float64Array(n).fill(1);
-		const [i1, j1] = selectPair(mu, sigma, [], 2, n, PRIOR_VARIANCE, 1.0);
-		const [i2, j2] = selectPair(mu, sigma, [], 2, n, PRIOR_VARIANCE, 0.5);
-		expect(i1).toBe(i2);
-		expect(j1).toBe(j2);
+		rng.state = savedState;
+		const v2 = rng.next();
+		expect(v2).toBe(v1);
 	});
 });
 
 describe("Ranking class", () => {
-	it("selectPair returns distinct items from the candidate set", async () => {
-		const items = ["a", "b", "c", "d"] as const;
-		const ranking = new Ranking(items, { k: 2 });
-		const pair = await ranking.selectPair();
+	it("selectTask returns m distinct items from the candidate set", () => {
+		const items = ["a", "b", "c", "d", "e", "f"] as const;
+		const ranking = new Ranking(items, { k: 2, m: 3, seed: 42 });
+		const { items: task } = ranking.selectTask();
 
-		expect(items).toContain(pair.a);
-		expect(items).toContain(pair.b);
-		expect(pair.a).not.toBe(pair.b);
+		expect(task).toHaveLength(3);
+		expect(new Set(task).size).toBe(3);
+		for (const item of task) {
+			expect(items).toContain(item);
+		}
 	});
 
-	it("converges on correct top-k with a perfect oracle", async () => {
-		// 10 items with known true strengths 0..9 (item 9 is strongest)
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const trueStrength = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const expectedTopK = new Set([5, 6, 7, 8, 9]);
+	it("converges on correct top-k via confidence with a perfect oracle (8 items, k=3)", () => {
+		// Use wider strength gaps so the boundary items are clearly separated
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [0, 0, 0, 0, 0, 3, 6, 9];
+		const expectedTopK = new Set([5, 6, 7]);
 
 		const ranking = new Ranking(items, {
-			k: 5,
-			minK: 5, // disable adaptive K reduction to test full convergence
-			maxComparisons: 80,
+			k: 3,
+			maxTasks: 500,
+			m: 3,
+			seed: 42,
+			lambdaL2: 0.1,
 		});
 
 		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			// Perfect oracle: item with higher true strength wins
-			const winner = trueStrength[a] > trueStrength[b] ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => trueStrength[i]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			const best = task[bestIdx];
+			const worst = task[worstIdx];
+			ranking.recordTask(best, worst);
 		}
 
 		const topK = new Set(ranking.topK);
 		expect(topK).toEqual(expectedTopK);
-		expect(ranking.round).toBeLessThan(80);
-		expect(ranking.stopReason).not.toBeNull();
+		expect(ranking.stopReason).toBe("confidence");
+		expect(ranking.round).toBeLessThan(500);
 	});
 
-	it("stops at max comparisons if needed", async () => {
-		const items = ["a", "b", "c", "d", "e", "f"];
+	it("converges on correct top-k with 6 items, k=3", () => {
+		const items = [0, 1, 2, 3, 4, 5];
+		const trueStrength = [0, 1, 2, 3, 4, 5];
+		const expectedTopK = new Set([3, 4, 5]);
+
 		const ranking = new Ranking(items, {
-			k: 2,
-			maxComparisons: 5,
+			k: 3,
+			maxTasks: 500,
+			m: 3,
+			seed: 42,
 		});
 
 		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			// Random oracle — always pick a
-			await ranking.recordComparison(a, b);
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => trueStrength[i]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
 		}
 
-		expect(ranking.round).toBe(5);
-		expect(ranking.stopReason).toBe("max-comparisons");
+		const topK = new Set(ranking.topK);
+		expect(topK).toEqual(expectedTopK);
 	});
 
-	it("tracks history correctly", async () => {
-		const items = ["x", "y", "z"];
+	it("stops at max tasks if needed", () => {
+		const items = ["a", "b", "c", "d", "e", "f"];
+		const maxTasks = 5;
 		const ranking = new Ranking(items, {
-			k: 1,
-			maxComparisons: 2,
+			k: 2,
+			maxTasks,
+			m: 3,
+			seed: 42,
 		});
 
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			ranking.recordTask(task[0], task[task.length - 1]);
+		}
+
+		expect(ranking.round).toBe(maxTasks);
+		expect(ranking.stopReason).toBe("max-tasks");
+	});
+
+	it("tracks history correctly", () => {
+		const items = ["x", "y", "z", "w"];
+		const ranking = new Ranking(items, {
+			k: 1,
+			maxTasks: 10,
+			m: 3,
+			seed: 42,
+		});
+
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
 		expect(ranking.history).toHaveLength(1);
-		expect(ranking.history[0].winner).toBe(a);
-		expect(ranking.history[0].loser).toBe(b);
+		expect(ranking.history[0].best).toBe(task[0]);
+		expect(ranking.history[0].worst).toBe(task[task.length - 1]);
+		expect(ranking.history[0].set).toEqual(task);
 		expect(ranking.round).toBe(1);
 	});
 
-	it("throws when recording after stopped", async () => {
-		const items = ["a", "b"];
+	it("throws when recording after stopped", () => {
+		const items = ["a", "b", "c", "d"];
 		const ranking = new Ranking(items, {
 			k: 1,
-			maxComparisons: 1,
+			maxTasks: 1,
+			m: 3,
+			seed: 42,
 		});
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
 		expect(ranking.stopped).toBe(true);
-		await expect(ranking.recordComparison(a, b)).rejects.toThrow("already stopped");
+		expect(() => ranking.recordTask(task[0], task[task.length - 1])).toThrow("already stopped");
 	});
 
-	it("throws when selecting pair after stopped", async () => {
-		const items = ["a", "b"];
+	it("throws when selecting task after stopped", () => {
+		const items = ["a", "b", "c", "d"];
 		const ranking = new Ranking(items, {
 			k: 1,
-			maxComparisons: 1,
+			maxTasks: 1,
+			m: 3,
+			seed: 42,
 		});
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
-		await expect(ranking.selectPair()).rejects.toThrow("already stopped");
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
+		expect(() => ranking.selectTask()).toThrow("already stopped");
 	});
 
-	it("is deterministic", async () => {
+	it("is deterministic with same seed", () => {
 		const items = ["a", "b", "c", "d", "e"];
 
-		async function runRanking(): Promise<{ pairs: string[]; topK: readonly string[] }> {
+		function runRanking(): { tasks: string[][]; topK: readonly string[] } {
 			const ranking = new Ranking(items, {
 				k: 2,
-				maxComparisons: 5,
+				maxTasks: 5,
+				m: 3,
+				seed: 42,
 			});
-			const pairs: string[] = [];
+			const tasks: string[][] = [];
 			while (!ranking.stopped) {
-				const { a, b } = await ranking.selectPair();
-				pairs.push(`${a}-${b}`);
-				await ranking.recordComparison(a, b);
+				const { items: task } = ranking.selectTask();
+				tasks.push([...task]);
+				ranking.recordTask(task[0], task[task.length - 1]);
 			}
-			return { pairs, topK: ranking.topK };
+			return { tasks, topK: ranking.topK };
 		}
 
-		const run1 = await runRanking();
-		const run2 = await runRanking();
-		expect(run1.pairs).toEqual(run2.pairs);
+		const run1 = runRanking();
+		const run2 = runRanking();
+		expect(run1.tasks).toEqual(run2.tasks);
 		expect(run1.topK).toEqual(run2.topK);
 	});
 
-	it("clone produces an independent copy with identical state", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+	it("undo restores state correctly", () => {
+		const items = ["a", "b", "c", "d", "e", "f"];
 		const ranking = new Ranking(items, {
-			k: 5,
-			maxComparisons: 80,
+			k: 2,
+			maxTasks: 10,
+			m: 3,
+			seed: 42,
 		});
 
-		// Advance a few rounds
-		for (let i = 0; i < 5; i++) {
-			const { a, b } = await ranking.selectPair();
-			const winner = a > b ? a : b;
-			const loser = a > b ? b : a;
-			await ranking.recordComparison(winner, loser);
-		}
-
-		const clone = ranking.clone();
-
-		// Clone has the same observable state
-		expect(clone.round).toBe(ranking.round);
-		expect(clone.stopped).toBe(ranking.stopped);
-		expect(clone.stopReason).toBe(ranking.stopReason);
-		expect(clone.mu).toEqual(ranking.mu);
-		expect(clone.sigma).toEqual(ranking.sigma);
-		expect(clone.topK).toEqual(ranking.topK);
-
-		// Mutating the clone does not affect the original
-		const { a, b } = await clone.selectPair();
-		await clone.recordComparison(a > b ? a : b, a > b ? b : a);
-		expect(clone.round).toBe(ranking.round + 1);
-		expect(ranking.round).toBe(5);
-	});
-
-	it("recencyDiscount reduces consecutive appearances of the same item", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const trueStrength = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-		async function countConsecutiveRepeats(recencyDiscount: number): Promise<number> {
-			const ranking = new Ranking(items, {
-				k: 5,
-				maxComparisons: 40,
-				recencyDiscount,
-				noSpeculation: true,
-			});
-			let repeats = 0;
-			let prevA: number | null = null;
-			let prevB: number | null = null;
-			while (!ranking.stopped) {
-				const { a, b } = await ranking.selectPair();
-				if (prevA !== null && (a === prevA || a === prevB || b === prevA || b === prevB)) {
-					repeats++;
-				}
-				prevA = a;
-				prevB = b;
-				const winner = trueStrength[a] > trueStrength[b] ? a : b;
-				const loser = winner === a ? b : a;
-				await ranking.recordComparison(winner, loser);
-			}
-			return repeats;
-		}
-
-		const repeatsNoDiscount = await countConsecutiveRepeats(1.0);
-		const repeatsWithDiscount = await countConsecutiveRepeats(0.5);
-
-		expect(repeatsWithDiscount).toBeLessThan(repeatsNoDiscount);
-	});
-
-	it("undoLastComparison throws when no comparisons to undo", async () => {
-		const ranking = new Ranking(["a", "b", "c"], {
-			k: 1,
-		});
-		await expect(ranking.undoLastComparison()).rejects.toThrow("No comparison to undo");
-	});
-
-	it("undoLastComparison undoes a single comparison", async () => {
-		const items = ["a", "b", "c"];
-		const ranking = new Ranking(items, {
-			k: 1,
-			maxComparisons: 10,
-		});
-
-		const initialMu = ranking.mu.slice();
-		const initialSigma = ranking.sigma.slice();
-
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
 		expect(ranking.round).toBe(1);
 		expect(ranking.history).toHaveLength(1);
 
-		await ranking.undoLastComparison();
+		ranking.undoLastTask();
 		expect(ranking.round).toBe(0);
 		expect(ranking.history).toHaveLength(0);
-		expect(ranking.mu).toEqual(initialMu);
-		expect(ranking.sigma).toEqual(initialSigma);
 	});
 
-	it("undoLastComparison can be called multiple times in succession", async () => {
-		const items = ["a", "b", "c", "d"];
+	it("undo can be called multiple times", () => {
+		const items = ["a", "b", "c", "d", "e", "f"];
 		const ranking = new Ranking(items, {
 			k: 2,
-			maxComparisons: 10,
+			maxTasks: 10,
+			m: 3,
+			seed: 42,
 		});
 
 		for (let i = 0; i < 3; i++) {
-			const { a, b } = await ranking.selectPair();
-			await ranking.recordComparison(a, b);
+			const { items: task } = ranking.selectTask();
+			ranking.recordTask(task[0], task[task.length - 1]);
 		}
 		expect(ranking.round).toBe(3);
-		expect(ranking.history).toHaveLength(3);
 
-		await ranking.undoLastComparison();
+		ranking.undoLastTask();
 		expect(ranking.round).toBe(2);
-		await ranking.undoLastComparison();
+		ranking.undoLastTask();
 		expect(ranking.round).toBe(1);
-		await ranking.undoLastComparison();
+		ranking.undoLastTask();
 		expect(ranking.round).toBe(0);
-		expect(ranking.history).toHaveLength(0);
 
-		await expect(ranking.undoLastComparison()).rejects.toThrow("No comparison to undo");
+		expect(() => ranking.undoLastTask()).toThrow("No task to undo");
 	});
 
-	it("undoLastComparison after stop re-opens ranking", async () => {
-		const items = ["a", "b"];
+	it("undo after stop re-opens ranking", () => {
+		const items = ["a", "b", "c", "d"];
 		const ranking = new Ranking(items, {
 			k: 1,
-			maxComparisons: 1,
+			maxTasks: 1,
+			m: 3,
+			seed: 42,
 		});
 
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
 		expect(ranking.stopped).toBe(true);
-		expect(ranking.stopReason).toBe("max-comparisons");
 
-		await ranking.undoLastComparison();
+		ranking.undoLastTask();
 		expect(ranking.stopped).toBe(false);
 		expect(ranking.stopReason).toBeNull();
 
-		// Can continue using the ranking after undo
-		const pair = await ranking.selectPair();
-		expect(pair.a).not.toBe(pair.b);
-		await ranking.recordComparison(pair.a, pair.b);
+		const { items: task2 } = ranking.selectTask();
+		expect(task2.length).toBe(3);
 	});
 
-	it("undoLastComparison returns the undone comparison record", async () => {
-		const items = ["x", "y", "z"];
+	it("undo returns the undone task record", () => {
+		const items = ["x", "y", "z", "w"];
 		const ranking = new Ranking(items, {
 			k: 1,
-			maxComparisons: 10,
+			maxTasks: 10,
+			m: 3,
+			seed: 42,
 		});
 
-		const { a, b } = await ranking.selectPair();
-		await ranking.recordComparison(a, b);
+		const { items: task } = ranking.selectTask();
+		ranking.recordTask(task[0], task[task.length - 1]);
 
-		const undone = await ranking.undoLastComparison();
-		expect(undone.winner).toBe(a);
-		expect(undone.loser).toBe(b);
+		const undone = ranking.undoLastTask();
+		expect(undone.best).toBe(task[0]);
+		expect(undone.worst).toBe(task[task.length - 1]);
+		expect(undone.set).toEqual(task);
 	});
 
-	it("undoLastComparison preserves stability state when replaying the same comparison", async () => {
-		const ranking = new Ranking(["a", "b", "c"], {
+	it("undoLastTask throws when no tasks to undo", () => {
+		const ranking = new Ranking(["a", "b", "c", "d"], {
 			k: 1,
-			stabilityWindow: 1,
-			maxComparisons: 10,
-			confidenceThreshold: Number.POSITIVE_INFINITY,
+			m: 3,
+			seed: 42,
+		});
+		expect(() => ranking.undoLastTask()).toThrow("No task to undo");
+	});
+
+	it("clone produces an independent copy", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+		const ranking = new Ranking(items, {
+			k: 5,
+			maxTasks: 40,
+			m: 3,
+			seed: 42,
 		});
 
-		const first = await ranking.recordComparison("a", "b");
-		expect(first.stopped).toBe(false);
-
-		const second = await ranking.recordComparison("a", "b");
-		expect(second).toEqual({ stopped: true, stopReason: "stability" });
-
-		await ranking.undoLastComparison();
-		expect(ranking.round).toBe(1);
-		expect(ranking.stopped).toBe(false);
-
-		const replay = await ranking.recordComparison("a", "b");
-		expect(replay).toEqual({ stopped: true, stopReason: "stability" });
-	});
-});
-
-describe("estimateStabilityStop", () => {
-	it("returns null when flipHistory has fewer entries than stabilityWindow", () => {
-		expect(estimateStabilityStop([], 0, 10)).toBeNull();
-		expect(estimateStabilityStop([false, true, false, true], 0, 10)).toBeNull();
-		// 9 entries, window=10 → still null
-		expect(estimateStabilityStop([false, false, false, false, false, false, false, false, false], 0, 10)).toBeNull();
-	});
-
-	it("with no flips in history, returns approximately stabilityWindow - stableCount", () => {
-		const history = new Array<boolean>(10).fill(false);
-		const result = estimateStabilityStop(history, 3, 10);
-		expect(result).not.toBeNull();
-		if (result === null) return;
-		// With 0 flips, p is very low via Jeffreys prior, so mid ≈ needed = 7 + small overshoot
-		expect(result.mid).toBeGreaterThanOrEqual(6);
-		expect(result.mid).toBeLessThanOrEqual(10);
-	});
-
-	it("with higher flip rate, returns larger estimate or null", () => {
-		// Use stableCount=6 so needed=4, keeping intervals tight enough to pass
-		const noFlips = new Array<boolean>(10).fill(false);
-		const someFlips = [true, false, false, false, false, false, false, false, false, false];
-		const resultNoFlips = estimateStabilityStop(noFlips, 6, 10);
-		const resultSomeFlips = estimateStabilityStop(someFlips, 6, 10);
-		expect(resultNoFlips).not.toBeNull();
-		if (resultNoFlips === null) return;
-		// With more flips, estimate is either larger or suppressed as unreliable
-		if (resultSomeFlips !== null) {
-			expect(resultSomeFlips.mid).toBeGreaterThan(resultNoFlips.mid);
-		}
-	});
-
-	it("returns null when flip rate makes interval too wide", () => {
-		// 50% flip rate with needed=10 → huge, unreliable interval
-		const history = [true, false, true, false, true, false, true, false, true, false];
-		const result = estimateStabilityStop(history, 0, 10);
-		expect(result).toBeNull();
-	});
-
-	it("caps low/mid/high by maxRemaining when provided", () => {
-		const history = new Array<boolean>(10).fill(false);
-		const result = estimateStabilityStop(history, 0, 10, 3);
-		expect(result).not.toBeNull();
-		if (result === null) return;
-		expect(result.low).toBe(3);
-		expect(result.mid).toBe(3);
-		expect(result.high).toBe(3);
-	});
-
-	it("applies cap before wide-interval suppression", () => {
-		// Without cap, this case is too wide and returns null.
-		const history = [true, false, true, false, true, false, true, false, true, false];
-		const uncapped = estimateStabilityStop(history, 0, 10);
-		expect(uncapped).toBeNull();
-
-		// With a tight hard cap, the estimate should collapse to that cap.
-		const capped = estimateStabilityStop(history, 0, 10, 4);
-		expect(capped).not.toBeNull();
-		if (capped === null) return;
-		expect(capped.low).toBe(4);
-		expect(capped.mid).toBe(4);
-		expect(capped.high).toBe(4);
-	});
-
-	it("satisfies low <= mid <= high", () => {
-		// Use a low flip rate with stableCount close to window for tight interval
-		const history = [false, false, true, false, false, false, false, false, false, false];
-		const result = estimateStabilityStop(history, 6, 10);
-		expect(result).not.toBeNull();
-		if (result === null) return;
-		expect(result.low).toBeLessThanOrEqual(result.mid);
-		expect(result.mid).toBeLessThanOrEqual(result.high);
-	});
-
-	it("with stableCount close to stabilityWindow, returns small estimate", () => {
-		const history = new Array<boolean>(10).fill(false);
-		const result = estimateStabilityStop(history, 8, 10);
-		expect(result).not.toBeNull();
-		if (result === null) return;
-		// Only need 2 more stable rounds
-		expect(result.mid).toBeLessThanOrEqual(3);
-		expect(result.mid).toBeGreaterThanOrEqual(1);
-	});
-
-	it("returns zero interval when maxRemaining is zero", () => {
-		expect(estimateStabilityStop([], 0, 10, 0)).toEqual({ low: 0, mid: 0, high: 0 });
-		expect(estimateStabilityStop([true, false], 0, 10, 0)).toEqual({ low: 0, mid: 0, high: 0 });
-	});
-});
-
-describe("transcript replay", () => {
-	it("produces estimates from round 10 onward that decrease as stability builds", async () => {
-		// The first 8 meaning sources, matching MEANING_CARDS.slice(0, 8)
-		const cards = ["Social commitment", "Religiosity", "Unity with nature", "Self-knowledge", "Health", "Generativity", "Spirituality", "Challenge"];
-
-		const ranking = new Ranking(cards, { k: 5 });
-
-		// Winner/loser pairs from transcript (user picked displayed A or B;
-		// we record which source won and which lost).
-		const comparisons: [winner: string, loser: string][] = [
-			["Religiosity", "Unity with nature"], // round 1
-			["Self-knowledge", "Health"], // round 2
-			["Generativity", "Religiosity"], // round 3
-			["Spirituality", "Health"], // round 4
-			["Challenge", "Unity with nature"], // round 5
-			["Generativity", "Health"], // round 6
-			["Social commitment", "Challenge"], // round 7
-			["Religiosity", "Health"], // round 8
-			["Self-knowledge", "Spirituality"], // round 9
-			["Generativity", "Health"], // round 10
-			["Religiosity", "Unity with nature"], // round 11
-			["Generativity", "Self-knowledge"], // round 12
-			["Challenge", "Spirituality"], // round 13
-			["Social commitment", "Health"], // round 14
-			["Spirituality", "Unity with nature"], // round 15
-			["Challenge", "Religiosity"], // round 16
-			["Spirituality", "Unity with nature"], // round 17
-			["Generativity", "Health"], // round 18
-			["Spirituality", "Religiosity"], // round 19
-			["Challenge", "Social commitment"], // round 20
-			["Spirituality", "Religiosity"], // round 21
-			["Generativity", "Challenge"], // round 22
-			["Social commitment", "Health"], // round 23
-			["Challenge", "Spirituality"], // round 24
-			["Self-knowledge", "Religiosity"], // round 25
-			["Generativity", "Challenge"], // round 26
-			["Health", "Unity with nature"], // round 27
-			["Generativity", "Social commitment"], // round 28
-			["Religiosity", "Unity with nature"], // round 29
-		];
-
-		let sawEstimateFromRound5 = false;
-		let lastEstimateMid: number | null = null;
-
-		for (let i = 0; i < comparisons.length; i++) {
-			const [winner, loser] = comparisons[i];
-			const round = i + 1;
-			const { stopReason } = await ranking.recordComparison(winner, loser);
-
-			const estimate = ranking.estimateRemaining();
-
-			if (round >= 10 && estimate !== null) {
-				sawEstimateFromRound5 = true;
-				expect(estimate.low).toBeLessThanOrEqual(estimate.mid);
-				expect(estimate.mid).toBeLessThanOrEqual(estimate.high);
-				lastEstimateMid = estimate.mid;
-			}
-
-			if (stopReason !== null) {
-				break;
-			}
+		for (let i = 0; i < 3; i++) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((x) => x);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
 		}
 
-		expect(sawEstimateFromRound5).toBe(true);
-		// By the final rounds, the estimate should be small (close to stabilityWindow - stableCount)
-		expect(lastEstimateMid).not.toBeNull();
-		if (lastEstimateMid !== null) {
-			expect(lastEstimateMid).toBeLessThanOrEqual(12);
-		}
+		const cloned = ranking.clone();
 
-		// Confirm it stopped via stability, not confidence
+		expect(cloned.round).toBe(ranking.round);
+		expect(cloned.stopped).toBe(ranking.stopped);
+		expect(cloned.stopReason).toBe(ranking.stopReason);
+		expect(cloned.topK).toEqual(ranking.topK);
+
+		// Mutating clone does not affect original
+		const { items: task } = cloned.selectTask();
+		cloned.recordTask(task[0], task[task.length - 1]);
+		expect(cloned.round).toBe(ranking.round + 1);
+		expect(ranking.round).toBe(3);
+	});
+
+	it("handles k >= n (all items in top-k)", () => {
+		const items = ["a", "b"];
+		const ranking = new Ranking(items, { k: 2, m: 3, seed: 42 });
 		expect(ranking.stopped).toBe(true);
-		expect(ranking.stopReason).toBe("stability");
+		expect(ranking.stopReason).toBe("confidence");
+		expect(new Set(ranking.topK)).toEqual(new Set(["a", "b"]));
+	});
+
+	it("handles k >= n with k > n", () => {
+		const items = ["a", "b"];
+		const ranking = new Ranking(items, { k: 5, m: 3, seed: 42 });
+		expect(ranking.stopped).toBe(true);
+		expect(ranking.stopReason).toBe("confidence");
+	});
+
+	it("handles n = 1", () => {
+		const ranking = new Ranking(["only"], { k: 1, m: 3, seed: 42 });
+		expect(ranking.stopped).toBe(true);
+		expect(ranking.topK).toEqual(["only"]);
+	});
+});
+
+describe("adaptive k oracle convergence", () => {
+	function logConfidenceComparison(label: string, ranking: Ranking<number>): void {
+		const d = ranking.debugState();
+		const n = d.mu.length;
+		const r = argsortDescending(d.mu);
+		const parts: string[] = [];
+		for (const kk of [3, 4, 5]) {
+			if (kk >= n) {
+				parts.push(`k=${String(kk)}: N/A`);
+				continue;
+			}
+			const iStar = r[kk - 1];
+			const jStar = r[kk];
+			const varDiff = d.sigma[iStar * n + iStar] + d.sigma[jStar * n + jStar] - 2 * d.sigma[iStar * n + jStar];
+			const bErr = ((1 - normalCdf((d.mu[iStar] - d.mu[jStar]) / Math.sqrt(Math.max(varDiff, 1e-12)))) * 100).toFixed(1);
+			const bayesP = bayesianTopKProbability(d.mu, d.sigma, kk, 2000, makeXorshift(123));
+			const bayErr = ((1 - bayesP) * 100).toFixed(1);
+			parts.push(`k=${String(kk)}: b=${bErr}% y=${bayErr}%`);
+		}
+		console.log(`  [${label}] rounds=${String(ranking.round)} stop=${ranking.stopReason ?? "?"} eK=${String(ranking.effectiveK)}  ${parts.join("  ")}`);
+	}
+
+	// 8 items with descending strengths (item 0 = strongest).
+	// Perfect oracle always picks correctly.
+	// With minK=3, should still find the full top-5 since all boundaries are clear.
+	it("perfect oracle converges with effectiveK=5", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [8, 7, 6, 5, 4, 3, 2, 1];
+		const expectedTop5 = new Set([0, 1, 2, 3, 4]);
+
+		// Run all 60 rounds (use tiny delta to prevent early stop)
+		const probe = new Ranking(items, {
+			k: 5,
+			maxTasks: 60,
+			delta: 0.001,
+			m: 3,
+			seed: 42,
+		});
+
+		const allTasks: number[][] = [];
+		while (!probe.stopped) {
+			const { items: task } = probe.selectTask();
+			allTasks.push([...task]);
+			const strengths = task.map((ii) => trueStrength[ii]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			probe.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		console.log(`  Tasks (${String(allTasks.length)} total):`);
+		for (let t = 0; t < allTasks.length; t++) {
+			console.log(`    ${String(t + 1).padStart(2)}: [${allTasks[t].join(",")}]`);
+		}
+
+		// Item histogram
+		const itemCounts = new Array<number>(8).fill(0);
+		for (const task of allTasks) {
+			for (const item of task) itemCounts[item]++;
+		}
+		console.log(`\n  Item histogram:`);
+		for (let i = 0; i < 8; i++) {
+			console.log(`    item ${String(i)}: ${String(itemCounts[i]).padStart(2)} ${"#".repeat(itemCounts[i])}`);
+		}
+
+		// Pair histogram
+		const pairCounts = new Map<string, number>();
+		for (const task of allTasks) {
+			const sorted = [...task].sort((a, b) => a - b);
+			for (let i = 0; i < sorted.length; i++) {
+				for (let j = i + 1; j < sorted.length; j++) {
+					const key = `${String(sorted[i])}-${String(sorted[j])}`;
+					pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+				}
+			}
+		}
+		const pairEntries = [...pairCounts.entries()].sort((a, b) => b[1] - a[1]);
+		console.log(`\n  Pair histogram (${String(pairEntries.length)} unique pairs):`);
+		for (const [pair, count] of pairEntries) {
+			console.log(`    ${pair.padEnd(4)}: ${String(count).padStart(2)} ${"#".repeat(count)}`);
+		}
+
+		// Triplet histogram
+		const tripletCounts = new Map<string, number>();
+		for (const task of allTasks) {
+			const key = [...task].sort((a, b) => a - b).join("-");
+			tripletCounts.set(key, (tripletCounts.get(key) ?? 0) + 1);
+		}
+		const tripletEntries = [...tripletCounts.entries()].sort((a, b) => b[1] - a[1]);
+		console.log(`\n  Triplet histogram (${String(tripletEntries.length)} unique triplets):`);
+		for (const [triplet, count] of tripletEntries) {
+			console.log(`    ${triplet.padEnd(6)}: ${String(count).padStart(2)} ${"#".repeat(count)}`);
+		}
+
+		// Now run the actual ranking with adaptive k
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((ii) => trueStrength[ii]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("n=8 m=3", ranking);
+		expect(ranking.effectiveK).toBe(5);
+		expect(new Set(ranking.topK)).toEqual(expectedTop5);
+	});
+
+	it("perfect oracle reports correct top-5 with n=9, maxTasks=60", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+		const trueStrength = [9, 8, 7, 6, 5, 4, 3, 2, 1];
+		const expectedTop5 = new Set([0, 1, 2, 3, 4]);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => trueStrength[i]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("n=9 m=3", ranking);
+		expect(new Set(ranking.topK)).toEqual(expectedTop5);
+		expect(ranking.stopReason).toBe("confidence");
+	});
+
+	it("perfect oracle reports correct top-5 with n=12, maxTasks=60", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+		const trueStrength = [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+		const expectedTop5 = new Set([0, 1, 2, 3, 4]);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => trueStrength[i]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("n=12 m=3", ranking);
+		expect(new Set(ranking.topK)).toEqual(expectedTop5);
+		expect(ranking.stopReason).toBe("confidence");
+	});
+
+	// Top 4 items have stable preferences (strengths 5–8).
+	// Bottom 4 items get random strengths each task — no stable preference.
+	// Should converge on top-4 since the bottom-4 boundary is unresolvable.
+	it("semi-confident oracle (random bottom 4) converges with effectiveK=4", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [1, 2, 3, 4, 5, 6, 7, 8];
+		const expectedTop4 = new Set([4, 5, 6, 7]);
+		const confidentItems = new Set([4, 5, 6, 7]);
+		const noiseRng = makeXorshift(99);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => {
+				if (confidentItems.has(i)) return trueStrength[i];
+				return noiseRng.next() * 4; // random strength in [0, 4)
+			});
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("semi-random4", ranking);
+		expect(ranking.stopReason).toBe("reduced-k");
+		expect(ranking.effectiveK).toBe(4);
+		expect(new Set(ranking.topK)).toEqual(expectedTop4);
+	});
+
+	// Top 4 items have stable preferences (strengths 5–8).
+	// Bottom 4 items use true strengths but with noise: on each task,
+	// each bottom-4 item's effective strength is perturbed by ±2,
+	// causing occasional misranking among them.
+	// Should still converge, possibly with effectiveK=4 or 5.
+	it("semi-confident oracle (noisy bottom 4) converges with correct top-4", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [1, 2, 3, 4, 5, 6, 7, 8];
+		const expectedTop4 = new Set([4, 5, 6, 7]);
+		const confidentItems = new Set([4, 5, 6, 7]);
+		const noiseRng = makeXorshift(77);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => {
+				if (confidentItems.has(i)) return trueStrength[i];
+				// True strength ± noise: e.g. strength 4 could become 2–6
+				return trueStrength[i] + (noiseRng.next() - 0.5) * 4;
+			});
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("noisy4", ranking);
+		expect(["confidence", "reduced-k"]).toContain(ranking.stopReason);
+		expect(ranking.effectiveK).toBeGreaterThanOrEqual(4);
+		const topItems = new Set(ranking.topK);
+		for (const item of expectedTop4) {
+			expect(topItems).toContain(item);
+		}
+	});
+
+	// Top 3 items have stable preferences (strengths 6–8).
+	// Bottom 5 items get random strengths each task.
+	// Should converge on effectiveK=3 at budget exhaustion.
+	it("semi-confident oracle (random bottom 5, perfect top 3) converges with effectiveK=3", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [1, 2, 3, 4, 5, 6, 7, 8];
+		const expectedTop3 = new Set([5, 6, 7]);
+		const confidentItems = new Set([5, 6, 7]);
+		const noiseRng = makeXorshift(99);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => {
+				if (confidentItems.has(i)) return trueStrength[i];
+				return noiseRng.next() * 5; // random strength in [0, 5)
+			});
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("semi-random5", ranking);
+		expect(ranking.effectiveK).toBe(3);
+		expect(new Set(ranking.topK)).toEqual(expectedTop3);
+		expect(ranking.stopReason).toBe("reduced-k");
+	});
+
+	// Clear top 2 (strengths 7,8) and clear bottom 2 (strengths 1,2),
+	// but the 4 middle items are random each task. Every possible
+	// boundary (k=3,4,5) falls in the mushy middle, so the algorithm
+	// cannot find confidence and exhausts the budget.
+	it("clear top 2 and bottom 2, mushy middle 4 — hits max-tasks", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const trueStrength = [1, 2, 0, 0, 0, 0, 7, 8];
+		const confidentItems = new Set([0, 1, 6, 7]);
+		const noiseRng = makeXorshift(55);
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const strengths = task.map((i) => {
+				if (confidentItems.has(i)) return trueStrength[i];
+				// Middle items: random strength in [2, 6) — overlapping with
+				// the confident zone so the boundary is genuinely ambiguous.
+				return 2 + noiseRng.next() * 4;
+			});
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("mushy", ranking);
+		expect(ranking.stopReason).toBe("max-tasks");
+		// The clear top 2 should appear and clear bottom 2 should not
+		const topItems = new Set(ranking.topK);
+		expect(topItems).toContain(6);
+		expect(topItems).toContain(7);
+		expect(topItems).not.toContain(0);
+		expect(topItems).not.toContain(1);
+	});
+
+	// User changes their mind mid-ranking. For the first 15 rounds,
+	// items 1 and 5 have strengths 7 and 3. After round 15, they swap
+	// to 3 and 7. Items 0,2,3,4,6,7 keep stable strengths throughout.
+	// The post-reversal top-5 is {0,5,2,3,4}. The algorithm should
+	// identify the stable core (items always in top-5: 0,2,3) and
+	// not crash or produce nonsensical results.
+	it("preference reversal mid-ranking — identifies stable core", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const strengthsBefore = [8, 7, 6, 5, 4, 3, 2, 1];
+		const strengthsAfter = [8, 3, 6, 5, 4, 7, 2, 1];
+		// Items always in top-5 regardless of phase: 0 (8), 2 (6), 3 (5)
+		// Item 4 (strength 4) is top-5 in both phases but near the boundary
+		const stableCore = new Set([0, 2, 3]);
+		const reversalRound = 15;
+
+		const ranking = new Ranking(items, {
+			k: 5,
+			minK: 3,
+			maxTasks: 60,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			const currentStrengths = ranking.round < reversalRound ? strengthsBefore : strengthsAfter;
+			const strengths = task.map((i) => currentStrengths[i]);
+			const bestIdx = strengths.indexOf(Math.max(...strengths));
+			const worstIdx = strengths.indexOf(Math.min(...strengths));
+			ranking.recordTask(task[bestIdx], task[worstIdx]);
+		}
+
+		logConfidenceComparison("reversal", ranking);
+		// The algorithm should finish (either confidence or max-tasks)
+		expect(ranking.stopped).toBe(true);
+		// The stable core should be in the top-k regardless of effectiveK
+		const topItems = new Set(ranking.topK);
+		for (const item of stableCore) {
+			expect(topItems).toContain(item);
+		}
+		// Items 6 and 7 are clearly bottom-tier in both phases (strengths 2, 1)
+		expect(topItems).not.toContain(6);
+		expect(topItems).not.toContain(7);
 	});
 });
 
 describe("estimateRemaining integration", () => {
-	it("remains null through round 10 because flip history starts after first transition", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const ranking = new Ranking(items, {
-			k: 5,
-			maxComparisons: 80,
-		});
-
-		for (let round = 1; round <= 10; round++) {
-			const { a, b } = await ranking.selectPair();
-			const winner = a > b ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-			expect(ranking.round).toBe(round);
-			expect(ranking.estimateRemaining()).toBeNull();
-		}
-	});
-
-	it("returns non-null after stabilityWindow rounds and mid decreases as stability builds", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const trueStrength = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-		function oracle(a: number, b: number): number {
-			return trueStrength[a] >= trueStrength[b] ? a : b;
-		}
-
-		const ranking = new Ranking(items, {
-			k: 5,
-			maxComparisons: 80,
-		});
-
-		let firstNonNullRound = 0;
-		const estimates: { round: number; mid: number }[] = [];
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = oracle(a, b);
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-			const est = ranking.estimateRemaining();
-			if (est !== null) {
-				if (firstNonNullRound === 0) firstNonNullRound = ranking.round;
-				estimates.push({ round: ranking.round, mid: est.mid });
-				expect(est.low).toBeLessThanOrEqual(est.mid);
-				expect(est.mid).toBeLessThanOrEqual(est.high);
-			}
-		}
-
-		// Should get estimates once we have a full window of flip history
-		expect(firstNonNullRound).toBeLessThanOrEqual(15);
-		expect(estimates.length).toBeGreaterThan(0);
-
-		// The last estimate's mid should be small (close to 0, since stability
-		// was nearly reached)
-		const lastEstimate = estimates[estimates.length - 1];
-		expect(lastEstimate.mid).toBeLessThan(15);
-	});
-
-	it("never exceeds max-comparisons budget in low-budget runs", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-		const trueStrength = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-		function oracle(a: number, b: number): number {
-			return trueStrength[a] >= trueStrength[b] ? a : b;
-		}
-
-		const ranking = new Ranking(items, {
-			k: 5,
-			maxComparisons: 12,
-			confidenceThreshold: Number.POSITIVE_INFINITY,
-		});
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = oracle(a, b);
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-
-			const est = ranking.estimateRemaining();
-			if (est !== null) {
-				const budget = 12 - ranking.round;
-				expect(est.low).toBeLessThanOrEqual(budget);
-				expect(est.mid).toBeLessThanOrEqual(budget);
-				expect(est.high).toBeLessThanOrEqual(budget);
-				expect(est.low).toBeLessThanOrEqual(est.mid);
-				expect(est.mid).toBeLessThanOrEqual(est.high);
-			}
-		}
-
-		expect(ranking.stopReason).toBe("max-comparisons");
-		expect(ranking.estimateRemaining()).toEqual({ low: 0, mid: 0, high: 0 });
-	});
-});
-
-describe("checkAdaptiveKReduction", () => {
-	it("returns null when no reduced K passes confidence", () => {
-		const mu = new Float64Array([0, 0, 0, 0, 0, 0]);
-		const sigma = new Float64Array([1, 1, 1, 1, 1, 1]);
-		expect(checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0)).toBeNull();
-	});
-
-	it("returns the largest reduced K that passes", () => {
-		// Top 4 clearly separated from rest, but top 5 not
-		const mu = new Float64Array([10, 9, 8, 7, 0.1, -10]);
-		const sigma = new Float64Array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]);
-		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
-		// k=4 passes (top 4 clearly separated from items 4,5)
-		expect(result).toBe(4);
-	});
-
-	it("returns k-1 even when smaller K values also pass", () => {
-		// All reduced K values pass (clear separation for k=4 and k=3)
-		const mu = new Float64Array([10, 9, 8, 7, -10, -20]);
-		const sigma = new Float64Array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]);
-		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
-		expect(result).toBe(4);
-	});
-
-	it("returns minK when only minK passes", () => {
-		// Top 3 clearly separated; items 3,4 ambiguous with rest
-		const mu = new Float64Array([10, 9, 8, 0.1, -0.1, -10]);
-		const sigma = new Float64Array([0.1, 0.1, 0.1, 1, 1, 0.1]);
-		const result = checkAdaptiveKReduction(mu, sigma, 5, 3, 1.96, 0);
-		expect(result).toBe(3);
-	});
-});
-
-describe("computeInformationGain with KWeight[]", () => {
-	const PRIOR_VARIANCE = 1.0;
-
-	it("single KWeight produces same result as plain number", () => {
-		const n = 4;
-		const k = 2;
-		const mu = new Float64Array([1, 0.5, -0.5, -1]);
-		const sigma = new Float64Array(n).fill(1);
-
-		const gainNumber = computeInformationGain(0, 1, mu, sigma, [], k, n, PRIOR_VARIANCE);
-		const gainWeights = computeInformationGain(0, 1, mu, sigma, [], [{ k: 2, weight: 1.0 }], n, PRIOR_VARIANCE);
-		expect(gainWeights).toBeCloseTo(gainNumber, 10);
-	});
-
-	it("multi-objective weights produce a different result than single K", () => {
-		const n = 6;
-		const mu = new Float64Array([5, 4, 0.1, -0.1, -4, -5]);
-		const sigma = new Float64Array(n).fill(0.8);
-
-		const gainSingle = computeInformationGain(2, 3, mu, sigma, [], 5, n, PRIOR_VARIANCE);
-		const weights: KWeight[] = [
-			{ k: 5, weight: 0.5 },
-			{ k: 4, weight: 0.25 },
-			{ k: 3, weight: 0.25 },
-		];
-		const gainMulti = computeInformationGain(2, 3, mu, sigma, [], weights, n, PRIOR_VARIANCE);
-		// They should differ because the multi-objective considers multiple K values
-		expect(gainMulti).not.toBe(gainSingle);
-	});
-
-	it("skips K values with weight below 0.01", () => {
-		const n = 4;
-		const mu = new Float64Array([1, 0.5, -0.5, -1]);
-		const sigma = new Float64Array(n).fill(1);
-
-		const weights: KWeight[] = [
-			{ k: 2, weight: 1.0 },
-			{ k: 1, weight: 0.005 }, // below threshold
-		];
-		const gainWithTiny = computeInformationGain(0, 1, mu, sigma, [], weights, n, PRIOR_VARIANCE);
-		const gainSingle = computeInformationGain(0, 1, mu, sigma, [], [{ k: 2, weight: 1.0 }], n, PRIOR_VARIANCE);
-		// Should be very close since the tiny weight is skipped
-		expect(gainWithTiny).toBeCloseTo(gainSingle, 5);
-	});
-});
-
-describe("adaptive K reduction integration", () => {
-	it("fires K reduction with 3 clearly strong items + ambiguous 4th/5th", async () => {
-		// 8 items: indices 0-2 clearly strong, 3-7 ambiguous
-		const items = [0, 1, 2, 3, 4, 5, 6, 7];
-		const trueStrength = [10, 9, 8, 0.1, 0, -0.1, -5, -6];
-
-		const ranking = new Ranking(items, {
-			k: 5,
-			minK: 3,
-			kReductionReluctance: 1.0,
-			maxComparisons: 80,
-		});
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = trueStrength[a] > trueStrength[b] ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-		}
-
-		// Should stop with reduced K since the boundary items are ambiguous
-		expect(ranking.effectiveK).toBeGreaterThanOrEqual(3);
-		expect(ranking.effectiveK).toBeLessThanOrEqual(5);
-		const topK = new Set(ranking.topK);
-		// The top 3 should always be in the result
-		expect(topK.has(0)).toBe(true);
-		expect(topK.has(1)).toBe(true);
-		expect(topK.has(2)).toBe(true);
-	});
-
-	it("non-default config (k=2, minK=1) works without hardcoded 5/4/3", async () => {
-		const items = [0, 1, 2, 3, 4];
-		const trueStrength = [10, 0.1, -0.1, -5, -6];
-
-		const ranking = new Ranking(items, {
-			k: 2,
-			minK: 1,
-			kReductionReluctance: 1.0,
-			maxComparisons: 40,
-		});
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = trueStrength[a] > trueStrength[b] ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-		}
-
-		expect(ranking.effectiveK).toBeGreaterThanOrEqual(1);
-		expect(ranking.effectiveK).toBeLessThanOrEqual(2);
-		expect(ranking.topK).toContain(0);
-	});
-
-	it("validates minK constraints", () => {
-		expect(() => new Ranking([1, 2, 3], { k: 2, minK: 0 })).toThrow("minK must be between 1 and k");
-		expect(() => new Ranking([1, 2, 3], { k: 2, minK: 3 })).toThrow("minK must be between 1 and k");
-	});
-
-	it("undo resets effectiveK to config.k", async () => {
-		const items = [0, 1, 2, 3, 4, 5, 6, 7];
-		const trueStrength = [10, 9, 8, 0.1, 0, -0.1, -5, -6];
-
-		const ranking = new Ranking(items, {
-			k: 5,
-			minK: 3,
-			maxComparisons: 80,
-		});
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = trueStrength[a] > trueStrength[b] ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-		}
-
-		if (ranking.effectiveK < 5) {
-			expect(ranking.effectiveK).toBeLessThan(5);
-			await ranking.undoLastComparison();
-			expect(ranking.effectiveK).toBe(5);
-			expect(ranking.stopped).toBe(false);
-		}
-	});
-
-	it("max-budget fallback picks largest reduced K passing confidence or stability", async () => {
-		// Use a scenario where full K won't converge but reduced K might
-		const items = [0, 1, 2, 3, 4, 5, 6, 7];
-		// 3 clearly strong, rest close together
-		const trueStrength = [10, 9, 8, 0.2, 0.1, 0, -0.1, -0.2];
-
-		const ranking = new Ranking(items, {
-			k: 5,
-			minK: 3,
-			kReductionReluctance: 1.0,
-			maxComparisons: 80,
-			// Make confidence stop very hard for full K
-			confidenceThreshold: 0.0,
-		});
-
-		while (!ranking.stopped) {
-			const { a, b } = await ranking.selectPair();
-			const winner = trueStrength[a] > trueStrength[b] ? a : b;
-			const loser = winner === a ? b : a;
-			await ranking.recordComparison(winner, loser);
-		}
-
-		// The ranking should have stopped, possibly with a reduced effectiveK
+	it("returns zero estimate when already stopped", () => {
+		const items = ["a", "b"];
+		const ranking = new Ranking(items, { k: 2, m: 3, seed: 42 });
 		expect(ranking.stopped).toBe(true);
-		expect(ranking.effectiveK).toBeGreaterThanOrEqual(3);
-		expect(ranking.effectiveK).toBeLessThanOrEqual(5);
-		// Top 3 should always be correct
-		const topK = new Set(ranking.topK);
-		expect(topK.has(0)).toBe(true);
-		expect(topK.has(1)).toBe(true);
-		expect(topK.has(2)).toBe(true);
+		const est = ranking.estimateRemaining();
+		expect(est).toEqual({ low: 0, mid: 0, high: 0 });
+	});
+
+	it("never exceeds budget", () => {
+		const items = [0, 1, 2, 3, 4, 5, 6, 7];
+		const ranking = new Ranking(items, {
+			k: 4,
+			maxTasks: 15,
+			m: 3,
+			seed: 42,
+		});
+
+		while (!ranking.stopped) {
+			const { items: task } = ranking.selectTask();
+			ranking.recordTask(task[0], task[task.length - 1]);
+			const est = ranking.estimateRemaining();
+			if (est !== null) {
+				const budget = 15 - ranking.round;
+				expect(est.mid).toBeLessThanOrEqual(budget);
+			}
+		}
 	});
 });

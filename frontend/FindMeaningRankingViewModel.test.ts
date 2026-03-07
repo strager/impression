@@ -48,115 +48,126 @@ afterEach(() => {
 });
 
 describe("initialize", () => {
-	it("returns 'no-data' when sorting isn't complete", async () => {
+	it("returns 'no-data' when sorting isn't complete", () => {
 		const vm = new FindMeaningRankingViewModel(sid());
-		expect(await vm.initialize()).toBe("no-data");
+		expect(vm.initialize()).toBe("no-data");
 	});
 
-	it("returns 'no-data' when swipe progress exists but not all cards swiped", async () => {
+	it("returns 'no-data' when swipe progress exists but not all cards swiped", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		saveSwipeProgress(sid(), {
 			shuffledCardIds: cardIds,
 			swipeHistory: [{ cardId: cardIds[0], direction: "agree" }],
 		});
 		const vm = new FindMeaningRankingViewModel(sid());
-		expect(await vm.initialize()).toBe("no-data");
+		expect(vm.initialize()).toBe("no-data");
 	});
 
-	it("returns 'skip' when <=5 candidate cards", async () => {
+	it("returns 'skip' when <=5 candidate cards", () => {
 		const cardIds = MEANING_CARDS.slice(0, 4).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		expect(await vm.initialize()).toBe("skip");
+		expect(vm.initialize()).toBe("skip");
 		expect(loadChosenCardIds(sid())).toEqual(cardIds);
 	});
 
-	it("returns 'ready' when >5 cards, populates currentPair", async () => {
+	it("returns 'ready' when >5 cards, populates currentTask", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		expect(await vm.initialize()).toBe("ready");
-		expect(vm.currentPair).not.toBeNull();
-		expect(vm.currentPair!.length).toBe(2);
+		expect(vm.initialize()).toBe("ready");
+		expect(vm.currentTask).not.toBeNull();
+		expect(vm.currentTask!.length).toBe(3);
 		expect(vm.round).toBe(0);
 		expect(vm.isComplete).toBe(false);
 	});
 
-	it("resumes from saved comparison history", async () => {
+	it("resumes from saved comparison history", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		saveRanking(sid(), {
 			cardIds,
-			comparisons: [{ winner: cardIds[0], loser: cardIds[1] }],
+			comparisons: [{ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] }],
 			complete: false,
 		});
 		const vm = new FindMeaningRankingViewModel(sid());
-		expect(await vm.initialize()).toBe("ready");
+		expect(vm.initialize()).toBe("ready");
 		expect(vm.round).toBe(1);
 		expect(vm.canUndo).toBe(true);
 	});
 });
 
 describe("choose", () => {
-	async function setupVm(): Promise<FindMeaningRankingViewModel> {
+	function setupVm(): FindMeaningRankingViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		await vm.initialize();
+		vm.initialize();
 		return vm;
 	}
 
-	it("advances round and persists to localStorage", async () => {
-		const vm = await setupVm();
-		await vm.choose(0);
+	it("choose with best and worst advances round", () => {
+		const vm = setupVm();
+		expect(vm.round).toBe(0);
+
+		const task = vm.currentTask!;
+		const worstIndex = task.length - 1;
+		vm.choose(0, worstIndex);
 		expect(vm.round).toBe(1);
+
 		const saved = loadRanking(sid());
 		expect(saved).not.toBeNull();
 		expect(saved!.comparisons).toHaveLength(1);
 	});
 
-	it("throws when isComplete", async () => {
+	it("throws when isComplete", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
-		// Build many comparisons to trigger max-comparisons stop
+		// Build many comparisons to trigger max-tasks stop
 		const comparisons = [];
-		for (let i = 0; i < 80; i++) {
-			comparisons.push({ winner: cardIds[0], loser: cardIds[1] });
+		for (let i = 0; i < 40; i++) {
+			comparisons.push({ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] });
 		}
 		saveRanking(sid(), { cardIds, comparisons, complete: false });
 		const vm = new FindMeaningRankingViewModel(sid());
-		await vm.initialize();
-		// After replaying 80 comparisons, it should be stopped
+		vm.initialize();
+		// After replaying 40 tasks, it should be stopped
 		expect(vm.isComplete).toBe(true);
-		await expect(vm.choose(0)).rejects.toThrow();
+		expect(() => {
+			vm.choose(0, 2);
+		}).toThrow();
 	});
 });
 
 describe("undo", () => {
-	async function setupVm(): Promise<FindMeaningRankingViewModel> {
+	function setupVm(): FindMeaningRankingViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		await vm.initialize();
+		vm.initialize();
 		return vm;
 	}
 
-	it("throws when no comparisons", async () => {
-		const vm = await setupVm();
-		await expect(vm.undo()).rejects.toThrow();
+	it("throws when no tasks and in best phase", () => {
+		const vm = setupVm();
+		expect(() => vm.undo()).toThrow();
 	});
 
-	it("decrements round", async () => {
-		const vm = await setupVm();
-		await vm.choose(0);
+	it("decrements round after a task", () => {
+		const vm = setupVm();
+		const task = vm.currentTask!;
+		vm.choose(0, task.length - 1);
 		expect(vm.round).toBe(1);
-		await vm.undo();
+
+		vm.undo();
 		expect(vm.round).toBe(0);
 		expect(vm.canUndo).toBe(false);
 	});
 
-	it("persists to localStorage", async () => {
-		const vm = await setupVm();
-		await vm.choose(0);
-		await vm.undo();
+	it("persists to localStorage", () => {
+		const vm = setupVm();
+		const task = vm.currentTask!;
+		vm.choose(0, task.length - 1);
+
+		vm.undo();
 		const saved = loadRanking(sid());
 		expect(saved).not.toBeNull();
 		expect(saved!.comparisons).toHaveLength(0);
@@ -164,15 +175,16 @@ describe("undo", () => {
 });
 
 describe("finalize", () => {
-	it("saves chosen cards via loadChosenCardIds", async () => {
+	it("saves chosen cards via loadChosenCardIds", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		await vm.initialize();
+		vm.initialize();
 
-		// Make comparisons until complete
+		// Make tasks until complete: pick first card as best, last as worst
 		while (!vm.isComplete) {
-			await vm.choose(0);
+			const task = vm.currentTask!;
+			vm.choose(0, task.length - 1);
 		}
 		vm.finalize();
 		const chosen = loadChosenCardIds(sid());
@@ -183,17 +195,15 @@ describe("finalize", () => {
 });
 
 describe("full ranking run", () => {
-	it("completes ranking with 7 cards, picking lexicographically lowest card", async () => {
+	it("completes ranking with 7 cards, picking first card as best and last as worst", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm = new FindMeaningRankingViewModel(sid());
-		await vm.initialize();
+		vm.initialize();
 
 		while (!vm.isComplete) {
-			const pair = vm.currentPair!;
-			// Pick the card with lexicographically lower ID
-			const index = pair[0].id <= pair[1].id ? 0 : 1;
-			await vm.choose(index);
+			const task = vm.currentTask!;
+			vm.choose(0, task.length - 1);
 		}
 
 		expect(vm.topK.length).toBeGreaterThanOrEqual(3);
@@ -205,14 +215,15 @@ describe("full ranking run", () => {
 		expect(chosen!.length).toBeLessThanOrEqual(5);
 	});
 
-	it("shows isComplete reactively when resuming a finished ranking", async () => {
+	it("shows isComplete reactively when resuming a finished ranking", () => {
 		// Complete a ranking and save the result.
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
 		const vm1 = new FindMeaningRankingViewModel(sid());
-		await vm1.initialize();
+		vm1.initialize();
 		while (!vm1.isComplete) {
-			await vm1.choose(0);
+			const task = vm1.currentTask!;
+			vm1.choose(0, task.length - 1);
 		}
 		// vm1 saved the completed ranking to localStorage.
 
@@ -228,7 +239,7 @@ describe("full ranking run", () => {
 		// Before initialize, isComplete should be false.
 		expect(isComplete).toBe(false);
 
-		await vm2.initialize();
+		vm2.initialize();
 
 		// After replaying a completed ranking, the reactive value of
 		// isComplete must be true so Vue re-renders to the end-state.

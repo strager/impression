@@ -1,131 +1,80 @@
 // ============================================================
-// Top-k Identification via Bayesian Bradley-Terry
-// with Information-Gain Pair Selection
+// Active Ranking via MaxDiff (Best-Worst Scaling)
 // ============================================================
 //
-// Identifies the top K items from N items through pairwise comparisons.
-// Uses a Bayesian Bradley-Terry model for strength estimation, a Laplace
-// approximation for uncertainty quantification, and information-gain pair
-// selection to minimize the number of comparisons needed.
-//
-// Components:
-//   - Bradley-Terry model (sigmoid): P(i beats j) = σ(μ_i - μ_j)
-//   - Bayesian inference (bayesianRefit): MAP via Newton's method + Laplace
-//   - Active learning (computeInformationGain, selectPair): pick the most
-//     informative pair to compare next
-//   - Stopping rules: confidence separation, stability, hard cap
-//   - Adaptive K reduction: when items near the K boundary have similar
-//     strength, stop early with fewer items (e.g. top-3 or top-4 instead
-//     of top-5) rather than grinding through the full comparison budget.
-//     The effectiveK getter reports how many items were actually selected.
-//
-// Stopping rule order (checked after every comparison):
-//   1. Confidence stop (full K) — top-K LCBs exceed non-top-K UCBs
-//   2. Adaptive K reduction — reduced K passes confidence with a z-score
-//      that starts high (reluctance) and decays linearly to the base z
-//   3. Stability stop (full K) — top-K set unchanged for stabilityWindow
-//   4. Max comparisons — hard budget; scans reduced K values for
-//      confidence or stability before falling back to full K
-//
-// References:
-//   Bradley & Terry (1952), Luce (1959), Caron & Doucet (2012),
-//   Herbrich et al. (2006/TrueSkill), Chaloner & Verdinelli (1995),
-//   MacKay (1992), Pfeiffer et al. (2012), Kalyanakrishnan et al. (2012),
-//   Kaufmann & Kalyanakrishnan (2013)
+// Identifies the top K items from N items through MaxDiff tasks.
+// Each task shows m items; the user picks the best and worst.
+// Uses sequential logit MLE + Laplace approximation for
+// uncertainty-aware adaptive task selection.
 // ============================================================
 
-import type { KWeight, RemainingEstimate, WinLoss } from "./ranking-math.ts";
-import { argsortDescending, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, estimateStabilityStop } from "./ranking-math.ts";
-import type { BayesianRefitRequest, BayesianRefitResponse, SelectPairRequest, SelectPairResponse, WorkerRequest, WorkerResponse } from "./ranking-worker-protocol.ts";
+import type { MaxDiffObservation, RemainingEstimate, XorshiftRng } from "./ranking-math.ts";
+import { argsortDescending, bayesianTopKProbability, confidentTopK, enumerateCombinations, estimateRemainingTasks, fitSequentialLogitMLE, makeXorshift, pairBalancedShuffle } from "./ranking-math.ts";
 
-// Re-export all pure math functions so existing imports from ranking.ts keep working.
-export { argsortDescending, bayesianRefit, boxMuller, checkAdaptiveKReduction, checkConfidenceStop, checkStabilityStop, choleskyDecompose, choleskyInverse, choleskySolve, computeInformationGain, estimateStabilityStop, makeXorshift, normalCDF, selectPair, sigmoid, topKEntropy } from "./ranking-math.ts";
-export type { KWeight, RemainingEstimate, WinLoss } from "./ranking-math.ts";
+export { argsortDescending, makeXorshift } from "./ranking-math.ts";
+export type { MaxDiffObservation, RemainingEstimate, XorshiftRng } from "./ranking-math.ts";
+
+export type StopMode = "boundary_only" | "all_cross_pairs" | "bayesian";
 
 export interface RankingConfig {
 	/** Number of top items to identify. */
 	k: number;
-	/** Minimum acceptable K for adaptive K reduction.
-	 * Must satisfy 1 <= minK <= k. Defaults to min(3, k). */
+	/** Minimum acceptable top-k if full k can't be confidently identified. Default k. */
 	minK: number;
-	/** Extra z-score penalty at round 0 for reduced-K stopping, decays
-	 * linearly to 0 at maxComparisons. Higher values make the algorithm
-	 * more reluctant to reduce K early. The effective z-score for reduced-K
-	 * checks is: z + kReductionReluctance * (1 - round / maxComparisons). */
-	kReductionReluctance: number;
-	/** Z-score for confidence-based stopping (e.g. 1.96 for 95%). */
-	z: number;
-	/** Number of consecutive stable rounds before stopping. */
-	stabilityWindow: number;
-	/** Hard cap on total pairwise comparisons. */
-	maxComparisons: number;
-	/** Prior variance for each strength parameter. */
-	priorVariance: number;
-	/** Gap the confidence intervals must exceed to trigger early stop. */
-	confidenceThreshold: number;
-	/** Penalize pairs that include items from the last comparison.
-	 * Value in (0, 1]: 1.0 = no penalty, lower = stronger penalty. */
-	recencyDiscount: number;
-	/** Disable the worker-side bayesianRefit cache (useful for benchmarks). */
-	noWorkerCache: boolean;
-	/** Disable speculative precomputation of the next pair after selectPair(). */
-	noSpeculation: boolean;
+	/** Hard cap on total tasks. Default: depends on n (40 for n<=8, 100 for n>=12, linear between). Set to 0 to use the n-dependent default. */
+	maxTasks: number;
+	/** Failure probability for confidence check. Default: depends on n. Set to 0 to use the n-dependent default. */
+	delta: number;
+	/** L2 regularization strength. Default 0.5. */
+	lambdaL2: number;
+	/** Minimum exposures per item before confidence stop. Default 2. */
+	minExposures: number;
+	/** Number of candidate task sets to evaluate. Default 20. */
+	candidatePool: number;
+	/** Number of items per task. Default 3. */
+	m: number;
+	/** RNG seed. Default Date.now(). */
+	seed: number;
+	/** Stop algorithm. Default "boundary_only". */
+	stopMode: StopMode;
+	/** Failure probability for reduced-k confidence check at budget limit. Default 0.05. */
+	minKDelta: number;
 }
 
-export type StopReason = "confidence" | "stability" | "max-comparisons";
+export type StopReason = "confidence" | "reduced-k" | "max-tasks";
 
-export interface ComparisonRecord<T> {
-	winner: T;
-	loser: T;
-}
-
-interface ReducedKStabilityEntry {
-	readonly k: number;
-	readonly topK: readonly number[];
-	readonly stableCount: number;
-}
-
-interface HistoryEntry {
-	readonly winnerIndex: number;
-	readonly loserIndex: number;
-	readonly topK: readonly number[];
-	readonly stableCount: number;
-	readonly flip: boolean | null;
-	readonly reducedKStability: readonly ReducedKStabilityEntry[];
+export interface TaskRecord<T> {
+	set: T[];
+	best: T;
+	worst: T;
 }
 
 const DEFAULT_CONFIG: RankingConfig = {
 	k: 5,
-	minK: 3,
-	kReductionReluctance: 1.0,
-	z: 1.96,
-	stabilityWindow: 10,
-	maxComparisons: 80,
-	priorVariance: 1.0,
-	confidenceThreshold: 0.0,
-	recencyDiscount: 0.5,
-	noWorkerCache: false,
-	noSpeculation: false,
+	minK: 5,
+	maxTasks: 0,
+	delta: 0,
+	lambdaL2: 0.5,
+	minExposures: 2,
+	candidatePool: 20,
+	m: 3,
+	seed: 0,
+	stopMode: "boundary_only",
+	minKDelta: 0.05,
 };
 
 /**
- * Bayesian Bradley-Terry ranking algorithm.
+ * Active ranking algorithm using MaxDiff (Best-Worst Scaling).
  *
- * Identifies the top K items from N items through iterative pairwise
- * comparisons. Callers pass in their items (strings, objects, etc.) and
- * interact using those item values. Internally, items are mapped to numeric
- * indices for the math.
- *
- * Heavy math (selectPair, bayesianRefit) is offloaded to a Web Worker
- * (browser) or worker_threads (Node). The methods `selectPair()`,
- * `recordComparison()`, and `undoLastComparison()` are async.
+ * Identifies the top K items from N items through iterative MaxDiff tasks.
+ * Each task presents m items; the user picks best and worst.
  *
  * Usage:
  *   const ranking = new Ranking(items);
  *   while (!ranking.stopped) {
- *     const { a, b } = await ranking.selectPair();
- *     // show a and b to user, get their choice
- *     await ranking.recordComparison(winner, loser);
+ *     const { items: taskItems } = ranking.selectTask();
+ *     // show taskItems to user, get their best and worst choices
+ *     ranking.recordTask(best, worst);
  *   }
  *   console.log(ranking.topK);
  */
@@ -133,11 +82,25 @@ export class Ranking<T> {
 	private readonly _items: readonly T[];
 	private readonly _config: RankingConfig;
 	private readonly _n: number;
+
+	// Model state
 	private _mu: Float64Array;
-	private _sigma: Float64Array;
-	private _history: HistoryEntry[];
-	private _comparisonRecords: ComparisonRecord<T>[];
-	private _round: number;
+	private _sigma: Float64Array; // N×N flat
+	private _exposures: number[];
+	private _observations: MaxDiffObservation[];
+	private _taskRecords: TaskRecord<T>[];
+	private _pendingTask: number[] | null;
+	private _totalTasks: number;
+
+	// Balanced task schedule (BIBD)
+	private _taskSchedule: number[][];
+	private _scheduleIndex: number;
+
+	// RNG
+	private readonly _seed: number;
+	private _rng: XorshiftRng;
+
+	// Stopping
 	private _stopped: boolean;
 	private _stopReason: StopReason | null;
 	private _effectiveK: number;
@@ -145,22 +108,51 @@ export class Ranking<T> {
 	constructor(items: readonly T[], config?: Partial<RankingConfig>) {
 		this._items = items;
 		this._config = { ...DEFAULT_CONFIG, ...config };
-		// If minK wasn't explicitly provided, clamp it to k
-		if (config?.minK === undefined) {
-			this._config.minK = Math.min(this._config.minK, this._config.k);
+		// If minK not explicitly provided, default to k
+		if (config !== undefined && config.minK === undefined) {
+			this._config.minK = this._config.k;
 		}
-		if (this._config.minK < 1 || this._config.minK > this._config.k) {
-			throw new Error(`minK must be between 1 and k (got minK=${String(this._config.minK)}, k=${String(this._config.k)})`);
+		if (this._config.seed === 0) {
+			this._config.seed = Date.now();
 		}
 		this._n = items.length;
+		if (this._config.maxTasks === 0) {
+			if (this._n <= 8) this._config.maxTasks = 40;
+			else if (this._n >= 12) this._config.maxTasks = 100;
+			else this._config.maxTasks = Math.round(40 + ((100 - 40) * (this._n - 8)) / (12 - 8));
+		}
+		if (this._config.delta === 0) {
+			if (this._n <= 8) this._config.delta = 0.05;
+			else if (this._n <= 10) this._config.delta = 0.1;
+			else this._config.delta = 0.15;
+		}
+		this._seed = this._config.seed;
+		this._rng = makeXorshift(this._seed);
+
 		this._mu = new Float64Array(this._n);
-		this._sigma = new Float64Array(this._n).fill(Math.sqrt(this._config.priorVariance));
-		this._history = [];
-		this._comparisonRecords = [];
-		this._round = 0;
+		this._sigma = new Float64Array(this._n * this._n);
+		this._exposures = new Array<number>(this._n).fill(0);
+		this._observations = [];
+		this._taskRecords = [];
+		this._pendingTask = null;
+		this._totalTasks = 0;
 		this._stopped = false;
 		this._stopReason = null;
 		this._effectiveK = this._config.k;
+		this._taskSchedule = [];
+		this._scheduleIndex = 0;
+
+		// Initialize with prior covariance
+		const initVar = 1.0 / (2 * this._config.lambdaL2);
+		for (let i = 0; i < this._n; i++) {
+			this._sigma[i * this._n + i] = initVar;
+		}
+
+		// Check trivial case: k >= n
+		if (this._config.k >= this._n) {
+			this._stopped = true;
+			this._stopReason = "confidence";
+		}
 	}
 
 	private _indexOf(item: T): number {
@@ -171,278 +163,207 @@ export class Ranking<T> {
 		return idx;
 	}
 
-	private _historyAsWinLoss(history: readonly HistoryEntry[]): WinLoss[] {
-		return history.map((entry) => [entry.winnerIndex, entry.loserIndex]);
+	private _isConfident(k: number, delta: number): boolean {
+		if (this._config.stopMode === "bayesian") {
+			const rng = makeXorshift(this._totalTasks * 31337);
+			return bayesianTopKProbability(this._mu, this._sigma, k, 2000, rng) >= 1 - delta;
+		}
+		return confidentTopK(this._mu, this._sigma, k, delta, this._config.stopMode);
 	}
 
-	private _topKFromMu(mu: Float64Array): number[] {
-		return argsortDescending(mu)
-			.slice(0, this._config.k)
-			.sort((a, b) => a - b);
+	private _generateSchedule(): void {
+		const combos = enumerateCombinations(this._n, this._config.m);
+		this._taskSchedule = pairBalancedShuffle(combos, this._n, this._rng);
+		this._scheduleIndex = 0;
 	}
 
-	private _stableCountFromHistory(): number {
-		const current = this._history.at(-1);
-		return current === undefined ? 0 : current.stableCount;
+	private _selectTaskInternal(): number[] {
+		if (this._pendingTask !== null) {
+			return this._pendingTask;
+		}
+
+		if (this._config.m >= this._n) {
+			const all: number[] = [];
+			for (let i = 0; i < this._n; i++) all.push(i);
+			this._pendingTask = all;
+			return all;
+		}
+
+		if (this._scheduleIndex >= this._taskSchedule.length) {
+			this._generateSchedule();
+		}
+
+		const task = this._taskSchedule[this._scheduleIndex++];
+		this._pendingTask = task;
+		return task;
 	}
 
-	private _flipHistoryFromHistory(): boolean[] {
-		const flips: boolean[] = [];
-		for (const entry of this._history) {
-			if (entry.flip !== null) {
-				flips.push(entry.flip);
-			}
-		}
-		return flips;
-	}
-
-	/**
-	 * Build round-dependent weights for multi-objective pair selection.
-	 *
-	 * Full K always gets weight 1.0. Reduced K values (k-1 down to minK)
-	 * get weight equal to progress (round / maxComparisons), so early
-	 * rounds focus on the full K objective while later rounds increasingly
-	 * gather information useful for reduced K values too.
-	 *
-	 * Weights are normalized to sum to 1.
-	 */
-	private _computeKWeights(): KWeight[] {
-		const { k, minK, maxComparisons } = this._config;
-		const progress = this._round / maxComparisons;
-		const candidates: KWeight[] = [{ k, weight: 1.0 }];
-		for (let rk = k - 1; rk >= minK; rk--) {
-			candidates.push({ k: rk, weight: progress });
-		}
-		const total = candidates.reduce((sum, c) => sum + c.weight, 0);
-		return candidates.map((c) => ({ k: c.k, weight: c.weight / total }));
-	}
-
-	private async _selectPairOnWorker(mu: Float64Array, sigma: Float64Array, history: WinLoss[]): Promise<[number, number]> {
-		await ensureWorker();
-		const id = nextRequestId++;
-		const response = await postToWorker({
-			type: "selectPair",
-			id,
-			mu,
-			sigma,
-			history,
-			kWeights: this._computeKWeights(),
-			n: this._n,
-			priorVariance: this._config.priorVariance,
-			recencyDiscount: this._config.recencyDiscount,
-			noCache: this._config.noWorkerCache,
-		});
-		return response.pair;
-	}
-
-	private async _recordComparisonPure(
-		mu: Float64Array,
-		sigma: Float64Array,
-		history: WinLoss[],
-		wi: number,
-		li: number,
-		round: number,
-		previousTopK: readonly number[] | null,
-		stableCount: number,
-		previousReducedKStability: readonly ReducedKStabilityEntry[],
-	): Promise<{
-		mu: Float64Array;
-		sigma: Float64Array;
-		history: WinLoss[];
-		round: number;
-		topK: readonly number[];
-		stableCount: number;
-		flip: boolean | null;
-		stopped: boolean;
-		stopReason: StopReason | null;
-		effectiveK: number;
-		reducedKStability: readonly ReducedKStabilityEntry[];
-	}> {
-		const newHistory: WinLoss[] = [...history, [wi, li]];
-		const newRound = round + 1;
-
-		await ensureWorker();
-		const id = nextRequestId++;
-		const response = await postToWorker({
-			type: "bayesianRefit",
-			id,
-			history: newHistory,
-			n: this._n,
-			priorVariance: this._config.priorVariance,
-			noCache: this._config.noWorkerCache,
-		});
-
-		const newMu = response.mu instanceof Float64Array ? response.mu : new Float64Array(response.mu);
-		const newSigma = response.sigma instanceof Float64Array ? response.sigma : new Float64Array(response.sigma);
-
-		const { k, minK, z, confidenceThreshold, stabilityWindow, maxComparisons, kReductionReluctance } = this._config;
-
-		// Update reduced-K stability tracking
-		const newReducedKStability: ReducedKStabilityEntry[] = [];
-		for (let rk = k - 1; rk >= minK; rk--) {
-			const prev = previousReducedKStability.find((e) => e.k === rk);
-			const prevTopK = prev !== undefined ? prev.topK : null;
-			const prevStableCount = prev !== undefined ? prev.stableCount : 0;
-			const stabResult = checkStabilityStop(newMu, rk, prevTopK, prevStableCount, stabilityWindow);
-			newReducedKStability.push({ k: rk, topK: stabResult.topK, stableCount: stabResult.stableCount });
+	private _recordTaskInternal(bestIdx: number, worstIdx: number): void {
+		if (this._pendingTask === null) {
+			throw new Error("No pending task to record");
 		}
 
-		// 1. Confidence stop (full K)
-		if (checkConfidenceStop(newMu, newSigma, k, z, confidenceThreshold)) {
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: this._topKFromMu(newMu), stableCount, flip: null, stopped: true, stopReason: "confidence", effectiveK: k, reducedKStability: newReducedKStability };
+		const set = this._pendingTask;
+		const obs: MaxDiffObservation = { set: [...set], best: bestIdx, worst: worstIdx };
+		this._observations.push(obs);
+
+		for (const idx of set) {
+			this._exposures[idx]++;
 		}
 
-		// 2. Adaptive K reduction
-		const reducedZ = z + kReductionReluctance * (1 - newRound / maxComparisons);
-		const adaptiveK = checkAdaptiveKReduction(newMu, newSigma, k, minK, reducedZ, confidenceThreshold);
-		if (adaptiveK !== null) {
-			const adaptiveTopK = argsortDescending(newMu)
-				.slice(0, adaptiveK)
-				.sort((a, b) => a - b);
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: adaptiveTopK, stableCount, flip: null, stopped: true, stopReason: "confidence", effectiveK: adaptiveK, reducedKStability: newReducedKStability };
-		}
+		this._totalTasks++;
+		this._pendingTask = null;
 
-		// 3. Stability stop (full K)
-		const stability = checkStabilityStop(newMu, k, previousTopK, stableCount, stabilityWindow);
-		const flip = previousTopK !== null ? stability.stableCount === 0 : null;
-		const newTopK = stability.topK;
-		const newStableCount = stability.stableCount;
-		if (stability.stopped) {
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "stability", effectiveK: k, reducedKStability: newReducedKStability };
-		}
-
-		// 4. Max comparisons fallback with reduced-K scan
-		if (newRound >= maxComparisons) {
-			// Scan reduced K values descending, pick largest that passes either
-			// reduced-confidence (reducedZ = z since reluctance is gone) or reduced-stability
-			for (let rk = k - 1; rk >= minK; rk--) {
-				if (checkConfidenceStop(newMu, newSigma, rk, z, confidenceThreshold)) {
-					const fallbackTopK = argsortDescending(newMu)
-						.slice(0, rk)
-						.sort((a, b) => a - b);
-					return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: fallbackTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "confidence", effectiveK: rk, reducedKStability: newReducedKStability };
-				}
-				const rkEntry = newReducedKStability.find((e) => e.k === rk);
-				if (rkEntry !== undefined && rkEntry.stableCount >= stabilityWindow) {
-					return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: rkEntry.topK, stableCount: newStableCount, flip, stopped: true, stopReason: "stability", effectiveK: rk, reducedKStability: newReducedKStability };
-				}
-			}
-			return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: true, stopReason: "max-comparisons", effectiveK: k, reducedKStability: newReducedKStability };
-		}
-
-		return { mu: newMu, sigma: newSigma, history: newHistory, round: newRound, topK: newTopK, stableCount: newStableCount, flip, stopped: false, stopReason: null, effectiveK: k, reducedKStability: newReducedKStability };
-	}
-
-	private _speculateAfterPairSelection(i: number, j: number): void {
-		if (this._config.noSpeculation) return;
-		const history = this._historyAsWinLoss(this._history);
-		const current = this._history.at(-1);
-		const previousTopK = current === undefined ? null : current.topK;
-		const stableCount = current === undefined ? 0 : current.stableCount;
-		const reducedKStability = current === undefined ? [] : current.reducedKStability;
-		const speculate = async (wi: number, li: number): Promise<void> => {
-			const result = await this._recordComparisonPure(this._mu, this._sigma, history, wi, li, this._round, previousTopK, stableCount, reducedKStability);
-			if (!result.stopped) {
-				await this._selectPairOnWorker(result.mu, result.sigma, result.history);
-			}
-		};
-		// eslint-disable-next-line @typescript-eslint/no-empty-function -- fire-and-forget; errors are intentionally swallowed
-		speculate(i, j).catch(() => {});
-		// eslint-disable-next-line @typescript-eslint/no-empty-function -- fire-and-forget; errors are intentionally swallowed
-		speculate(j, i).catch(() => {});
-	}
-
-	async selectPair(): Promise<{ a: T; b: T }> {
-		if (this._stopped) {
-			throw new Error("Ranking has already stopped");
-		}
-		const [i, j] = await this._selectPairOnWorker(this._mu, this._sigma, this._historyAsWinLoss(this._history));
-		this._speculateAfterPairSelection(i, j);
-		return { a: this._items[i], b: this._items[j] };
-	}
-
-	async recordComparison(winner: T, loser: T): Promise<{ stopped: boolean; stopReason: StopReason | null }> {
-		if (this._stopped) {
-			throw new Error("Ranking has already stopped");
-		}
-
-		const wi = this._indexOf(winner);
-		const li = this._indexOf(loser);
-		const current = this._history.at(-1);
-		const previousTopK = current === undefined ? null : current.topK;
-		const stableCount = current === undefined ? 0 : current.stableCount;
-		const reducedKStability = current === undefined ? [] : current.reducedKStability;
-
-		const result = await this._recordComparisonPure(this._mu, this._sigma, this._historyAsWinLoss(this._history), wi, li, this._round, previousTopK, stableCount, reducedKStability);
-
+		// Refit MLE on full dataset
+		const result = fitSequentialLogitMLE(this._observations, this._n, this._config.lambdaL2);
 		this._mu = result.mu;
 		this._sigma = result.sigma;
-		this._history.push({
-			winnerIndex: wi,
-			loserIndex: li,
-			topK: result.topK,
-			stableCount: result.stableCount,
-			flip: result.flip,
-			reducedKStability: result.reducedKStability,
-		});
-		this._comparisonRecords.push({ winner, loser });
-		this._round = result.round;
-		this._stopped = result.stopped;
-		this._stopReason = result.stopReason;
-		this._effectiveK = result.effectiveK;
 
-		return { stopped: result.stopped, stopReason: result.stopReason };
-	}
-
-	async undoLastComparison(): Promise<ComparisonRecord<T>> {
-		if (this._history.length === 0) {
-			throw new Error("No comparison to undo");
+		// Check confidence stop (only after minimum coverage)
+		const minExp = Math.min(...this._exposures);
+		if (minExp >= this._config.minExposures) {
+			if (this._isConfident(this._config.k, this._config.delta)) {
+				this._effectiveK = this._config.k;
+				this._stopped = true;
+				this._stopReason = "confidence";
+				return;
+			}
 		}
 
+		// Check hard budget
+		if (this._totalTasks >= this._config.maxTasks) {
+			// At budget limit, try reduced k values before giving up.
+			if (this._config.minK < this._config.k) {
+				for (let kk = this._config.k - 1; kk >= this._config.minK; kk--) {
+					if (this._isConfident(kk, this._config.minKDelta)) {
+						this._effectiveK = kk;
+						this._stopped = true;
+						this._stopReason = "reduced-k";
+						return;
+					}
+				}
+			}
+			this._stopped = true;
+			this._stopReason = "max-tasks";
+		}
+	}
+
+	private _replay(observations: readonly MaxDiffObservation[], taskRecords: readonly TaskRecord<T>[]): void {
+		// Reset all state
+		this._mu = new Float64Array(this._n);
+		this._sigma = new Float64Array(this._n * this._n);
+		const initVar = 1.0 / (2 * this._config.lambdaL2);
+		for (let i = 0; i < this._n; i++) {
+			this._sigma[i * this._n + i] = initVar;
+		}
+		this._exposures = new Array<number>(this._n).fill(0);
+		this._observations = [];
+		this._taskRecords = [];
+		this._pendingTask = null;
+		this._totalTasks = 0;
 		this._stopped = false;
 		this._stopReason = null;
 		this._effectiveK = this._config.k;
+		this._taskSchedule = [];
+		this._scheduleIndex = 0;
 
-		this._history.pop();
-		const record = this._comparisonRecords.pop();
-		if (record === undefined) {
-			throw new Error("No comparison to undo");
+		// Check trivial case
+		if (this._config.k >= this._n) {
+			this._stopped = true;
+			this._stopReason = "confidence";
+			return;
 		}
-		this._round--;
 
-		// Refit model on worker
-		await ensureWorker();
-		const id = nextRequestId++;
-		const response = await postToWorker({
-			type: "bayesianRefit",
-			id,
-			history: this._historyAsWinLoss(this._history),
-			n: this._n,
-			priorVariance: this._config.priorVariance,
-			noCache: this._config.noWorkerCache,
+		// Re-create RNG from seed
+		this._rng = makeXorshift(this._seed);
+
+		// Replay each task
+		for (let i = 0; i < observations.length; i++) {
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- _recordTaskInternal can set _stopped
+			if (this._stopped) break;
+			const obs = observations[i];
+			this._selectTaskInternal(); // advances RNG
+			this._taskRecords.push(taskRecords[i]);
+			this._recordTaskInternal(obs.best, obs.worst);
+		}
+	}
+
+	selectTask(): { items: T[] } {
+		if (this._stopped) {
+			throw new Error("Ranking has already stopped");
+		}
+
+		const task = this._selectTaskInternal();
+		return { items: task.map((i) => this._items[i]) };
+	}
+
+	recordTask(best: T, worst: T, set?: readonly T[]): { stopped: boolean; stopReason: StopReason | null } {
+		if (this._stopped) {
+			throw new Error("Ranking has already stopped");
+		}
+
+		const bi = this._indexOf(best);
+		const wi = this._indexOf(worst);
+
+		if (set !== undefined) {
+			// Replay path: use the provided set and advance the schedule
+			// to keep RNG in sync.
+			const taskIndices = set.map((item) => this._indexOf(item));
+			this._selectTaskInternal(); // advance RNG/schedule
+			this._pendingTask = taskIndices;
+		} else if (this._pendingTask === null) {
+			// Auto-select task if none pending
+			this._selectTaskInternal();
+		}
+
+		const pendingTask = this._pendingTask;
+		if (pendingTask === null) {
+			throw new Error("Failed to select task");
+		}
+
+		this._taskRecords.push({
+			set: pendingTask.map((i) => this._items[i]),
+			best,
+			worst,
 		});
+		this._recordTaskInternal(bi, wi);
 
-		this._mu = response.mu instanceof Float64Array ? response.mu : new Float64Array(response.mu);
-		this._sigma = response.sigma instanceof Float64Array ? response.sigma : new Float64Array(response.sigma);
+		return { stopped: this._stopped, stopReason: this._stopReason };
+	}
+
+	undoLastTask(): TaskRecord<T> {
+		if (this._observations.length === 0) {
+			throw new Error("No task to undo");
+		}
+
+		const record = this._taskRecords[this._taskRecords.length - 1];
+		const newObs = this._observations.slice(0, -1);
+		const newRecords = this._taskRecords.slice(0, -1);
+		this._replay(newObs, newRecords);
 
 		return record;
 	}
 
 	get topK(): readonly T[] {
-		const indices: number[] = [];
-		for (let i = 0; i < this._n; i++) {
-			indices.push(i);
-		}
-		indices.sort((a, b) => this._mu[b] - this._mu[a]);
-		return indices.slice(0, this._effectiveK).map((i) => this._items[i]);
+		const ranking = argsortDescending(this._mu);
+		const ek = Math.min(this._effectiveK, this._n);
+		return ranking.slice(0, ek).map((i) => this._items[i]);
 	}
 
 	get effectiveK(): number {
 		return this._effectiveK;
 	}
 
+	get delta(): number {
+		return this._config.delta;
+	}
+
+	get maxTasks(): number {
+		return this._config.maxTasks;
+	}
+
 	get round(): number {
-		return this._round;
+		return this._totalTasks;
 	}
 
 	get stopped(): boolean {
@@ -453,123 +374,34 @@ export class Ranking<T> {
 		return this._stopReason;
 	}
 
-	get mu(): readonly number[] {
-		return Array.from(this._mu);
-	}
-
-	get sigma(): readonly number[] {
-		return Array.from(this._sigma);
-	}
-
-	get history(): readonly ComparisonRecord<T>[] {
-		return this._comparisonRecords;
+	get history(): readonly TaskRecord<T>[] {
+		return this._taskRecords;
 	}
 
 	clone(): Ranking<T> {
-		const copy = new Ranking(this._items, this._config);
-		copy._mu = this._mu.slice();
-		copy._sigma = this._sigma.slice();
-		copy._history = [...this._history];
-		copy._comparisonRecords = [...this._comparisonRecords];
-		copy._round = this._round;
-		copy._stopped = this._stopped;
-		copy._stopReason = this._stopReason;
-		copy._effectiveK = this._effectiveK;
+		const copy = new Ranking(this._items, { ...this._config });
+		copy._replay(this._observations, this._taskRecords);
 		return copy;
 	}
 
 	estimateRemaining(): RemainingEstimate {
-		const maxRemaining = Math.max(0, this._config.maxComparisons - this._round);
-		return estimateStabilityStop(this._flipHistoryFromHistory(), this._stableCountFromHistory(), this._config.stabilityWindow, maxRemaining);
+		if (this._stopped) return { low: 0, mid: 0, high: 0 };
+		return estimateRemainingTasks(this._mu, this._sigma, this._config.k, this._config.delta, this._totalTasks, this._config.maxTasks);
 	}
 
 	debugState(): {
 		mu: Float64Array;
 		sigma: Float64Array;
-		effectiveK: number;
-		fullKStableCount: number;
-		reducedKStability: readonly ReducedKStabilityEntry[];
-		kWeights: KWeight[];
+		exposures: readonly number[];
 		config: RankingConfig;
 		round: number;
 	} {
-		const current = this._history.at(-1);
 		return {
 			mu: this._mu,
 			sigma: this._sigma,
-			effectiveK: this._effectiveK,
-			fullKStableCount: current === undefined ? 0 : current.stableCount,
-			reducedKStability: current === undefined ? [] : current.reducedKStability,
-			kWeights: this._computeKWeights(),
+			exposures: this._exposures,
 			config: this._config,
-			round: this._round,
+			round: this._totalTasks,
 		};
 	}
-}
-
-// ---- Global worker singleton ----
-
-interface PendingRequest {
-	resolve: (response: WorkerResponse) => void;
-}
-
-const pendingRequests = new Map<number, PendingRequest>();
-let globalWorkerReady: Promise<void> | null = null;
-
-function ensureWorker(): Promise<void> {
-	if (globalWorkerReady !== null) return globalWorkerReady;
-	globalWorkerReady = initWorker();
-	return globalWorkerReady;
-}
-
-function handleWorkerResponse(data: WorkerResponse): void {
-	const pending = pendingRequests.get(data.id);
-	if (pending !== undefined) {
-		pendingRequests.delete(data.id);
-		pending.resolve(data);
-	}
-}
-
-let workerPostMessage: (msg: WorkerRequest) => void = () => {
-	throw new Error("Worker not initialized");
-};
-
-async function initWorker(): Promise<void> {
-	if ("Worker" in globalThis) {
-		// Browser: use standard Web Worker
-		// The `new Worker(new URL(...), ...)` pattern must be a single expression
-		// so Vite can statically detect and bundle the worker for production builds.
-		// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- dual-compiled: error in backend tsconfig but not frontend
-		// @ts-ignore -- Worker is a DOM global (valid in frontend tsconfig but not backend)
-		const w: { postMessage(msg: WorkerRequest): void; addEventListener(event: "message", handler: (event: { data: WorkerResponse }) => void): void } = new Worker(new URL("./ranking.worker.ts", import.meta.url), { type: "module" });
-		w.addEventListener("message", (event) => {
-			handleWorkerResponse(event.data);
-		});
-		workerPostMessage = (msg) => {
-			w.postMessage(msg);
-		};
-		return;
-	}
-
-	// Node: use worker_threads
-	const { Worker: NodeWorker } = await import("node:worker_threads");
-	const workerPath = new URL("./ranking.worker.ts", import.meta.url);
-	const w = new NodeWorker(workerPath);
-	w.on("message", (data: WorkerResponse) => {
-		handleWorkerResponse(data);
-	});
-	workerPostMessage = (msg) => {
-		w.postMessage(msg);
-	};
-}
-
-let nextRequestId = 0;
-
-function postToWorker(request: SelectPairRequest): Promise<SelectPairResponse>;
-function postToWorker(request: BayesianRefitRequest): Promise<BayesianRefitResponse>;
-function postToWorker(request: WorkerRequest): Promise<WorkerResponse> {
-	return new Promise((resolve) => {
-		pendingRequests.set(request.id, { resolve });
-		workerPostMessage(request);
-	});
 }

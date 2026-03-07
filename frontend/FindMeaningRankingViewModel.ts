@@ -3,7 +3,7 @@ import { type ShallowRef, ref, shallowRef, triggerRef } from "vue";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import type { RemainingEstimate } from "../shared/ranking.ts";
-import { Ranking } from "../shared/ranking.ts";
+import { Ranking, makeXorshift } from "../shared/ranking.ts";
 import { capture } from "./analytics.ts";
 import { loadRanking, loadSwipeProgress, needsPrioritization, saveChosenCardIds, saveRanking, selectCandidateCards } from "./store.ts";
 
@@ -11,13 +11,13 @@ const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
 export class FindMeaningRankingViewModel {
 	private readonly sessionId: string;
-	private readonly _currentPair = ref<[MeaningCard, MeaningCard] | null>(null);
+	private readonly _currentTask = ref<MeaningCard[] | null>(null);
 	// You should manually trigger this ref when calling mutating methods of
 	// Ranking.
 	private readonly _ranking: ShallowRef<Ranking<string> | null> = shallowRef(null);
 	private cardIds: string[] = [];
 	private _phaseStartedAtMs = 0;
-	private _pairShownAtMs = 0;
+	private _taskShownAtMs = 0;
 
 	constructor(sessionId: string) {
 		this.sessionId = sessionId;
@@ -32,8 +32,8 @@ export class FindMeaningRankingViewModel {
 		return this._ranking.value.topK.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
 	}
 
-	get currentPair(): [MeaningCard, MeaningCard] | null {
-		return this._currentPair.value;
+	get currentTask(): MeaningCard[] | null {
+		return this._currentTask.value;
 	}
 
 	get round(): number {
@@ -48,7 +48,7 @@ export class FindMeaningRankingViewModel {
 		return this._ranking.value?.estimateRemaining() ?? null;
 	}
 
-	async initialize(): Promise<"ready" | "no-data" | "skip"> {
+	initialize(): "ready" | "no-data" | "skip" {
 		this._phaseStartedAtMs = performance.now();
 		const saved = loadRanking(this.sessionId);
 		let resolvedCardIds: string[];
@@ -75,19 +75,20 @@ export class FindMeaningRankingViewModel {
 		}
 
 		const resumedFromRound = saved?.comparisons.length ?? 0;
-		this._ranking.value = new Ranking(resolvedCardIds, { k: 5 });
+		this._ranking.value = new Ranking(resolvedCardIds, { k: 5, seed: 42 });
 
 		if (saved !== null) {
 			for (const comp of saved.comparisons) {
 				if (this._ranking.value.stopped) break;
-				await this._ranking.value.recordComparison(comp.winner, comp.loser);
-				triggerRef(this._ranking);
+				this._ranking.value.recordTask(comp.best, comp.worst, comp.set);
 			}
 		}
 
 		if (!this._ranking.value.stopped) {
-			await this.showNextPair();
+			this.showNextTask();
 		}
+
+		triggerRef(this._ranking);
 
 		capture("ranking_entered", {
 			session_id: this.sessionId,
@@ -98,50 +99,55 @@ export class FindMeaningRankingViewModel {
 		return "ready";
 	}
 
-	async choose(index: 0 | 1): Promise<void> {
+	choose(bestIndex: number, worstIndex: number): void {
 		if (this._ranking.value === null || this._ranking.value.stopped) {
 			throw new Error("Cannot choose: ranking is null or stopped");
 		}
-		const pair = this._currentPair.value;
-		if (pair === null) {
-			throw new Error("Cannot choose: no current pair");
+		const task = this._currentTask.value;
+		if (task === null) {
+			throw new Error("Cannot choose: no current task");
 		}
 
-		const winner = pair[index];
-		const loser = pair[1 - index];
+		const best = task[bestIndex];
+		const worst = task[worstIndex];
 		const now = performance.now();
-		const timeOnPairMs = Math.round(now - this._pairShownAtMs);
+		const timeOnTaskMs = Math.round(now - this._taskShownAtMs);
 
-		const result = await this._ranking.value.recordComparison(winner.id, loser.id);
-		triggerRef(this._ranking);
+		const result = this._ranking.value.recordTask(best.id, worst.id);
 
 		if (result.stopped) {
 			this.saveProgress(true);
 		} else {
-			await this.showNextPair();
+			this.showNextTask();
 			this.saveProgress(false);
 		}
+
+		triggerRef(this._ranking);
 
 		const est = this._ranking.value.estimateRemaining();
 		capture("ranking_comparison_made", {
 			session_id: this.sessionId,
-			time_on_pair_ms: timeOnPairMs,
+			time_on_pair_ms: timeOnTaskMs,
 			comparisons_so_far: this._ranking.value.round,
 			estimated_remaining: est !== null ? Math.ceil(est.mid) : -1,
 		});
 	}
 
-	async undo(): Promise<string> {
+	undo(): { bestId: string; worstId: string } {
 		if (this._ranking.value === null || this._ranking.value.round === 0) {
-			throw new Error("Cannot undo: no comparisons to undo");
+			throw new Error("Cannot undo: no tasks to undo");
 		}
-		const undone = await this._ranking.value.undoLastComparison();
+		const history = this._ranking.value.history;
+		const last = history[history.length - 1];
+		const bestId = last.best;
+		const worstId = last.worst;
+		this._ranking.value.undoLastTask();
+		this.showNextTask();
 		triggerRef(this._ranking);
-		await this.showNextPair();
 		this.saveProgress(false);
 
 		capture("ranking_undone", { session_id: this.sessionId });
-		return undone.winner;
+		return { bestId, worstId };
 	}
 
 	finalize(): void {
@@ -167,22 +173,27 @@ export class FindMeaningRankingViewModel {
 		}
 		saveRanking(this.sessionId, {
 			cardIds: this.cardIds,
-			comparisons: this._ranking.value.history.map((c) => ({ winner: c.winner, loser: c.loser })),
+			comparisons: this._ranking.value.history.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
 			complete,
 		});
 	}
 
-	private async showNextPair(): Promise<void> {
+	private showNextTask(): void {
 		if (this._ranking.value === null) {
-			throw new Error("Cannot show next pair: ranking is null");
+			throw new Error("Cannot show next task: ranking is null");
 		}
-		const { a, b } = await this._ranking.value.selectPair();
-		const cardA = cardsById.get(a);
-		const cardB = cardsById.get(b);
-		if (cardA === undefined || cardB === undefined) {
-			throw new Error("Card not found for ranking pair");
+		const { items } = this._ranking.value.selectTask();
+		const cards = items.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
+		if (cards.length !== items.length) {
+			throw new Error("Card not found for ranking task");
 		}
-		this._currentPair.value = [cardA, cardB];
-		this._pairShownAtMs = performance.now();
+		// Shuffle display order so cards don't appear in a predictable pattern
+		const rng = makeXorshift(42);
+		for (let i = cards.length - 1; i > 0; i--) {
+			const j = Math.floor(rng.next() * (i + 1));
+			[cards[i], cards[j]] = [cards[j], cards[i]];
+		}
+		this._currentTask.value = cards;
+		this._taskShownAtMs = performance.now();
 	}
 }

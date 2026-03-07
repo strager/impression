@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import AppButton from "./AppButton.vue";
+import ToggleButton from "./ToggleButton.vue";
 
 const router = useRouter();
 const sessionId = useStringParam("sessionId");
 const vm = new FindMeaningRankingViewModel(sessionId);
 
-const selectedIndex = ref<0 | 1 | null>(null);
-const loading = ref(false);
+const mostIndex = ref<number | null>(null);
+const leastIndex = ref<number | null>(null);
+const displayOrder = ref([0, 1, 2]);
+const canAdvance = computed(() => mostIndex.value !== null && leastIndex.value !== null);
 
-onMounted(async () => {
-	const result = await vm.initialize();
+onMounted(() => {
+	const result = vm.initialize();
 	if (result === "no-data") {
 		void router.replace({ name: "findMeaning", params: { sessionId } });
 		return;
@@ -25,37 +28,70 @@ onMounted(async () => {
 	}
 });
 
-async function handleCardTap(index: 0 | 1): Promise<void> {
-	if (loading.value) return;
-	if (selectedIndex.value === index) {
-		loading.value = true;
-		try {
-			await vm.choose(index);
-			selectedIndex.value = null;
-		} finally {
-			loading.value = false;
-		}
-	} else {
-		selectedIndex.value = index;
+function moveToTop(idx: number): void {
+	const order = [...displayOrder.value];
+	const pos = order.indexOf(idx);
+	if (pos > 0) {
+		order.splice(pos, 1);
+		order.unshift(idx);
+		displayOrder.value = order;
 	}
 }
 
-async function handleUndo(): Promise<void> {
-	if (loading.value) return;
-	if (selectedIndex.value !== null) {
-		selectedIndex.value = null;
-		return;
+function moveToBottom(idx: number): void {
+	const order = [...displayOrder.value];
+	const pos = order.indexOf(idx);
+	if (pos < order.length - 1) {
+		order.splice(pos, 1);
+		order.push(idx);
+		displayOrder.value = order;
 	}
-	loading.value = true;
-	try {
-		const winnerId = await vm.undo();
-		const pair = vm.currentPair;
-		if (pair !== null) {
-			const idx = pair.findIndex((c) => c.id === winnerId);
-			selectedIndex.value = idx === 0 || idx === 1 ? idx : null;
-		}
-	} finally {
-		loading.value = false;
+}
+
+function handleMost(index: number): void {
+	if (mostIndex.value === index) {
+		mostIndex.value = null;
+	} else {
+		mostIndex.value = index;
+		if (leastIndex.value === index) leastIndex.value = null;
+		moveToTop(index);
+	}
+}
+
+function handleLeast(index: number): void {
+	if (leastIndex.value === index) {
+		leastIndex.value = null;
+	} else {
+		leastIndex.value = index;
+		if (mostIndex.value === index) mostIndex.value = null;
+		moveToBottom(index);
+	}
+}
+
+function handleNext(): void {
+	const best = mostIndex.value;
+	const worst = leastIndex.value;
+	if (best === null || worst === null) return;
+	vm.choose(best, worst);
+	mostIndex.value = null;
+	leastIndex.value = null;
+	displayOrder.value = [0, 1, 2];
+}
+
+function handleUndo(): void {
+	const { bestId, worstId } = vm.undo();
+	displayOrder.value = [0, 1, 2];
+	const task = vm.currentTask;
+	if (task !== null) {
+		const bestIdx = task.findIndex((c) => c.id === bestId);
+		const worstIdx = task.findIndex((c) => c.id === worstId);
+		mostIndex.value = bestIdx >= 0 ? bestIdx : null;
+		leastIndex.value = worstIdx >= 0 ? worstIdx : null;
+		if (bestIdx >= 0) moveToTop(bestIdx);
+		if (worstIdx >= 0) moveToBottom(worstIdx);
+	} else {
+		mostIndex.value = null;
+		leastIndex.value = null;
 	}
 }
 
@@ -69,35 +105,41 @@ function handleFinish(): void {
 	<main>
 		<header>
 			<h1>Find Meaning — Rank</h1>
-			<p class="instruction">Choose which source of meaning resonates with you more.</p>
-			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null || vm.estimatedRemaining.mid === 0 }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining.mid))} ${Math.ceil(vm.estimatedRemaining.mid) === 1 ? "comparison" : "comparisons"} remaining.` : "&nbsp;" }}</p>
+			<p class="instruction">Select your most and least meaningful cards.</p>
+			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null || vm.estimatedRemaining.mid === 0 }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining.mid))} ${Math.ceil(vm.estimatedRemaining.mid) === 1 ? "task" : "tasks"} remaining.` : "&nbsp;" }}</p>
 		</header>
 
 		<div v-if="!vm.isComplete" class="ranking-area">
-			<div :key="vm.round" class="card-pair">
-				<template v-if="vm.currentPair !== null">
-					<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
-					<button v-for="(card, index) in vm.currentPair" :key="card.id" class="ranking-card" :class="{ selected: selectedIndex === index }" :disabled="loading" :aria-pressed="selectedIndex === index" @click="handleCardTap(index as 0 | 1)">
-						<span class="card-source">{{ card.source }}</span>
-						<p class="card-text">{{ card.description }}</p>
-						<span v-if="selectedIndex === index" class="confirm-label">Tap again to confirm</span>
-					</button>
-				</template>
-				<template v-else>
-					<div class="ranking-card blank" aria-hidden="true" />
-					<div class="ranking-card blank" aria-hidden="true" />
-				</template>
+			<div v-if="vm.currentTask !== null" :key="vm.round">
+				<TransitionGroup tag="div" name="card" class="card-triad">
+					<div v-for="idx in displayOrder" :key="vm.currentTask[idx].id" class="ranking-card">
+						<div class="card-content">
+							<div class="card-title">{{ vm.currentTask[idx].source }}</div>
+							<div class="card-body">{{ vm.currentTask[idx].description }}</div>
+						</div>
+						<div class="card-buttons">
+							<ToggleButton variant="primary" :active="mostIndex === idx" @toggle="handleMost(idx)">Most meaningful</ToggleButton>
+							<ToggleButton variant="neutral" :active="leastIndex === idx" @toggle="handleLeast(idx)">Least meaningful</ToggleButton>
+						</div>
+					</div>
+				</TransitionGroup>
+			</div>
+			<div v-else class="card-triad">
+				<div class="ranking-card blank" aria-hidden="true" />
+				<div class="ranking-card blank" aria-hidden="true" />
+				<div class="ranking-card blank" aria-hidden="true" />
+			</div>
+
+			<div class="button-row">
+				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Back</AppButton>
+				<AppButton variant="primary" :disabled="!canAdvance" @click="handleNext">Next</AppButton>
 			</div>
 		</div>
 
 		<div v-else class="end-state">
 			<h2>You're done!</h2>
 			<p>Your top sources of meaning have been identified.</p>
-			<AppButton variant="primary" @click="handleFinish">Explore Meaning</AppButton>
-		</div>
-
-		<div class="undo-area">
-			<AppButton variant="secondary" emphasis="muted" :disabled="(selectedIndex === null && !vm.canUndo) || loading" @click="handleUndo">Undo</AppButton>
+			<AppButton variant="primary" @click="handleFinish">Explore meaning</AppButton>
 		</div>
 	</main>
 </template>
@@ -133,70 +175,56 @@ h1 {
 	visibility: hidden;
 }
 
-.card-pair {
+.card-triad {
 	display: flex;
-	gap: var(--space-4);
+	flex-direction: column;
 	margin-bottom: var(--space-6);
 }
 
+.card-move {
+	transition: transform 0.3s ease;
+	position: relative;
+	z-index: 1;
+}
+
 .ranking-card {
-	flex: 1;
-	min-height: 14rem;
-	padding: var(--space-8);
 	background: var(--color-white);
-	border: var(--border-thin);
-	cursor: pointer;
+	border-top: var(--border-thin);
+	border-bottom: var(--border-thin);
+	padding: var(--space-5) 0;
 	text-align: left;
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-2);
-	font-family: inherit;
-	-webkit-tap-highlight-color: transparent;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: var(--space-4);
+}
+
+.ranking-card + .ranking-card {
+	margin-top: -1px;
 }
 
 .ranking-card.blank {
 	cursor: default;
 }
 
-.ranking-card:hover {
-	border-color: var(--color-gray-400);
+.card-content {
+	min-width: 0;
 }
 
-.ranking-card.selected {
-	border-color: var(--color-green-600);
-	box-shadow: inset 0 0 0 1px var(--color-green-600);
+.card-content :deep(.card-body) {
+	min-height: calc(2 * var(--text-base) * var(--leading-relaxed));
 }
 
-.card-source {
-	font-family: var(--font-heading);
-	font-weight: 600;
-	font-size: var(--text-sm);
-	color: var(--color-gray-500);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
+.card-buttons {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: var(--space-2);
 }
 
-.card-text {
-	margin: 0;
-	font-size: var(--text-base, 1rem);
-	line-height: 1.5;
-	color: var(--color-black);
-}
-
-.ranking-card:disabled .card-text {
-	color: var(--color-gray-400);
-}
-
-.confirm-label {
-	font-size: var(--text-sm);
-	color: var(--color-green-600);
-	font-weight: 600;
-	margin-top: auto;
-}
-
-.undo-area {
-	text-align: center;
-	margin-top: var(--space-4);
+.button-row {
+	display: flex;
+	justify-content: center;
+	gap: var(--space-4);
 }
 
 .end-state {
@@ -210,11 +238,5 @@ h1 {
 .end-state p {
 	margin: 0 0 var(--space-6);
 	color: var(--color-gray-400);
-}
-
-@media (max-width: 480px) {
-	.card-pair {
-		flex-direction: column;
-	}
 }
 </style>
