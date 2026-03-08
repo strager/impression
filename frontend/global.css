@@ -216,9 +216,6 @@ button {
 	cursor: pointer;
 	border: none;
 	outline: none;
-	transition:
-		background var(--transition),
-		border-color var(--transition);
 	line-height: var(--leading-normal);
 }
 
