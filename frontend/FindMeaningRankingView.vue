@@ -124,7 +124,7 @@ function handleFinish(): void {
 					</div>
 				</TransitionGroup>
 			</div>
-			<div v-else class="card-triad">
+			<div v-else key="blank" class="card-triad">
 				<div class="ranking-card blank" aria-hidden="true" />
 				<div class="ranking-card blank" aria-hidden="true" />
 				<div class="ranking-card blank" aria-hidden="true" />
