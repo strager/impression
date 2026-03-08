@@ -6,6 +6,7 @@ import { findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaning
 import type { SlotRect } from "./FindMeaningRankingInteractionState.ts";
 import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+import { useMatchMedia } from "./use-match-media.ts";
 import AppButton from "./AppButton.vue";
 import ToggleButton from "./ToggleButton.vue";
 
@@ -43,7 +44,8 @@ let dragBorderFrameId: number | null = null;
 let settleFrameId: number | null = null;
 const isSettling = computed(() => dragState.value?.phase === "settling");
 const suppressMotion = ref(false);
-const useTransitionGroup = computed(() => dragState.value === null && !suppressMotion.value);
+const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
+const useTransitionGroup = computed(() => dragState.value === null && !suppressMotion.value && !prefersReducedMotion.value);
 const cardListComponent = computed(() => (useTransitionGroup.value ? TransitionGroup : "div"));
 const cardListProps = computed(() => (useTransitionGroup.value ? { tag: "div", name: "card" } : {}));
 const dragOverlayStyle = computed(() => {
@@ -344,6 +346,10 @@ function handleWindowPointerUp(event: PointerEvent): void {
 		borderVisible: false,
 		phase: "settling",
 	};
+	if (prefersReducedMotion.value) {
+		void finalizeSettledDrag();
+		return;
+	}
 	if (overlayWillMove) {
 		settleFrameId = requestAnimationFrame(() => {
 			settleFrameId = null;
@@ -651,5 +657,27 @@ h1 {
 .end-state p {
 	margin: 0 0 var(--space-6);
 	color: var(--color-gray-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.card-move {
+		transition: none;
+	}
+
+	.ranking-slot-shell.animated {
+		transition: none;
+	}
+
+	.drag-overlay-card.settling {
+		transition: none;
+	}
+
+	.ranking-card.dragging {
+		animation: none;
+	}
+
+	.ranking-card.dragging::after {
+		transition: none;
+	}
 }
 </style>

@@ -39,4 +39,10 @@ button:hover:active span {
 button:disabled:active span {
 	transform: none;
 }
+
+@media (prefers-reduced-motion: reduce) {
+	span {
+		transition: none;
+	}
+}
 </style>
