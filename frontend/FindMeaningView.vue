@@ -98,13 +98,13 @@ function continueToNextPhase(): void {
 			<AppButton variant="primary" @click="continueToNextPhase">{{ nextPhaseLabel }}</AppButton>
 		</div>
 
-		<div class="controls">
-			<AppButton variant="primary" emphasis="muted" :disabled="vm.isComplete" @click="handleButtonSwipe('disagree')">Disagree ✕</AppButton>
-			<AppButton variant="secondary" emphasis="muted" :disabled="vm.isComplete" @click="handleButtonSwipe('unsure')">Unsure ？</AppButton>
-			<AppButton variant="primary" :disabled="vm.isComplete" @click="handleButtonSwipe('agree')">Agree ✓</AppButton>
+		<div v-if="!vm.isComplete" class="controls">
+			<AppButton variant="primary" emphasis="muted" @click="handleButtonSwipe('disagree')">Disagree ✕</AppButton>
+			<AppButton variant="secondary" emphasis="muted" @click="handleButtonSwipe('unsure')">Unsure ？</AppButton>
+			<AppButton variant="primary" @click="handleButtonSwipe('agree')">Agree ✓</AppButton>
 		</div>
 
-		<div class="undo-area">
+		<div v-if="!vm.isComplete" class="undo-area">
 			<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Undo</AppButton>
 		</div>
 	</main>
