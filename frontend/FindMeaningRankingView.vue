@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup } from "vue";
 import { useRouter } from "vue-router";
 
+import { findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
+import type { SlotRect } from "./FindMeaningRankingInteractionState.ts";
 import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import AppButton from "./AppButton.vue";
@@ -11,10 +13,71 @@ const router = useRouter();
 const sessionId = useStringParam("sessionId");
 const vm = new FindMeaningRankingViewModel(sessionId);
 
-const mostIndex = ref<number | null>(null);
-const leastIndex = ref<number | null>(null);
-const displayOrder = ref([0, 1, 2]);
-const canAdvance = computed(() => mostIndex.value !== null && leastIndex.value !== null);
+const interaction = useFindMeaningRankingInteractionState();
+const mostIndex = interaction.mostIndex;
+const leastIndex = interaction.leastIndex;
+const displayOrder = interaction.displayOrder;
+const cardStageRef = ref<HTMLElement | null>(null);
+const slotRefs = ref<(HTMLElement | null)[]>([]);
+const pointerCaptureElement = ref<HTMLElement | null>(null);
+const DRAG_LIFT_X_PX = -6;
+const DRAG_LIFT_Y_PX = 6;
+
+interface DragState {
+	borderVisible: boolean;
+	cardHeight: number;
+	draggedIndex: number;
+	hoveredSlot: number;
+	liftX: number;
+	originSlot: number;
+	overlayTop: number;
+	phase: "dragging" | "settling";
+	pointerId: number;
+	pointerOffsetY: number;
+	slotRects: SlotRect[];
+}
+
+const dragState = ref<DragState | null>(null);
+const activeCardTransitions = new Set<string>();
+let dragBorderFrameId: number | null = null;
+let settleFrameId: number | null = null;
+const isSettling = computed(() => dragState.value?.phase === "settling");
+const suppressMotion = ref(false);
+const useTransitionGroup = computed(() => dragState.value === null && !suppressMotion.value);
+const cardListComponent = computed(() => (useTransitionGroup.value ? TransitionGroup : "div"));
+const cardListProps = computed(() => (useTransitionGroup.value ? { tag: "div", name: "card" } : {}));
+const dragOverlayStyle = computed(() => {
+	const activeDrag = dragState.value;
+	if (activeDrag === null) {
+		return {};
+	}
+	return {
+		transform: `translate(${String(activeDrag.liftX)}px, ${String(activeDrag.overlayTop)}px)`,
+		"--drag-lift-x": `${String(DRAG_LIFT_X_PX)}px`,
+		"--drag-lift-y": `${String(DRAG_LIFT_Y_PX)}px`,
+	};
+});
+const draggedCard = computed(() => {
+	if (dragState.value === null || vm.currentTask === null) {
+		return null;
+	}
+	return vm.currentTask[dragState.value.draggedIndex] ?? null;
+});
+const previewSelection = computed(() => {
+	const activeDrag = dragState.value;
+	if (activeDrag === null) {
+		return {
+			leastIndex: leastIndex.value,
+			mostIndex: mostIndex.value,
+		};
+	}
+	const outcome = getDraggedOutcome(displayOrder.value, mostIndex.value, leastIndex.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
+	return {
+		leastIndex: outcome.leastIndex,
+		mostIndex: outcome.mostIndex,
+	};
+});
+const canSubmitPreview = computed(() => previewSelection.value.mostIndex !== null && previewSelection.value.leastIndex !== null);
 
 onMounted(() => {
 	const result = vm.initialize();
@@ -28,71 +91,299 @@ onMounted(() => {
 	}
 });
 
-function moveToTop(idx: number): void {
-	const order = [...displayOrder.value];
-	const pos = order.indexOf(idx);
-	if (pos > 0) {
-		order.splice(pos, 1);
-		order.unshift(idx);
-		displayOrder.value = order;
+onBeforeUnmount(() => {
+	removeWindowDragListeners();
+	if (dragState.value !== null) {
+		releasePointerCapture(dragState.value.pointerId);
+	}
+});
+
+function setSlotRef(slotIndex: number, element: Element | null): void {
+	slotRefs.value[slotIndex] = element instanceof HTMLElement ? element : null;
+}
+
+function measureSlotRects(stageRect: DOMRect): SlotRect[] | null {
+	const result: SlotRect[] = [];
+	for (const slotElement of slotRefs.value) {
+		if (slotElement === null) {
+			return null;
+		}
+		const rect = slotElement.getBoundingClientRect();
+		result.push({ top: rect.top - stageRect.top, height: rect.height });
+	}
+	return result;
+}
+
+function clearDragState(): void {
+	if (dragBorderFrameId !== null) {
+		cancelAnimationFrame(dragBorderFrameId);
+		dragBorderFrameId = null;
+	}
+	if (settleFrameId !== null) {
+		cancelAnimationFrame(settleFrameId);
+		settleFrameId = null;
+	}
+	removeWindowDragListeners();
+	if (dragState.value !== null) {
+		releasePointerCapture(dragState.value.pointerId);
+	}
+	activeCardTransitions.clear();
+	dragState.value = null;
+}
+
+function scheduleDragBorderFadeIn(): void {
+	if (dragBorderFrameId !== null) {
+		cancelAnimationFrame(dragBorderFrameId);
+	}
+	dragBorderFrameId = requestAnimationFrame(() => {
+		dragBorderFrameId = null;
+		const activeDrag = dragState.value;
+		if (activeDrag?.phase !== "dragging") {
+			return;
+		}
+		dragState.value = {
+			...activeDrag,
+			borderVisible: true,
+		};
+	});
+}
+
+async function finalizeSettledDrag(): Promise<void> {
+	const activeDrag = dragState.value;
+	if (activeDrag?.phase !== "settling") {
+		return;
+	}
+	if (activeDrag.hoveredSlot === activeDrag.originSlot) {
+		clearDragState();
+		return;
+	}
+	suppressMotion.value = true;
+	interaction.applyDraggedOrder(activeDrag.draggedIndex, activeDrag.hoveredSlot);
+	clearDragState();
+	await nextTick();
+	suppressMotion.value = false;
+}
+
+function maybeFinalizeSettledDrag(): void {
+	if (dragState.value?.phase !== "settling") {
+		return;
+	}
+	if (activeCardTransitions.size === 0) {
+		void finalizeSettledDrag();
 	}
 }
 
-function moveToBottom(idx: number): void {
-	const order = [...displayOrder.value];
-	const pos = order.indexOf(idx);
-	if (pos < order.length - 1) {
-		order.splice(pos, 1);
-		order.push(idx);
-		displayOrder.value = order;
+function handleAnimatedTransformStart(key: string, event: TransitionEvent): void {
+	if (event.propertyName !== "transform") {
+		return;
 	}
+	activeCardTransitions.add(key);
+}
+
+function handleAnimatedTransformFinish(key: string, event: TransitionEvent): void {
+	if (event.propertyName !== "transform") {
+		return;
+	}
+	activeCardTransitions.delete(key);
+	maybeFinalizeSettledDrag();
+}
+
+function getCardShellStyle(index: number): Record<string, string> {
+	const activeDrag = dragState.value;
+	if (activeDrag === null || activeDrag.draggedIndex === index) {
+		return {};
+	}
+	const currentSlot = displayOrder.value.indexOf(index);
+	if (currentSlot < 0 || currentSlot >= activeDrag.slotRects.length) {
+		return {};
+	}
+	const targetOrder = moveCardToSlot(displayOrder.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
+	const targetSlot = targetOrder.indexOf(index);
+	if (targetSlot < 0 || targetSlot >= activeDrag.slotRects.length) {
+		return {};
+	}
+	const offsetY = activeDrag.slotRects[targetSlot].top - activeDrag.slotRects[currentSlot].top;
+	if (offsetY === 0) {
+		return {};
+	}
+	return {
+		transform: `translateY(${String(offsetY)}px)`,
+	};
+}
+
+function isDraggedCard(index: number): boolean {
+	return dragState.value?.draggedIndex === index;
+}
+
+function isDropTargetSlot(slotIndex: number): boolean {
+	const activeDrag = dragState.value;
+	if (activeDrag === null) {
+		return false;
+	}
+	return activeDrag.hoveredSlot === slotIndex;
 }
 
 function handleMost(index: number): void {
-	if (mostIndex.value === index) {
-		mostIndex.value = null;
-	} else {
-		mostIndex.value = index;
-		if (leastIndex.value === index) leastIndex.value = null;
-		moveToTop(index);
+	if (dragState.value !== null) {
+		return;
 	}
+	interaction.chooseMost(index);
 }
 
 function handleLeast(index: number): void {
-	if (leastIndex.value === index) {
-		leastIndex.value = null;
+	if (dragState.value !== null) {
+		return;
+	}
+	interaction.chooseLeast(index);
+}
+
+function addWindowDragListeners(): void {
+	window.addEventListener("pointermove", handleWindowPointerMove);
+	window.addEventListener("pointerup", handleWindowPointerUp);
+	window.addEventListener("pointercancel", handleWindowPointerCancel);
+}
+
+function removeWindowDragListeners(): void {
+	window.removeEventListener("pointermove", handleWindowPointerMove);
+	window.removeEventListener("pointerup", handleWindowPointerUp);
+	window.removeEventListener("pointercancel", handleWindowPointerCancel);
+}
+
+function handleCardPointerDown(event: PointerEvent, index: number): void {
+	if (dragState.value !== null) {
+		return;
+	}
+	if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) {
+		return;
+	}
+	const target = event.target;
+	if (target instanceof Element && target.closest("button") !== null) {
+		return;
+	}
+	const currentTarget = event.currentTarget;
+	const stage = cardStageRef.value;
+	if (!(currentTarget instanceof HTMLElement) || stage === null) {
+		return;
+	}
+	const cardElement = currentTarget.querySelector<HTMLElement>(".ranking-card");
+	if (cardElement === null) {
+		return;
+	}
+	const stageRect = stage.getBoundingClientRect();
+	const cardRect = cardElement.getBoundingClientRect();
+	const slotRects = measureSlotRects(stageRect);
+	if (slotRects === null) {
+		return;
+	}
+	const currentSlot = displayOrder.value.indexOf(index);
+	if (currentSlot < 0) {
+		return;
+	}
+	activeCardTransitions.clear();
+	dragState.value = {
+		borderVisible: false,
+		cardHeight: cardRect.height,
+		draggedIndex: index,
+		hoveredSlot: currentSlot,
+		liftX: DRAG_LIFT_X_PX,
+		originSlot: currentSlot,
+		overlayTop: cardRect.top - stageRect.top - DRAG_LIFT_Y_PX,
+		phase: "dragging",
+		pointerId: event.pointerId,
+		pointerOffsetY: event.clientY - cardRect.top,
+		slotRects,
+	};
+	scheduleDragBorderFadeIn();
+	pointerCaptureElement.value = currentTarget;
+	currentTarget.setPointerCapture(event.pointerId);
+	addWindowDragListeners();
+	event.preventDefault();
+}
+
+function handleWindowPointerMove(event: PointerEvent): void {
+	const activeDrag = dragState.value;
+	if (activeDrag?.pointerId !== event.pointerId) {
+		return;
+	}
+	const stage = cardStageRef.value;
+	if (stage === null) {
+		return;
+	}
+	const stageRect = stage.getBoundingClientRect();
+	const overlayTop = event.clientY - stageRect.top - activeDrag.pointerOffsetY - DRAG_LIFT_Y_PX;
+	const pointerY = event.clientY - stageRect.top;
+	const nextHoveredSlot = findClosestSlotIndex(activeDrag.slotRects, pointerY);
+	dragState.value = {
+		...activeDrag,
+		hoveredSlot: nextHoveredSlot,
+		overlayTop,
+	};
+}
+
+function releasePointerCapture(pointerId: number): void {
+	const captureElement = pointerCaptureElement.value;
+	if (captureElement?.hasPointerCapture(pointerId)) {
+		captureElement.releasePointerCapture(pointerId);
+	}
+	pointerCaptureElement.value = null;
+}
+
+function handleWindowPointerUp(event: PointerEvent): void {
+	const activeDrag = dragState.value;
+	if (activeDrag?.pointerId !== event.pointerId) {
+		return;
+	}
+	removeWindowDragListeners();
+	releasePointerCapture(event.pointerId);
+	const previewOrder = moveCardToSlot(displayOrder.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
+	const settleSlot = previewOrder.indexOf(activeDrag.draggedIndex);
+	const settleTop = activeDrag.slotRects[settleSlot]?.top ?? activeDrag.overlayTop;
+	const overlayWillMove = Math.abs(settleTop - activeDrag.overlayTop) > 0.5 || activeDrag.liftX !== 0;
+	dragState.value = {
+		...activeDrag,
+		borderVisible: false,
+		phase: "settling",
+	};
+	if (overlayWillMove) {
+		settleFrameId = requestAnimationFrame(() => {
+			settleFrameId = null;
+			const settlingDrag = dragState.value;
+			if (settlingDrag?.phase !== "settling") {
+				return;
+			}
+			dragState.value = {
+				...settlingDrag,
+				liftX: 0,
+				overlayTop: settleTop,
+			};
+		});
 	} else {
-		leastIndex.value = index;
-		if (mostIndex.value === index) mostIndex.value = null;
-		moveToBottom(index);
+		maybeFinalizeSettledDrag();
 	}
 }
 
+function handleWindowPointerCancel(event: PointerEvent): void {
+	if (dragState.value?.pointerId !== event.pointerId) {
+		return;
+	}
+	removeWindowDragListeners();
+	releasePointerCapture(event.pointerId);
+	clearDragState();
+}
+
 function handleNext(): void {
-	const best = mostIndex.value;
-	const worst = leastIndex.value;
+	const best = previewSelection.value.mostIndex;
+	const worst = previewSelection.value.leastIndex;
 	if (best === null || worst === null) return;
 	vm.choose(best, worst);
-	mostIndex.value = null;
-	leastIndex.value = null;
-	displayOrder.value = [0, 1, 2];
+	interaction.reset();
+	clearDragState();
 }
 
 function handleUndo(): void {
 	const { bestId, worstId } = vm.undo();
-	displayOrder.value = [0, 1, 2];
-	const task = vm.currentTask;
-	if (task !== null) {
-		const bestIdx = task.findIndex((c) => c.id === bestId);
-		const worstIdx = task.findIndex((c) => c.id === worstId);
-		mostIndex.value = bestIdx >= 0 ? bestIdx : null;
-		leastIndex.value = worstIdx >= 0 ? worstIdx : null;
-		if (bestIdx >= 0) moveToTop(bestIdx);
-		if (worstIdx >= 0) moveToBottom(worstIdx);
-	} else {
-		mostIndex.value = null;
-		leastIndex.value = null;
-	}
+	clearDragState();
+	interaction.restoreSelection(vm.currentTask, bestId, worstId);
 }
 
 function handleFinish(): void {
@@ -105,24 +396,44 @@ function handleFinish(): void {
 	<main>
 		<header>
 			<h1>Find Meaning — Rank</h1>
-			<p class="instruction">Select your most and least meaningful cards.</p>
+			<p class="instruction">Select your most and least meaningful cards, or drag a card into one of the three slots.</p>
 			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null || vm.estimatedRemaining.mid === 0 }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining.mid))} ${Math.ceil(vm.estimatedRemaining.mid) === 1 ? "task" : "tasks"} remaining.` : "&nbsp;" }}</p>
 		</header>
 
 		<div v-if="!vm.isComplete" class="ranking-area">
 			<div v-if="vm.currentTask !== null" :key="vm.round">
-				<TransitionGroup tag="div" name="card" class="card-triad">
-					<div v-for="idx in displayOrder" :key="vm.currentTask[idx].id" class="ranking-card">
-						<div class="card-content">
-							<div class="card-title">{{ vm.currentTask[idx].source }}</div>
-							<div class="card-body">{{ vm.currentTask[idx].description }}</div>
+				<div ref="cardStageRef" class="card-stage" :class="{ settling: isSettling, 'motion-suppressed': suppressMotion }">
+					<component :is="cardListComponent" v-bind="cardListProps" class="card-triad">
+						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" :class="{ 'drop-target': isDropTargetSlot(slotIndex) }" @pointerdown="handleCardPointerDown($event, idx)">
+							<div class="ranking-slot-shell" :class="{ animated: dragState !== null && dragState.draggedIndex !== idx }" :style="getCardShellStyle(idx)" @transitionrun="handleAnimatedTransformStart(`card-${String(idx)}`, $event)" @transitionend="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)" @transitioncancel="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)">
+								<div class="ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
+									<div class="card-content">
+										<div class="card-title">{{ vm.currentTask[idx].source }}</div>
+										<div class="card-body">{{ vm.currentTask[idx].description }}</div>
+									</div>
+									<div class="card-buttons">
+										<ToggleButton variant="primary" :active="previewSelection.mostIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleMost(idx)">Most meaningful</ToggleButton>
+										<ToggleButton variant="neutral" :active="previewSelection.leastIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleLeast(idx)">Least meaningful</ToggleButton>
+									</div>
+								</div>
+							</div>
 						</div>
-						<div class="card-buttons">
-							<ToggleButton variant="primary" :active="mostIndex === idx" @toggle="handleMost(idx)">Most meaningful</ToggleButton>
-							<ToggleButton variant="neutral" :active="leastIndex === idx" @toggle="handleLeast(idx)">Least meaningful</ToggleButton>
+					</component>
+					<div v-if="draggedCard !== null" class="drag-overlay">
+						<div class="drag-overlay-card" :class="{ settling: isSettling }" :style="dragOverlayStyle" @transitionrun="handleAnimatedTransformStart('overlay', $event)" @transitionend="handleAnimatedTransformFinish('overlay', $event)" @transitioncancel="handleAnimatedTransformFinish('overlay', $event)">
+							<div class="ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
+								<div class="card-content">
+									<div class="card-title">{{ draggedCard.source }}</div>
+									<div class="card-body">{{ draggedCard.description }}</div>
+								</div>
+								<div class="card-buttons">
+									<ToggleButton variant="primary" :active="previewSelection.mostIndex === dragState?.draggedIndex" disabled>Most meaningful</ToggleButton>
+									<ToggleButton variant="neutral" :active="previewSelection.leastIndex === dragState?.draggedIndex" disabled>Least meaningful</ToggleButton>
+								</div>
+							</div>
 						</div>
 					</div>
-				</TransitionGroup>
+				</div>
 			</div>
 			<div v-else key="blank" class="card-triad">
 				<div class="ranking-card blank" aria-hidden="true" />
@@ -132,7 +443,7 @@ function handleFinish(): void {
 
 			<div class="button-row">
 				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Back</AppButton>
-				<AppButton variant="primary" :disabled="!canAdvance" @click="handleNext">Next</AppButton>
+				<AppButton variant="primary" :disabled="!canSubmitPreview" @click="handleNext">Next</AppButton>
 			</div>
 		</div>
 
@@ -181,29 +492,131 @@ h1 {
 	margin-bottom: var(--space-6);
 }
 
+.card-stage {
+	position: relative;
+}
+
 .card-move {
 	transition: transform 0.3s ease;
 	position: relative;
 	z-index: 1;
 }
 
+.ranking-slot {
+	position: relative;
+}
+
+.ranking-slot-shell {
+	position: relative;
+	z-index: 1;
+}
+
+.ranking-slot-shell.animated {
+	transition: transform 0.18s ease;
+}
+
+.ranking-slot.drop-target::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	background: var(--color-gray-50);
+	border: 1px dashed var(--color-gray-200);
+	pointer-events: none;
+	z-index: 2;
+}
+
+.ranking-slot.drop-target {
+	z-index: 2;
+}
+
+.motion-suppressed .ranking-slot-shell.animated {
+	transition: none;
+}
+
+.ranking-slot + .ranking-slot {
+	margin-top: -1px;
+}
+
 .ranking-card {
 	background: var(--color-white);
 	border-top: var(--border-thin);
 	border-bottom: var(--border-thin);
-	padding: var(--space-5) 0;
+	padding: var(--space-5);
 	text-align: left;
 	display: grid;
 	grid-template-columns: 1fr auto;
 	gap: var(--space-4);
-}
-
-.ranking-card + .ranking-card {
-	margin-top: -1px;
+	touch-action: none;
+	user-select: none;
 }
 
 .ranking-card.blank {
 	cursor: default;
+}
+
+.ranking-card.spacer {
+	visibility: hidden;
+}
+
+.drag-overlay {
+	position: absolute;
+	inset: 0 0 auto;
+	pointer-events: none;
+	z-index: 3;
+}
+
+.drag-overlay-card {
+	will-change: transform;
+}
+
+.drag-overlay-card.settling {
+	transition: transform 0.18s ease;
+}
+
+.motion-suppressed .drag-overlay-card.settling {
+	transition: none;
+}
+
+.ranking-card.dragging {
+	--drag-entry-duration: 0.06s;
+	background: var(--color-white);
+	animation: drag-lift var(--drag-entry-duration) ease-out;
+	position: relative;
+	cursor: grabbing;
+}
+
+.ranking-card.dragging::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border: 2px solid var(--color-green-600);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity var(--drag-entry-duration) ease-out;
+	will-change: opacity;
+}
+
+.ranking-card.dragging.border-visible::after {
+	opacity: 1;
+}
+
+@keyframes drag-lift {
+	from {
+		transform: translate(calc(var(--drag-lift-x) * -1), var(--drag-lift-y));
+	}
+
+	to {
+		transform: translate(0, 0);
+	}
+}
+
+.card-stage.settling {
+	pointer-events: none;
+}
+
+.ranking-slot :deep(button) {
+	touch-action: manipulation;
 }
 
 .card-content {
