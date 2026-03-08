@@ -4,6 +4,9 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	root: "frontend",
+	server: {
+		allowedHosts: true,
+	},
 	plugins: [
 		vue(),
 		visualizer({
