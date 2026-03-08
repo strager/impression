@@ -173,7 +173,7 @@ onMounted(() => {
 				</p>
 				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || (!vm.reflectionShown && entry.userAnswer.trim() === '')" @click="handleSubmitAnswer">Next</AppButton>
 				<p v-if="vm.reflectionShown" class="hint">Press Next to continue as-is, or edit your answer above</p>
-				<p v-else class="hint">Shift + Enter to submit</p>
+				<p v-else class="hint keyboard-hint">Shift + Enter to submit</p>
 			</template>
 		</div>
 
@@ -241,6 +241,18 @@ label {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
 	margin: var(--space-2) 0 0;
+}
+
+/* Hide by default; show only when a keyboard is likely present.
+   https://github.com/w3c/csswg-drafts/issues/3871 */
+.keyboard-hint {
+	display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.keyboard-hint {
+		display: block;
+	}
 }
 
 .reflection-guardrail {
