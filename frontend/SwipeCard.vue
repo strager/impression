@@ -36,11 +36,22 @@ const dominantDirection = computed<SwipeDirection | null>(() => {
 	const ax = Math.abs(offsetX.value);
 	const ay = Math.abs(offsetY.value);
 	if (ax < 10 && ay < 10) return null;
-	if (ax >= ay) {
-		return offsetX.value > 0 ? "agree" : "disagree";
+	// Swipe up: 45° cone (same as before). Swipe left/right: everything
+	// above horizontal. Swipe down: dead zone narrowed to 30° from
+	// straight down; the rest goes to left/right.
+	if (offsetY.value < 0 && ay >= ax) {
+		// Swiping upward and angle is within 45° of vertical.
+		if (!props.allowUnsure) return null;
+		return "unsure";
 	}
-	if (!props.allowUnsure) return null;
-	return "unsure";
+	if (offsetY.value >= 0) {
+		// Swiping downward: only a narrow 30° cone from straight down
+		// is a dead zone; the rest counts as horizontal.
+		const downDeadZone = Math.PI / 6; // 30° from vertical
+		const angle = Math.atan2(ay, ax); // 0 = horizontal, π/2 = vertical
+		if (angle > Math.PI / 2 - downDeadZone) return null;
+	}
+	return offsetX.value > 0 ? "agree" : "disagree";
 });
 
 const pastThreshold = computed(() => {
@@ -157,7 +168,7 @@ function flyAway(direction: SwipeDirection, durationMs = FLY_AWAY_DURATION_MS): 
 	flyDirection.value = direction;
 	flyDurationMs.value = durationMs;
 	flyX.value = direction === "agree" ? 600 : direction === "disagree" ? -600 : 0;
-	flyY.value = direction === "unsure" ? (offsetY.value >= 0 ? 400 : -400) : 0;
+	flyY.value = direction === "unsure" ? -400 : 0;
 
 	globalThis.setTimeout(() => {
 		emit("swiped", direction);
