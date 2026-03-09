@@ -1039,6 +1039,7 @@ describe("loadRanking/saveRanking", () => {
 		expect(loadRanking(sid())).toEqual({
 			cardIds: ["a", "b", "c"],
 			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			activeRound: undefined,
 			complete: false,
 		});
 	});
@@ -1052,8 +1053,93 @@ describe("loadRanking/saveRanking", () => {
 		expect(loadRanking(sid())).toEqual({
 			cardIds: ["a", "b", "c"],
 			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			activeRound: undefined,
 			complete: true,
 		});
+	});
+
+	it("round-trips activeRound when within bounds", () => {
+		saveRanking(sid(), {
+			cardIds: ["a", "b", "c"],
+			comparisons: [
+				{ set: ["a", "b", "c"], best: "a", worst: "c" },
+				{ set: ["a", "b", "c"], best: "b", worst: "c" },
+			],
+			activeRound: 1,
+			complete: false,
+		});
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBe(1);
+	});
+
+	it("ignores activeRound when negative", () => {
+		localStorage.setItem(
+			activeKey("narrowdown"),
+			JSON.stringify({
+				cardIds: ["a", "b", "c"],
+				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				activeRound: -1,
+				complete: false,
+			}),
+		);
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBeUndefined();
+	});
+
+	it("ignores activeRound when fractional", () => {
+		localStorage.setItem(
+			activeKey("narrowdown"),
+			JSON.stringify({
+				cardIds: ["a", "b", "c"],
+				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				activeRound: 0.5,
+				complete: false,
+			}),
+		);
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBeUndefined();
+	});
+
+	it("ignores activeRound when greater than comparisons length", () => {
+		localStorage.setItem(
+			activeKey("narrowdown"),
+			JSON.stringify({
+				cardIds: ["a", "b", "c"],
+				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				activeRound: 5,
+				complete: false,
+			}),
+		);
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBeUndefined();
+	});
+
+	it("accepts activeRound of 0", () => {
+		saveRanking(sid(), {
+			cardIds: ["a", "b", "c"],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			activeRound: 0,
+			complete: false,
+		});
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBe(0);
+	});
+
+	it("accepts activeRound equal to comparisons length", () => {
+		saveRanking(sid(), {
+			cardIds: ["a", "b", "c"],
+			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			activeRound: 1,
+			complete: false,
+		});
+		const loaded = loadRanking(sid());
+		expect(loaded).not.toBeNull();
+		expect(loaded!.activeRound).toBe(1);
 	});
 });
 

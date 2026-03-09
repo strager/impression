@@ -55,6 +55,7 @@ export interface MaxDiffComparison {
 export interface RankingProgress {
 	cardIds: string[];
 	comparisons: MaxDiffComparison[];
+	activeRound?: number;
 	complete: boolean;
 }
 
@@ -393,9 +394,12 @@ export function loadRanking(sessionId: string): RankingProgress | null {
 		}
 		comparisons.push({ set: entry.set, best: entry.best, worst: entry.worst });
 	}
+	const ar = parsed.activeRound;
+	const activeRound = typeof ar === "number" && Number.isInteger(ar) && ar >= 0 && ar <= comparisons.length ? ar : undefined;
 	return {
 		cardIds: parsed.cardIds,
 		comparisons,
+		activeRound,
 		complete: parsed.complete,
 	};
 }

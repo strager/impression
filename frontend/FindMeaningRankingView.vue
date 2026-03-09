@@ -93,6 +93,10 @@ onMounted(() => {
 		void router.replace({ name: "explore", params: { sessionId } });
 		return;
 	}
+	const redo = vm.pendingRedo;
+	if (redo !== null && vm.currentTask !== null) {
+		interaction.restoreSelection(vm.currentTask, redo.bestId, redo.worstId);
+	}
 });
 
 onBeforeUnmount(() => {
@@ -401,6 +405,10 @@ function handleNext(): void {
 	vm.choose(best, worst);
 	interaction.reset();
 	clearDragState();
+	const redo = vm.pendingRedo;
+	if (redo !== null && vm.currentTask !== null) {
+		interaction.restoreSelection(vm.currentTask, redo.bestId, redo.worstId);
+	}
 }
 
 function handleUndo(): void {

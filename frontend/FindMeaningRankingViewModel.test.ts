@@ -162,7 +162,7 @@ describe("undo", () => {
 		expect(vm.canUndo).toBe(false);
 	});
 
-	it("persists to localStorage", () => {
+	it("persists forward comparisons and activeRound to localStorage", () => {
 		const vm = setupVm();
 		const task = vm.currentTask!;
 		vm.choose(0, task.length - 1);
@@ -170,7 +170,87 @@ describe("undo", () => {
 		vm.undo();
 		const saved = loadRanking(sid());
 		expect(saved).not.toBeNull();
-		expect(saved!.comparisons).toHaveLength(0);
+		expect(saved!.comparisons).toHaveLength(1);
+		expect(saved!.activeRound).toBe(0);
+	});
+});
+
+describe("pendingRedo", () => {
+	function setupVm(): FindMeaningRankingViewModel {
+		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
+		setupSwipeProgressAllSwiped(cardIds);
+		const vm = new FindMeaningRankingViewModel(sid());
+		vm.initialize();
+		return vm;
+	}
+
+	it("returns null when no forward history exists", () => {
+		const vm = setupVm();
+		expect(vm.pendingRedo).toBeNull();
+	});
+
+	it("returns undone task data after undo", () => {
+		const vm = setupVm();
+		const task = vm.currentTask!;
+		vm.choose(0, task.length - 1);
+		const { bestId, worstId } = vm.undo();
+		const redo = vm.pendingRedo;
+		expect(redo).not.toBeNull();
+		expect(redo!.bestId).toBe(bestId);
+		expect(redo!.worstId).toBe(worstId);
+	});
+
+	it("undo twice then choose: pendingRedo returns second undone task data", () => {
+		const vm = setupVm();
+		const task1 = vm.currentTask!;
+		vm.choose(0, task1.length - 1);
+		const task2 = vm.currentTask!;
+		vm.choose(0, task2.length - 1);
+
+		const undo2 = vm.undo();
+		vm.undo();
+
+		// Re-advance with same choice as round 0
+		vm.choose(0, vm.currentTask!.length - 1);
+
+		const redo = vm.pendingRedo;
+		expect(redo).not.toBeNull();
+		expect(redo!.bestId).toBe(undo2.bestId);
+		expect(redo!.worstId).toBe(undo2.worstId);
+
+		// Consume the redo
+		vm.choose(0, vm.currentTask!.length - 1);
+		expect(vm.pendingRedo).toBeNull();
+	});
+
+	it("changing selection on re-advance truncates forward entries", () => {
+		const vm = setupVm();
+		const task1 = vm.currentTask!;
+		vm.choose(0, task1.length - 1);
+		const task2 = vm.currentTask!;
+		vm.choose(0, task2.length - 1);
+
+		vm.undo();
+		vm.undo();
+
+		// Re-advance with a DIFFERENT choice (reversed best/worst)
+		vm.choose(vm.currentTask!.length - 1, 0);
+		expect(vm.pendingRedo).toBeNull();
+	});
+
+	it("redo data persists across re-initialization", () => {
+		const vm1 = setupVm();
+		const task1 = vm1.currentTask!;
+		vm1.choose(0, task1.length - 1);
+		vm1.undo();
+
+		// Simulate page refresh
+		const vm2 = new FindMeaningRankingViewModel(sid());
+		vm2.initialize();
+
+		const redo = vm2.pendingRedo;
+		expect(redo).not.toBeNull();
+		expect(vm2.round).toBe(0);
 	});
 });
 

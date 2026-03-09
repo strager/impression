@@ -5,6 +5,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import type { RemainingEstimate } from "../shared/ranking.ts";
 import { Ranking, makeXorshift } from "../shared/ranking.ts";
 import { capture } from "./analytics.ts";
+import type { MaxDiffComparison } from "./store.ts";
 import { loadRanking, loadSwipeProgress, needsPrioritization, saveChosenCardIds, saveRanking, selectCandidateCards } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
@@ -15,6 +16,7 @@ export class FindMeaningRankingViewModel {
 	// You should manually trigger this ref when calling mutating methods of
 	// Ranking.
 	private readonly _ranking: ShallowRef<Ranking<string> | null> = shallowRef(null);
+	private _allComparisons: MaxDiffComparison[] = [];
 	private cardIds: string[] = [];
 	private _phaseStartedAtMs = 0;
 	private _taskShownAtMs = 0;
@@ -48,6 +50,13 @@ export class FindMeaningRankingViewModel {
 		return this._ranking.value?.estimateRemaining() ?? null;
 	}
 
+	get pendingRedo(): { bestId: string; worstId: string } | null {
+		const round = this._ranking.value?.round ?? 0;
+		if (round >= this._allComparisons.length) return null;
+		const entry = this._allComparisons[round];
+		return { bestId: entry.best, worstId: entry.worst };
+	}
+
 	initialize(): "ready" | "no-data" | "skip" {
 		this._phaseStartedAtMs = performance.now();
 		const saved = loadRanking(this.sessionId);
@@ -74,15 +83,19 @@ export class FindMeaningRankingViewModel {
 			return "skip";
 		}
 
-		const resumedFromRound = saved?.comparisons.length ?? 0;
 		this._ranking.value = new Ranking(resolvedCardIds, { k: 5, seed: 42 });
 
 		if (saved !== null) {
-			for (const comp of saved.comparisons) {
+			this._allComparisons = saved.comparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst }));
+			const activeRound = saved.activeRound ?? saved.comparisons.length;
+			for (let i = 0; i < activeRound; i++) {
 				if (this._ranking.value.stopped) break;
+				const comp = saved.comparisons[i];
 				this._ranking.value.recordTask(comp.best, comp.worst, comp.set);
 			}
 		}
+
+		const resumedFromRound = this._ranking.value.round;
 
 		if (!this._ranking.value.stopped) {
 			this.showNextTask();
@@ -113,7 +126,23 @@ export class FindMeaningRankingViewModel {
 		const now = performance.now();
 		const timeOnTaskMs = Math.round(now - this._taskShownAtMs);
 
+		const cursor = this._ranking.value.round;
 		const result = this._ranking.value.recordTask(best.id, worst.id);
+
+		const lastHistory = this._ranking.value.history.at(-1);
+		if (lastHistory === undefined) {
+			throw new Error("No history after recordTask");
+		}
+		const newComp: MaxDiffComparison = { set: [...lastHistory.set], best: lastHistory.best, worst: lastHistory.worst };
+		if (cursor < this._allComparisons.length) {
+			const existing = this._allComparisons[cursor];
+			if (existing.best !== newComp.best || existing.worst !== newComp.worst) {
+				this._allComparisons.length = cursor;
+				this._allComparisons.push(newComp);
+			}
+		} else {
+			this._allComparisons.push(newComp);
+		}
 
 		if (result.stopped) {
 			this.saveProgress(true);
@@ -137,10 +166,9 @@ export class FindMeaningRankingViewModel {
 		if (this._ranking.value === null || this._ranking.value.round === 0) {
 			throw new Error("Cannot undo: no tasks to undo");
 		}
-		const history = this._ranking.value.history;
-		const last = history[history.length - 1];
-		const bestId = last.best;
-		const worstId = last.worst;
+		const undone = this._allComparisons[this._ranking.value.round - 1];
+		const bestId = undone.best;
+		const worstId = undone.worst;
 		this._ranking.value.undoLastTask();
 		this.showNextTask();
 		triggerRef(this._ranking);
@@ -173,7 +201,8 @@ export class FindMeaningRankingViewModel {
 		}
 		saveRanking(this.sessionId, {
 			cardIds: this.cardIds,
-			comparisons: this._ranking.value.history.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
+			comparisons: this._allComparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
+			activeRound: this._ranking.value.round < this._allComparisons.length ? this._ranking.value.round : undefined,
 			complete,
 		});
 	}
