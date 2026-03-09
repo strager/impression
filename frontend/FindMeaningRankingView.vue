@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup } from "vue";
 import { useRouter } from "vue-router";
 
-import { findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
 import type { SlotRect } from "./FindMeaningRankingInteractionState.ts";
 import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
@@ -27,6 +27,7 @@ const DRAG_LIFT_Y_PX = 6;
 interface DragState {
 	borderVisible: boolean;
 	cardHeight: number;
+	cardHeights: number[];
 	draggedIndex: number;
 	hoveredSlot: number;
 	liftX: number;
@@ -35,6 +36,7 @@ interface DragState {
 	phase: "dragging" | "settling";
 	pointerId: number;
 	pointerOffsetY: number;
+	slotGap: number;
 	slotRects: SlotRect[];
 }
 
@@ -204,7 +206,8 @@ function getCardShellStyle(index: number): Record<string, string> {
 	if (targetSlot < 0 || targetSlot >= activeDrag.slotRects.length) {
 		return {};
 	}
-	const offsetY = activeDrag.slotRects[targetSlot].top - activeDrag.slotRects[currentSlot].top;
+	const targetTops = computeLayoutTops(targetOrder, activeDrag.cardHeights, activeDrag.slotRects[0].top, activeDrag.slotGap);
+	const offsetY = targetTops[targetSlot] - activeDrag.slotRects[currentSlot].top;
 	if (offsetY === 0) {
 		return {};
 	}
@@ -217,13 +220,18 @@ function isDraggedCard(index: number): boolean {
 	return dragState.value?.draggedIndex === index;
 }
 
-function isDropTargetSlot(slotIndex: number): boolean {
+const dropTargetStyle = computed(() => {
 	const activeDrag = dragState.value;
-	if (activeDrag === null) {
-		return false;
+	if (activeDrag === null || activeDrag.hoveredSlot === activeDrag.originSlot) {
+		return null;
 	}
-	return activeDrag.hoveredSlot === slotIndex;
-}
+	const targetOrder = moveCardToSlot(displayOrder.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
+	const targetTops = computeLayoutTops(targetOrder, activeDrag.cardHeights, activeDrag.slotRects[0].top, activeDrag.slotGap);
+	return {
+		top: `${String(targetTops[activeDrag.hoveredSlot])}px`,
+		height: `${String(activeDrag.cardHeights[activeDrag.draggedIndex])}px`,
+	};
+});
 
 function handleMost(index: number): void {
 	if (dragState.value !== null) {
@@ -281,10 +289,17 @@ function handleCardPointerDown(event: PointerEvent, index: number): void {
 	if (currentSlot < 0) {
 		return;
 	}
+	const cardHeights: number[] = [];
+	for (let slotIndex = 0; slotIndex < displayOrder.value.length; slotIndex++) {
+		const cardIndex = displayOrder.value[slotIndex];
+		cardHeights[cardIndex] = slotRects[slotIndex].height;
+	}
+	const slotGap = slotRects.length >= 2 ? slotRects[1].top - (slotRects[0].top + slotRects[0].height) : 0;
 	activeCardTransitions.clear();
 	dragState.value = {
 		borderVisible: false,
 		cardHeight: cardRect.height,
+		cardHeights,
 		draggedIndex: index,
 		hoveredSlot: currentSlot,
 		liftX: DRAG_LIFT_X_PX,
@@ -293,6 +308,7 @@ function handleCardPointerDown(event: PointerEvent, index: number): void {
 		phase: "dragging",
 		pointerId: event.pointerId,
 		pointerOffsetY: event.clientY - cardRect.top,
+		slotGap,
 		slotRects,
 	};
 	scheduleDragBorderFadeIn();
@@ -339,7 +355,8 @@ function handleWindowPointerUp(event: PointerEvent): void {
 	releasePointerCapture(event.pointerId);
 	const previewOrder = moveCardToSlot(displayOrder.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
 	const settleSlot = previewOrder.indexOf(activeDrag.draggedIndex);
-	const settleTop = activeDrag.slotRects[settleSlot]?.top ?? activeDrag.overlayTop;
+	const targetTops = computeLayoutTops(previewOrder, activeDrag.cardHeights, activeDrag.slotRects[0].top, activeDrag.slotGap);
+	const settleTop = targetTops[settleSlot] ?? activeDrag.overlayTop;
 	const overlayWillMove = Math.abs(settleTop - activeDrag.overlayTop) > 0.5 || activeDrag.liftX !== 0;
 	dragState.value = {
 		...activeDrag,
@@ -410,7 +427,7 @@ function handleFinish(): void {
 			<div v-if="vm.currentTask !== null" :key="vm.round">
 				<div ref="cardStageRef" class="card-stage" :class="{ settling: isSettling, 'motion-suppressed': suppressMotion }">
 					<component :is="cardListComponent" v-bind="cardListProps" class="card-triad">
-						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" :class="{ 'drop-target': isDropTargetSlot(slotIndex) }" @pointerdown="handleCardPointerDown($event, idx)">
+						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" @pointerdown="handleCardPointerDown($event, idx)">
 							<div class="ranking-slot-shell" :class="{ animated: dragState !== null && dragState.draggedIndex !== idx }" :style="getCardShellStyle(idx)" @transitionrun="handleAnimatedTransformStart(`card-${String(idx)}`, $event)" @transitionend="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)" @transitioncancel="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)">
 								<div class="ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
 									<div class="card-content">
@@ -425,6 +442,7 @@ function handleFinish(): void {
 							</div>
 						</div>
 					</component>
+					<div v-if="dropTargetStyle !== null" class="drop-target-indicator" :style="dropTargetStyle" />
 					<div v-if="draggedCard !== null" class="drag-overlay">
 						<div class="drag-overlay-card" :class="{ settling: isSettling }" :style="dragOverlayStyle" @transitionrun="handleAnimatedTransformStart('overlay', $event)" @transitionend="handleAnimatedTransformFinish('overlay', $event)" @transitioncancel="handleAnimatedTransformFinish('overlay', $event)">
 							<div class="ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
@@ -521,18 +539,14 @@ h1 {
 	transition: transform 0.18s ease;
 }
 
-.ranking-slot.drop-target::before {
-	content: "";
+.drop-target-indicator {
 	position: absolute;
-	inset: 0;
+	left: 0;
+	right: 0;
 	box-sizing: border-box;
 	background: var(--color-gray-50);
 	border: 1px dashed var(--color-gray-200);
 	pointer-events: none;
-	z-index: 2;
-}
-
-.ranking-slot.drop-target {
 	z-index: 2;
 }
 

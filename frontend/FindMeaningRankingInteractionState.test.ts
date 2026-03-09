@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
 
 describe("moveCardToSlot", () => {
 	it("moves a card into the requested slot", () => {
@@ -12,6 +12,24 @@ describe("moveCardToSlot", () => {
 	it("clamps out-of-range slot indices", () => {
 		expect(moveCardToSlot([0, 1, 2], 0, 99)).toEqual([1, 2, 0]);
 		expect(moveCardToSlot([0, 1, 2], 2, -1)).toEqual([2, 0, 1]);
+	});
+});
+
+describe("computeLayoutTops", () => {
+	it("computes tops for equal-height cards", () => {
+		expect(computeLayoutTops([0, 1, 2], [100, 100, 100], 10, 5)).toEqual([10, 115, 220]);
+	});
+
+	it("computes tops for varying-height cards", () => {
+		expect(computeLayoutTops([0, 1, 2], [80, 120, 60], 10, 5)).toEqual([10, 95, 220]);
+	});
+
+	it("accounts for reordered cards with varying heights", () => {
+		expect(computeLayoutTops([2, 0, 1], [80, 120, 60], 10, 5)).toEqual([10, 75, 160]);
+	});
+
+	it("handles negative gap (overlapping borders)", () => {
+		expect(computeLayoutTops([0, 1, 2], [100, 100, 100], 0, -1)).toEqual([0, 99, 198]);
 	});
 });
 

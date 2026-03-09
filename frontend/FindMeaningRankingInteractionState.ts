@@ -23,6 +23,16 @@ export function moveCardToSlot(order: readonly number[], cardIndex: number, slot
 	return nextOrder;
 }
 
+export function computeLayoutTops(order: readonly number[], cardHeights: readonly number[], startTop: number, gap: number): number[] {
+	const tops: number[] = [];
+	let currentTop = startTop;
+	for (const cardIndex of order) {
+		tops.push(currentTop);
+		currentTop += cardHeights[cardIndex] + gap;
+	}
+	return tops;
+}
+
 export function findClosestSlotIndex(slotRects: readonly SlotRect[], pointerY: number): number {
 	if (slotRects.length === 0) {
 		return 0;
