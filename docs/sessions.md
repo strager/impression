@@ -26,11 +26,7 @@ The "Start over" button (available on most pages) creates a new session and navi
 
 - **Export** saves all sessions to a single JSON file (`somecam-sessions.json`) in `somecam-v2` format.
 - **Import** reads a sessions file and merges it into the existing session list. Sessions are matched by UUID — existing sessions with the same UUID are overwritten, new ones are added.
-- **v1 backwards compatibility**: Importing a `somecam-v1` file (the old single-session format) creates a new session from that data.
-
-## Migration
-
-Users with existing single-session data (pre-sessions) are automatically migrated on first load. Their data is wrapped into a new session without any user action required. The legacy localStorage keys are cleaned up.
+- **v1 backwards compatibility**: `somecam-v1` files are no longer supported.
 
 ## Data Isolation
 
