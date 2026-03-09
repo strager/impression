@@ -297,7 +297,6 @@ footer {
 	margin-top: var(--space-4);
 	color: var(--color-gray-400);
 	text-decoration: none;
-	transition: color var(--transition);
 }
 
 .github-link:hover {
