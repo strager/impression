@@ -57,7 +57,7 @@ async function handleSubmitAnswer(): Promise<void> {
 	void nextTick(() => {
 		const cur = document.activeElement;
 		if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
-		if (vm.allAnswered && !vm.reflectionShown) {
+		if (vm.allAnswered && vm.editingEntryIndex === -1) {
 			freeformTextarea.value?.focus();
 		} else {
 			activeTextarea.value?.focus();
@@ -150,7 +150,7 @@ onMounted(() => {
 				@blur="index === vm.editingEntryIndex ? vm.persistEntries() : vm.onAnsweredEntryBlur(entry)"
 				@keydown="onKeydown(index, $event)"
 			/>
-			<template v-if="entry.submitted && !(index === vm.editingEntryIndex && vm.reflectionShown)">
+			<template v-if="entry.submitted">
 				<template v-if="vm.manualReflectResult.has(entry.questionId)">
 					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail">
 						<em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
@@ -160,24 +160,18 @@ onMounted(() => {
 					</p>
 					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
 				</template>
-				<p v-if="vm.manualReflectLoading.has(entry.questionId) || ((vm.awaitingReflection || vm.inferring) && index === vm.entries.length - 1)" class="hint">Thinking about your answer...</p>
+				<p v-if="vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1)" class="hint">Thinking about your answer...</p>
 				<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
-				<button v-else class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
+				<button v-else-if="index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
 			</template>
 			<template v-if="index === vm.editingEntryIndex">
-				<p v-if="vm.reflectionType === 'guardrail'" class="reflection-guardrail">
-					<em>{{ vm.reflectionMessage }}</em>
-				</p>
-				<p v-if="vm.reflectionType === 'thought_bubble'" class="reflection-thought-bubble">
-					<span class="thought-bubble-icon" aria-hidden="true">💭</span> <em>{{ vm.reflectionMessage }}</em>
-				</p>
-				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || (!vm.reflectionShown && entry.userAnswer.trim() === '')" @click="handleSubmitAnswer">Next</AppButton>
-				<p v-if="vm.reflectionShown" class="hint">Press Next to continue as-is, or edit your answer above</p>
+				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || entry.userAnswer.trim() === ''" @click="handleSubmitAnswer">Next</AppButton>
+				<p v-if="vm.manualReflectResult.has(entry.questionId)" class="hint">Press Next to continue as-is, or edit your answer above</p>
 				<p v-else class="hint keyboard-hint">Shift + Enter to submit</p>
 			</template>
 		</div>
 
-		<div v-if="vm.allAnswered && !vm.inferring && !vm.reflectionShown && !vm.awaitingReflection" class="card-hrule">
+		<div v-if="vm.allAnswered && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
 			<h3 class="statements-heading">Which of these statements resonate with you?</h3>
 			<div class="statement-list">
 				<label v-for="s in vm.cardStatements" :key="s.id" class="statement-row">
@@ -188,7 +182,7 @@ onMounted(() => {
 			<AppButton v-if="!vm.statementsConfirmed" variant="primary" class="submit-btn" @click="handleConfirmStatements">Next</AppButton>
 		</div>
 
-		<div v-if="vm.allAnswered && vm.statementsConfirmed && !vm.inferring && !vm.reflectionShown && !vm.awaitingReflection" class="card-hrule">
+		<div v-if="vm.allAnswered && vm.statementsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
 			<label for="freeform-notes">Additional notes about this source of meaning</label>
 			<ExploreTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.persistFreeform()" @keydown="onKeydown(null, $event)" />
 		</div>

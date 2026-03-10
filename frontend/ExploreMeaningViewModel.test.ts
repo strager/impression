@@ -187,8 +187,8 @@ describe("initialize", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.reflectionType).toBe("guardrail");
-		expect(vm.reflectionMessage).toBe("Please elaborate");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
 	});
 
 	it("resumes with pending thought bubble", () => {
@@ -198,8 +198,8 @@ describe("initialize", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.reflectionType).toBe("thought_bubble");
-		expect(vm.reflectionMessage).toBe("Nice insight!");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Nice insight!");
 	});
 
 	it("does not resume guardrail if already submitted after guardrail", () => {
@@ -211,7 +211,7 @@ describe("initialize", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 	});
 
 	it("does not resume thought bubble if already acknowledged", () => {
@@ -223,7 +223,7 @@ describe("initialize", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 	});
 
 	it("restores prefilled answer state", async () => {
@@ -358,8 +358,8 @@ describe("submitAnswer", () => {
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBe("guardrail");
-		expect(vm.reflectionMessage).toBe("Please elaborate");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
 		expect(vm.entries[0].guardrailText).toBe("Please elaborate");
 	});
 
@@ -379,8 +379,8 @@ describe("submitAnswer", () => {
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBe("thought_bubble");
-		expect(vm.reflectionMessage).toBe("Great insight!");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Great insight!");
 		expect(vm.entries[0].thoughtBubbleText).toBe("Great insight!");
 		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(false);
 	});
@@ -394,7 +394,7 @@ describe("submitAnswer", () => {
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[1].submitted).toBe(false);
 	});
@@ -415,7 +415,7 @@ describe("submitAnswer", () => {
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
@@ -513,13 +513,13 @@ describe("dismissing reflection", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.reflectionType).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Now dismiss (no edit, so not in editedAfterSubmit)
 		setupDefaultHandlers();
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[0].submittedAfterGuardrail).toBe(true);
 	});
@@ -544,7 +544,7 @@ describe("dismissing reflection", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.reflectionType).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Edit the answer
 		vm.entries[0].userAnswer = "much more detailed answer now";
@@ -554,7 +554,7 @@ describe("dismissing reflection", () => {
 		await vm.submitAnswer();
 
 		expect(callCount).toBe(2);
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
@@ -586,8 +586,59 @@ describe("dismissing reflection", () => {
 		// Dismiss with edit
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBe("thought_bubble");
-		expect(vm.reflectionMessage).toBe("Interesting point");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Interesting point");
+	});
+
+	it("second reflect thought bubble is resumed and cleared correctly", async () => {
+		let callCount = 0;
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				callCount++;
+				if (callCount === 1) {
+					return HttpResponse.json({ type: "guardrail", message: "Please elaborate" });
+				}
+				return HttpResponse.json({ type: "thought_bubble", message: "Interesting point" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return HttpResponse.json({ inferredAnswers: [] });
+			}),
+		);
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		// Edit and dismiss guardrail → second reflect returns thought bubble
+		vm.entries[0].userAnswer = "better answer";
+		vm.onActiveEntryInput(vm.entries[0]);
+		await vm.submitAnswer();
+
+		const qId = EXPLORE_QUESTIONS[0].id;
+
+		// Verify entry state after second reflect
+		expect(vm.entries[0].guardrailText).not.toBe("");
+		expect(vm.entries[0].submittedAfterGuardrail).toBe(true);
+		expect(vm.entries[0].thoughtBubbleText).not.toBe("");
+		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(false);
+
+		// Recreate ViewModel from persisted state — thought bubble should resume
+		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm2.initialize();
+		expect(vm2.manualReflectResult.get(qId)?.type).toBe("thought_bubble");
+		expect(vm2.editingEntryIndex).toBe(0);
+
+		// Finish exploring dismisses the thought bubble
+		vm2.finishExploring();
+		const saved = loadExploreData(sid());
+		expect(saved![TEST_CARD_ID].entries[0].thoughtBubbleAcknowledged).toBe(true);
+
+		// Recreate again — thought bubble should not resume
+		const vm3 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm3.initialize();
+		expect(vm3.manualReflectResult.get(qId)).toBeUndefined();
 	});
 
 	it("second reflect after guardrail+edit ignores guardrail response", async () => {
@@ -605,7 +656,7 @@ describe("dismissing reflection", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.reflectionType).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Edit the answer and resubmit — second call also returns guardrail,
 		// but suppressGuardrail + the client-side thought_bubble gate means
@@ -614,7 +665,7 @@ describe("dismissing reflection", () => {
 		vm.onActiveEntryInput(vm.entries[0]);
 		await vm.submitAnswer();
 
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
@@ -633,14 +684,14 @@ describe("dismissing reflection", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.reflectionType).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
 
 		// Dismiss
 		setupDefaultHandlers();
 		await vm.submitAnswer();
 
 		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(true);
-		expect(vm.reflectionType).toBeNull();
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
 	});
 });
 
@@ -889,7 +940,7 @@ describe("finishExploring", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.reflectionShown).toBe(true);
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeDefined();
 
 		vm.finishExploring();
 
@@ -944,7 +995,7 @@ describe("derived properties", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.reflectionShown).toBe(true);
+		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeDefined();
 		expect(vm.editingEntryIndex).toBe(0);
 	});
 

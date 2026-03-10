@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { ref } from "vue";
 
 import { fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import type { ReflectOnAnswerResponse } from "./api.ts";
@@ -21,8 +21,6 @@ export class ExploreMeaningViewModel {
 	private readonly _card = ref<MeaningCard | undefined>(undefined);
 	private readonly _entries = ref<ExploreEntry[]>([]);
 	private readonly _inferring = ref(false);
-	private readonly _reflectionType: Ref<"guardrail" | "thought_bubble" | null> = ref(null);
-	private readonly _reflectionMessage = ref("");
 	private readonly _awaitingReflection = ref(false);
 	private readonly _pendingInferResult = ref<Map<string, string> | null>(null);
 	private readonly _freeformNote = ref("");
@@ -52,14 +50,6 @@ export class ExploreMeaningViewModel {
 
 	get inferring(): boolean {
 		return this._inferring.value;
-	}
-
-	get reflectionType(): "guardrail" | "thought_bubble" | null {
-		return this._reflectionType.value;
-	}
-
-	get reflectionMessage(): string {
-		return this._reflectionMessage.value;
 	}
 
 	get awaitingReflection(): boolean {
@@ -96,22 +86,19 @@ export class ExploreMeaningViewModel {
 
 	// --- Computed getters ---
 
-	get reflectionShown(): boolean {
-		return this._reflectionType.value !== null;
-	}
-
 	get activeIndex(): number {
 		const idx = this._entries.value.findIndex((e) => !e.submitted);
 		return idx === -1 ? this._entries.value.length : idx;
 	}
 
 	get editingEntryIndex(): number {
-		if (this.reflectionShown) {
-			const lastIdx = this._entries.value.length - 1;
-			return lastIdx >= 0 && this._entries.value[lastIdx].submitted ? lastIdx : -1;
-		}
-		const idx = this.activeIndex;
-		return idx < this._entries.value.length ? idx : -1;
+		const lastIdx = this._entries.value.length - 1;
+		if (lastIdx < 0) return -1;
+		const last = this._entries.value[lastIdx];
+		if (!last.submitted) return lastIdx;
+		if (last.guardrailText !== "" && !last.submittedAfterGuardrail) return lastIdx;
+		if (last.thoughtBubbleText !== "" && !last.thoughtBubbleAcknowledged) return lastIdx;
+		return -1;
 	}
 
 	get allAnswered(): boolean {
@@ -168,13 +155,11 @@ export class ExploreMeaningViewModel {
 			const lastEntry = this._entries.value[this._entries.value.length - 1];
 			if (lastEntry.submitted) {
 				if (lastEntry.guardrailText !== "" && !lastEntry.submittedAfterGuardrail) {
-					this._reflectionType.value = "guardrail";
-					this._reflectionMessage.value = lastEntry.guardrailText;
+					this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [lastEntry.questionId, { type: "guardrail", message: lastEntry.guardrailText }]]);
 					return "ready";
 				}
 				if (lastEntry.thoughtBubbleText !== "" && !lastEntry.thoughtBubbleAcknowledged) {
-					this._reflectionType.value = "thought_bubble";
-					this._reflectionMessage.value = lastEntry.thoughtBubbleText;
+					this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [lastEntry.questionId, { type: "thought_bubble", message: lastEntry.thoughtBubbleText }]]);
 					return "ready";
 				}
 				if (this._entries.value.length < EXPLORE_QUESTIONS.length) {
@@ -203,24 +188,22 @@ export class ExploreMeaningViewModel {
 	async submitAnswer(): Promise<void> {
 		if (this._awaitingReflection.value) return;
 
-		if (this.reflectionShown) {
+		if (this.hasBlockingReflection()) {
 			const lastIdx = this._entries.value.length - 1;
 			if (lastIdx < 0) return;
 			const entry = this._entries.value[lastIdx];
-			const wasGuardrail = this._reflectionType.value === "guardrail";
-			const wasThoughtBubble = this._reflectionType.value === "thought_bubble";
+			const wasGuardrail = entry.guardrailText !== "" && !entry.submittedAfterGuardrail;
 			const wasEdited = this._editedAfterSubmit.value.has(entry.questionId);
 
 			this.acceptReflection();
-			this._reflectionType.value = null;
-			this._reflectionMessage.value = "";
+			this.persistEntries();
 
-			if (wasThoughtBubble) {
-				entry.thoughtBubbleAcknowledged = true;
-				this.persistEntries();
-			}
+			const mrNext = new Map(this._manualReflectResult.value);
+			mrNext.delete(entry.questionId);
+			this._manualReflectResult.value = mrNext;
 
 			if (wasGuardrail && wasEdited) {
+				this._manualReflectLoading.value = new Set([...this._manualReflectLoading.value, entry.questionId]);
 				this._awaitingReflection.value = true;
 				let secondResult: ReflectOnAnswerResponse | null = null;
 				try {
@@ -234,14 +217,16 @@ export class ExploreMeaningViewModel {
 					// fail open
 				} finally {
 					this._awaitingReflection.value = false;
+					const loadingNext = new Set(this._manualReflectLoading.value);
+					loadingNext.delete(entry.questionId);
+					this._manualReflectLoading.value = loadingNext;
 				}
 
 				if (secondResult !== null && secondResult.type === "thought_bubble" && secondResult.message !== "") {
 					entry.thoughtBubbleText = secondResult.message;
 					entry.thoughtBubbleAcknowledged = false;
 					this.persistEntries();
-					this._reflectionType.value = "thought_bubble";
-					this._reflectionMessage.value = secondResult.message;
+					this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [entry.questionId, { type: "thought_bubble", message: secondResult.message }]]);
 					capture("thought_bubble_shown", {
 						session_id: this.sessionId,
 						card_id: this.cardId,
@@ -307,6 +292,7 @@ export class ExploreMeaningViewModel {
 
 		this._inferring.value = remaining.length > 0;
 
+		this._manualReflectLoading.value = new Set([...this._manualReflectLoading.value, questionId]);
 		this._awaitingReflection.value = true;
 		const reflectResult = await fetchReflectOnAnswer({
 			cardId: this.cardId,
@@ -316,6 +302,9 @@ export class ExploreMeaningViewModel {
 			.catch((): ReflectOnAnswerResponse => ({ type: "none", message: "" }))
 			.finally(() => {
 				this._awaitingReflection.value = false;
+				const loadingNext = new Set(this._manualReflectLoading.value);
+				loadingNext.delete(questionId);
+				this._manualReflectLoading.value = loadingNext;
 			});
 		capture("reflect_on_answer_triggered", {
 			session_id: this.sessionId,
@@ -335,8 +324,7 @@ export class ExploreMeaningViewModel {
 				card_id: this.cardId,
 				question_id: questionId,
 			});
-			this._reflectionType.value = "guardrail";
-			this._reflectionMessage.value = reflectResult.message;
+			this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [questionId, { type: "guardrail", message: reflectResult.message }]]);
 			void inferPromise.then((result) => {
 				this._pendingInferResult.value = result;
 			});
@@ -354,8 +342,7 @@ export class ExploreMeaningViewModel {
 				card_id: this.cardId,
 				question_id: questionId,
 			});
-			this._reflectionType.value = "thought_bubble";
-			this._reflectionMessage.value = reflectResult.message;
+			this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [questionId, { type: "thought_bubble", message: reflectResult.message }]]);
 			void inferPromise.then((result) => {
 				this._pendingInferResult.value = result;
 			});
@@ -469,8 +456,14 @@ export class ExploreMeaningViewModel {
 	}
 
 	finishExploring(): void {
-		if (this.reflectionShown) {
+		if (this.hasBlockingReflection()) {
 			this.acceptReflection();
+			const lastIdx = this._entries.value.length - 1;
+			if (lastIdx >= 0) {
+				const mrNext = new Map(this._manualReflectResult.value);
+				mrNext.delete(this._entries.value[lastIdx].questionId);
+				this._manualReflectResult.value = mrNext;
+			}
 		}
 		this.persistEntries();
 		this.persistFreeform();
@@ -512,12 +505,20 @@ export class ExploreMeaningViewModel {
 		this._questionStartTimeMs.value = performance.now();
 	}
 
+	private hasBlockingReflection(): boolean {
+		const lastIdx = this._entries.value.length - 1;
+		if (lastIdx < 0) return false;
+		const last = this._entries.value[lastIdx];
+		if (!last.submitted) return false;
+		return (last.guardrailText !== "" && !last.submittedAfterGuardrail) || (last.thoughtBubbleText !== "" && !last.thoughtBubbleAcknowledged);
+	}
+
 	private acceptReflection(): void {
 		const lastIdx = this._entries.value.length - 1;
 		if (lastIdx < 0 || !this._entries.value[lastIdx].submitted) return;
 		const entry = this._entries.value[lastIdx];
 		entry.userAnswer = entry.userAnswer.trim();
-		if (this._reflectionType.value === "guardrail") {
+		if (entry.guardrailText !== "" && !entry.submittedAfterGuardrail) {
 			entry.submittedAfterGuardrail = true;
 			this.trackSubmittedSnapshot(entry.questionId, entry.userAnswer);
 			capture("answer_submitted_after_guardrail", {
@@ -525,6 +526,9 @@ export class ExploreMeaningViewModel {
 				card_id: this.cardId,
 				question_id: entry.questionId,
 			});
+		}
+		if (entry.thoughtBubbleText !== "" && !entry.thoughtBubbleAcknowledged) {
+			entry.thoughtBubbleAcknowledged = true;
 		}
 	}
 
