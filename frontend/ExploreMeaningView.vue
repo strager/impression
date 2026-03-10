@@ -19,6 +19,7 @@ const vm = new ExploreMeaningViewModel(sessionId, cardId);
 
 const activeTextarea = ref<InstanceType<typeof ExploreTextarea> | null>(null);
 const entryTextareas: (InstanceType<typeof ExploreTextarea> | null)[] = [];
+const entryCards: (HTMLElement | null)[] = [];
 const freeformTextarea = ref<InstanceType<typeof ExploreTextarea> | null>(null);
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
@@ -53,6 +54,7 @@ function onAnsweredEntryInput(entry: (typeof vm.entries)[number]): void {
 
 async function handleSubmitAnswer(): Promise<void> {
 	const focusedAtStart = document.activeElement;
+	const submittedIndex = vm.editingEntryIndex;
 	await vm.submitAnswer();
 	void nextTick(() => {
 		const cur = document.activeElement;
@@ -63,6 +65,11 @@ async function handleSubmitAnswer(): Promise<void> {
 			activeTextarea.value?.focus();
 		}
 	});
+	if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
+		void nextTick(() => {
+			entryCards[submittedIndex]?.scrollIntoView({ block: "start", behavior: "smooth" });
+		});
+	}
 }
 
 function handleConfirmStatements(): void {
@@ -77,9 +84,15 @@ async function handleReflectOnEntry(questionId: string, index: number): Promise<
 	if (entry.userAnswer.trim() === "") {
 		await vm.reflectOnEntry(questionId);
 		entryTextareas[index]?.focus();
+		void nextTick(() => {
+			entryCards[index]?.scrollIntoView({ block: "start", behavior: "smooth" });
+		});
 		return;
 	}
 	await vm.reflectOnEntry(questionId);
+	void nextTick(() => {
+		entryCards[index]?.scrollIntoView({ block: "start", behavior: "smooth" });
+	});
 }
 
 function onKeydown(index: number | null, event: KeyboardEvent): void {
@@ -128,12 +141,35 @@ onMounted(() => {
 			</div>
 		</header>
 
-		<div v-for="(entry, index) in vm.entries" :key="entry.questionId" class="card-hrule">
+		<div
+			v-for="(entry, index) in vm.entries"
+			:key="entry.questionId"
+			:ref="
+				(el: any) => {
+					entryCards[index] = el;
+				}
+			"
+			class="card-hrule"
+		>
 			<label :for="`q-${entry.questionId}`"
 				><q>{{ vm.card.description }}</q
 				><br />{{ questionsById.get(entry.questionId)?.text }}</label
 			>
 			<p v-if="vm.prefilledQuestionIds.has(entry.questionId)" class="prefill-hint"><em>This answer was pre-filled based on your previous responses. Feel free to edit it.</em></p>
+			<template v-if="entry.submitted">
+				<template v-if="vm.manualReflectResult.has(entry.questionId)">
+					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail">
+						<em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
+					</p>
+					<p v-else-if="vm.manualReflectResult.get(entry.questionId)!.type === 'thought_bubble'" class="reflection-thought-bubble">
+						<span class="thought-bubble-icon" aria-hidden="true">💭</span> <em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
+					</p>
+					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
+				</template>
+				<p v-if="vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1)" class="hint">Thinking about your answer...</p>
+				<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
+				<button v-else-if="index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
+			</template>
 			<ExploreTextarea
 				:id="`q-${entry.questionId}`"
 				:ref="
@@ -150,20 +186,6 @@ onMounted(() => {
 				@blur="index === vm.editingEntryIndex ? vm.persistEntries() : vm.onAnsweredEntryBlur(entry)"
 				@keydown="onKeydown(index, $event)"
 			/>
-			<template v-if="entry.submitted">
-				<template v-if="vm.manualReflectResult.has(entry.questionId)">
-					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail">
-						<em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
-					</p>
-					<p v-else-if="vm.manualReflectResult.get(entry.questionId)!.type === 'thought_bubble'" class="reflection-thought-bubble">
-						<span class="thought-bubble-icon" aria-hidden="true">💭</span> <em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
-					</p>
-					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
-				</template>
-				<p v-if="vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1)" class="hint">Thinking about your answer...</p>
-				<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
-				<button v-else-if="index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
-			</template>
 			<template v-if="index === vm.editingEntryIndex">
 				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || entry.userAnswer.trim() === ''" @click="handleSubmitAnswer">Next</AppButton>
 				<p v-if="vm.manualReflectResult.has(entry.questionId)" class="hint">Press Next to continue as-is, or edit your answer above</p>
