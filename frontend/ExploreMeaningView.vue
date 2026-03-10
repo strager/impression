@@ -52,46 +52,68 @@ function onAnsweredEntryInput(entry: (typeof vm.entries)[number]): void {
 	debouncedPersist();
 }
 
+// https://github.com/w3c/csswg-drafts/issues/3871
+function hasPhysicalKeyboard(): boolean {
+	return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function scrollCardIntoViewIfNeeded(index: number): void {
+	const el = entryCards[index];
+	if (el === null) return;
+	const rect = el.getBoundingClientRect();
+	if (rect.top >= 0 && rect.bottom <= window.innerHeight) return;
+	el.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 async function handleSubmitAnswer(): Promise<void> {
 	const focusedAtStart = document.activeElement;
 	const submittedIndex = vm.editingEntryIndex;
+	if (!hasPhysicalKeyboard() && document.activeElement instanceof HTMLElement) {
+		document.activeElement.blur();
+	}
 	await vm.submitAnswer();
-	void nextTick(() => {
-		const cur = document.activeElement;
-		if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
-		if (vm.allAnswered && vm.editingEntryIndex === -1) {
-			freeformTextarea.value?.focus();
-		} else {
-			activeTextarea.value?.focus();
-		}
-	});
+	if (hasPhysicalKeyboard()) {
+		void nextTick(() => {
+			const cur = document.activeElement;
+			if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
+			if (vm.allAnswered && vm.editingEntryIndex === -1) {
+				freeformTextarea.value?.focus();
+			} else {
+				activeTextarea.value?.focus();
+			}
+		});
+	}
 	if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
 		void nextTick(() => {
-			entryCards[submittedIndex]?.scrollIntoView({ block: "start", behavior: "smooth" });
+			scrollCardIntoViewIfNeeded(submittedIndex);
 		});
 	}
 }
 
 function handleConfirmStatements(): void {
 	vm.confirmStatements();
-	void nextTick(() => {
-		freeformTextarea.value?.focus();
-	});
+	if (hasPhysicalKeyboard()) {
+		void nextTick(() => {
+			freeformTextarea.value?.focus();
+		});
+	}
 }
 
 async function handleReflectOnEntry(questionId: string, index: number): Promise<void> {
 	const entry = vm.entries[index];
 	if (entry.userAnswer.trim() === "") {
 		await vm.reflectOnEntry(questionId);
-		entryTextareas[index]?.focus();
+		if (hasPhysicalKeyboard()) {
+			entryTextareas[index]?.focus();
+		}
 		void nextTick(() => {
-			entryCards[index]?.scrollIntoView({ block: "start", behavior: "smooth" });
+			scrollCardIntoViewIfNeeded(index);
 		});
 		return;
 	}
 	await vm.reflectOnEntry(questionId);
 	void nextTick(() => {
-		entryCards[index]?.scrollIntoView({ block: "start", behavior: "smooth" });
+		scrollCardIntoViewIfNeeded(index);
 	});
 }
 
@@ -166,9 +188,6 @@ onMounted(() => {
 					</p>
 					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
 				</template>
-				<p v-if="vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1)" class="hint">Thinking about your answer...</p>
-				<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
-				<button v-else-if="index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
 			</template>
 			<ExploreTextarea
 				:id="`q-${entry.questionId}`"
@@ -186,10 +205,13 @@ onMounted(() => {
 				@blur="index === vm.editingEntryIndex ? vm.persistEntries() : vm.onAnsweredEntryBlur(entry)"
 				@keydown="onKeydown(index, $event)"
 			/>
+			<p v-if="entry.submitted && (vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1))" class="hint">Thinking about your answer...</p>
+			<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
+			<button v-else-if="entry.submitted && index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
 			<template v-if="index === vm.editingEntryIndex">
 				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || entry.userAnswer.trim() === ''" @click="handleSubmitAnswer">Next</AppButton>
 				<p v-if="vm.manualReflectResult.has(entry.questionId)" class="hint">Press Next to continue as-is, or edit your answer above</p>
-				<p v-else class="hint keyboard-hint">Shift + Enter to submit</p>
+				<p v-else-if="hasPhysicalKeyboard()" class="hint">Shift + Enter to submit</p>
 			</template>
 		</div>
 
@@ -257,18 +279,6 @@ label {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
 	margin: var(--space-2) 0 0;
-}
-
-/* Hide by default; show only when a keyboard is likely present.
-   https://github.com/w3c/csswg-drafts/issues/3871 */
-.keyboard-hint {
-	display: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-	.keyboard-hint {
-		display: block;
-	}
 }
 
 .reflection-guardrail {
