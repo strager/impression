@@ -31,7 +31,6 @@ export class ExploreMeaningViewModel {
 	private readonly _editedAfterSubmit = ref<Set<string>>(new Set());
 	private readonly _manualReflectLoading = ref<Set<string>>(new Set());
 	private readonly _manualReflectResult = ref<Map<string, ReflectOnAnswerResponse>>(new Map());
-	private readonly _prefilledQuestionIds = ref<Set<string>>(new Set());
 
 	constructor(sessionId: string, cardId: string) {
 		this.sessionId = sessionId;
@@ -78,10 +77,6 @@ export class ExploreMeaningViewModel {
 
 	get manualReflectResult(): Map<string, ReflectOnAnswerResponse> {
 		return this._manualReflectResult.value;
-	}
-
-	get prefilledQuestionIds(): Set<string> {
-		return this._prefilledQuestionIds.value;
 	}
 
 	// --- Computed getters ---
@@ -138,6 +133,7 @@ export class ExploreMeaningViewModel {
 					submittedAfterGuardrail: false,
 					thoughtBubbleText: "",
 					thoughtBubbleAcknowledged: false,
+					autoFilledPending: false,
 				});
 				saveExploreData(this.sessionId, data);
 			}
@@ -168,13 +164,6 @@ export class ExploreMeaningViewModel {
 			} else {
 				const idx = this.activeIndex;
 				if (idx < this._entries.value.length) {
-					const entry = this._entries.value[idx];
-					if (entry.prefilledAnswer !== "") {
-						this._prefilledQuestionIds.value.add(entry.questionId);
-						if (entry.userAnswer === "") {
-							entry.userAnswer = entry.prefilledAnswer;
-						}
-					}
 					this.markQuestionStartNow();
 				}
 			}
@@ -273,7 +262,7 @@ export class ExploreMeaningViewModel {
 
 		this._entries.value[idx].userAnswer = answerText;
 		this._entries.value[idx].submitted = true;
-		this._prefilledQuestionIds.value.delete(questionId);
+		this._entries.value[idx].autoFilledPending = false;
 		this.trackSubmittedSnapshot(questionId, answerText);
 		this.persistEntries();
 
@@ -360,6 +349,18 @@ export class ExploreMeaningViewModel {
 		if (snapshot !== undefined && snapshot !== entry.userAnswer) {
 			this._editedAfterSubmit.value.add(entry.questionId);
 		}
+	}
+
+	acceptAutoFill(entry: ExploreEntry): void {
+		entry.userAnswer = entry.prefilledAnswer;
+		entry.autoFilledPending = false;
+		this.persistEntries();
+	}
+
+	clearAutoFill(entry: ExploreEntry): void {
+		entry.userAnswer = "";
+		entry.autoFilledPending = false;
+		this.persistEntries();
 	}
 
 	onAnsweredEntryInput(entry: ExploreEntry): void {
@@ -550,19 +551,18 @@ export class ExploreMeaningViewModel {
 		const nextQuestionId = selectNextQuestion(this.sessionId, this.cardId, remaining, [...inferredMap.keys()]);
 		const nextPrefill = inferredMap.get(nextQuestionId) ?? "";
 
+		// Trailing "\n" reserves space for the autofill chip in the textarea's bottom-right corner.
 		this._entries.value.push({
 			questionId: nextQuestionId,
-			userAnswer: nextPrefill,
+			userAnswer: nextPrefill !== "" ? nextPrefill + "\n" : "",
 			prefilledAnswer: nextPrefill,
 			submitted: false,
 			guardrailText: "",
 			submittedAfterGuardrail: false,
 			thoughtBubbleText: "",
 			thoughtBubbleAcknowledged: false,
+			autoFilledPending: nextPrefill !== "",
 		});
-		if (nextPrefill !== "") {
-			this._prefilledQuestionIds.value.add(nextQuestionId);
-		}
 		this.persistEntries();
 		this.markQuestionStartNow();
 	}

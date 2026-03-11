@@ -80,6 +80,7 @@ function makeExploreData(cardIds: string[], answeredCount: number): ExploreData 
 				submittedAfterGuardrail: false,
 				thoughtBubbleText: "",
 				thoughtBubbleAcknowledged: false,
+				autoFilledPending: false,
 			})),
 			freeformNote: "",
 			statementSelections: [],

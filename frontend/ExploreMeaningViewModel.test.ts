@@ -82,6 +82,7 @@ function makeEntry(questionId: string, answer: string, submitted: boolean): Expl
 		submittedAfterGuardrail: false,
 		thoughtBubbleText: "",
 		thoughtBubbleAcknowledged: false,
+		autoFilledPending: false,
 	};
 }
 
@@ -245,11 +246,103 @@ describe("initialize", () => {
 		vm1.initialize();
 		await vm1.submitAnswer();
 
+		expect(vm1.entries[1].autoFilledPending).toBe(true);
+		expect(vm1.entries[1].userAnswer).toBe("suggested answer\n");
+
 		// Q2 entry now exists with prefilled answer persisted
 		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
-		expect(vm2.prefilledQuestionIds.has(nextQId)).toBe(true);
-		expect(vm2.entries[1].userAnswer).toBe("suggested answer");
+		expect(vm2.entries[1].autoFilledPending).toBe(true);
+		expect(vm2.entries[1].userAnswer).toBe("suggested answer\n");
+	});
+
+	it("acceptAutoFill clears pending flag and persists", async () => {
+		const nextQId = EXPLORE_QUESTIONS[1].id;
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				return HttpResponse.json({ type: "none", message: "" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return HttpResponse.json({
+					inferredAnswers: [{ questionId: nextQId, answer: "suggested answer" }],
+				});
+			}),
+		);
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		expect(vm.entries[1].autoFilledPending).toBe(true);
+		vm.acceptAutoFill(vm.entries[1]);
+		expect(vm.entries[1].autoFilledPending).toBe(false);
+		expect(vm.entries[1].userAnswer).toBe("suggested answer");
+
+		const saved = loadExploreData(sid());
+		expect(saved![TEST_CARD_ID].entries[1].autoFilledPending).toBe(false);
+	});
+
+	it("clearAutoFill clears answer and pending flag and persists", async () => {
+		const nextQId = EXPLORE_QUESTIONS[1].id;
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				return HttpResponse.json({ type: "none", message: "" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return HttpResponse.json({
+					inferredAnswers: [{ questionId: nextQId, answer: "suggested answer" }],
+				});
+			}),
+		);
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		expect(vm.entries[1].autoFilledPending).toBe(true);
+		vm.clearAutoFill(vm.entries[1]);
+		expect(vm.entries[1].autoFilledPending).toBe(false);
+		expect(vm.entries[1].userAnswer).toBe("");
+
+		// loadExploreData drops blank active entries when non-blank answers exist,
+		// so the cleared entry is not present in persisted data
+		const saved = loadExploreData(sid());
+		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
+		expect(saved![TEST_CARD_ID].entries[0].submitted).toBe(true);
+	});
+
+	it("clear then refresh discards blank question and regenerates", async () => {
+		const nextQId = EXPLORE_QUESTIONS[1].id;
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				return HttpResponse.json({ type: "none", message: "" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return HttpResponse.json({
+					inferredAnswers: [{ questionId: nextQId, answer: "suggested answer" }],
+				});
+			}),
+		);
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		// Clear the auto-filled answer
+		vm.clearAutoFill(vm.entries[1]);
+		expect(vm.entries[1].userAnswer).toBe("");
+
+		// Simulate reload — loadExploreData drops blank active entries when non-blank answers exist.
+		// The reload sees only 1 submitted entry, so initialize() triggers async inferAndAdvance().
+		const saved = loadExploreData(sid());
+		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
+		expect(saved![TEST_CARD_ID].entries[0].submitted).toBe(true);
 	});
 });
 
@@ -440,7 +533,7 @@ describe("submitAnswer", () => {
 
 		const nextEntry = vm.entries.find((e) => e.questionId === nextQId);
 		expect(nextEntry).toBeDefined();
-		expect(nextEntry!.userAnswer).toBe("Inferred answer");
+		expect(nextEntry!.userAnswer).toBe("Inferred answer\n");
 		expect(nextEntry!.prefilledAnswer).toBe("Inferred answer");
 	});
 

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, useAttrs } from "vue";
+
+defineOptions({ inheritAttrs: false });
 
 defineProps<{
 	id?: string;
@@ -7,6 +9,9 @@ defineProps<{
 	rows?: number;
 	placeholder?: string;
 	variant?: "active" | "answered";
+	// When true, modelValue should contain a trailing "\n" to reserve space
+	// for the autofill chip in the bottom-right corner of the textarea.
+	autofilled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -14,10 +19,19 @@ const emit = defineEmits<{
 	blur: [];
 }>();
 
+const attrs = useAttrs();
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 
 function focus(): void {
 	textareaRef.value?.focus();
+}
+
+function focusAtEnd(): void {
+	const el = textareaRef.value;
+	if (el === null) return;
+	el.focus();
+	const len = el.value.length;
+	el.setSelectionRange(len, len);
 }
 
 function onInput(event: Event): void {
@@ -27,11 +41,33 @@ function onInput(event: Event): void {
 	emit("update:modelValue", event.target.value);
 }
 
-defineExpose({ focus });
+defineExpose({ focus, focusAtEnd });
 </script>
 
 <template>
-	<textarea :id="id" ref="textareaRef" :class="variant ?? 'active'" :value="modelValue" :rows="rows ?? 5" :placeholder="placeholder ?? ''" @input="onInput" @blur="emit('blur')"></textarea>
+	<div class="textarea-wrapper">
+		<textarea :id="id" ref="textareaRef" v-bind="attrs" :class="[variant ?? 'active', { autofilled, 'no-focus-ring': autofilled }]" :value="modelValue" :rows="rows ?? 5" :placeholder="placeholder ?? ''" :readonly="autofilled || undefined" @input="onInput" @blur="emit('blur')"></textarea>
+		<span v-if="autofilled" class="autofill-chip">auto-filled</span>
+	</div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.textarea-wrapper {
+	position: relative;
+}
+
+textarea.autofilled {
+	color: var(--color-gray-400);
+	cursor: default;
+}
+
+.autofill-chip {
+	position: absolute;
+	bottom: var(--space-2);
+	right: 0;
+	background: var(--color-gray-200);
+	color: var(--color-gray-600);
+	font-size: var(--text-xs);
+	padding: var(--space-1) var(--space-2);
+}
+</style>

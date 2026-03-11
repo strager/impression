@@ -68,6 +68,7 @@ export interface ExploreEntry {
 	submittedAfterGuardrail: boolean;
 	thoughtBubbleText: string;
 	thoughtBubbleAcknowledged: boolean;
+	autoFilledPending: boolean;
 }
 
 export interface CardExploreData {
@@ -329,6 +330,9 @@ function toExploreEntry(value: unknown): ExploreEntry | null {
 	if (value.thoughtBubbleAcknowledged !== undefined && typeof value.thoughtBubbleAcknowledged !== "boolean") {
 		return null;
 	}
+	if (value.autoFilledPending !== undefined && typeof value.autoFilledPending !== "boolean") {
+		return null;
+	}
 
 	return {
 		questionId: value.questionId,
@@ -339,6 +343,7 @@ function toExploreEntry(value: unknown): ExploreEntry | null {
 		submittedAfterGuardrail: value.submittedAfterGuardrail ?? false,
 		thoughtBubbleText: value.thoughtBubbleText ?? "",
 		thoughtBubbleAcknowledged: value.thoughtBubbleAcknowledged ?? false,
+		autoFilledPending: value.autoFilledPending ?? false,
 	};
 }
 

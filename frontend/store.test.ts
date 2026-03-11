@@ -191,6 +191,7 @@ describe("loadExploreData/saveExploreData", () => {
 						submittedAfterGuardrail: false,
 						thoughtBubbleText: "",
 						thoughtBubbleAcknowledged: false,
+						autoFilledPending: false,
 					},
 				],
 				freeformNote: "",
@@ -210,6 +211,7 @@ describe("loadExploreData/saveExploreData", () => {
 						submittedAfterGuardrail: false,
 						thoughtBubbleText: "",
 						thoughtBubbleAcknowledged: false,
+						autoFilledPending: false,
 					},
 				],
 				freeformNote: "",
@@ -245,6 +247,7 @@ describe("loadExploreData/saveExploreData", () => {
 						submittedAfterGuardrail: false,
 						thoughtBubbleText: "",
 						thoughtBubbleAcknowledged: false,
+						autoFilledPending: false,
 					},
 				],
 				freeformNote: "",
@@ -284,6 +287,7 @@ describe("loadExploreData/saveExploreData", () => {
 						submittedAfterGuardrail: true,
 						thoughtBubbleText: "What about X?",
 						thoughtBubbleAcknowledged: true,
+						autoFilledPending: false,
 					},
 				],
 				freeformNote: "",
@@ -399,6 +403,43 @@ describe("loadExploreData/saveExploreData", () => {
 						prefilledAnswer: "",
 						submitted: true,
 						thoughtBubbleAcknowledged: "yes",
+					},
+				],
+			}),
+		);
+		expect(loadExploreData(sid())).toBeNull();
+	});
+
+	it("defaults autoFilledPending to false when absent", () => {
+		localStorage.setItem(
+			activeKey("explore"),
+			JSON.stringify({
+				"self-knowledge": [
+					{
+						questionId: "interpretation",
+						userAnswer: "answer",
+						prefilledAnswer: "",
+						submitted: true,
+					},
+				],
+			}),
+		);
+		const result = loadExploreData(sid());
+		expect(result).not.toBeNull();
+		expect(result!["self-knowledge"].entries[0].autoFilledPending).toBe(false);
+	});
+
+	it("returns null when autoFilledPending is not a boolean", () => {
+		localStorage.setItem(
+			activeKey("explore"),
+			JSON.stringify({
+				"self-knowledge": [
+					{
+						questionId: "interpretation",
+						userAnswer: "answer",
+						prefilledAnswer: "",
+						submitted: true,
+						autoFilledPending: "yes",
 					},
 				],
 			}),
@@ -567,7 +608,7 @@ describe("freeform notes in ExploreData", () => {
 	it("round-trips freeform notes through ExploreData", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "Some extra thoughts",
 				statementSelections: [],
 			},
@@ -580,7 +621,7 @@ describe("freeform notes in ExploreData", () => {
 	it("round-trips empty freeformNote", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
 				statementSelections: [],
 			},
@@ -675,7 +716,7 @@ describe("exportProgressData/importProgressData", () => {
 		saveChosenCardIds(sid(), ["self-knowledge", "community"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes",
 				statementSelections: [],
 			},
@@ -703,7 +744,7 @@ describe("exportProgressData/importProgressData", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes",
 				statementSelections: [],
 			},
@@ -778,7 +819,7 @@ describe("statement selections in ExploreData", () => {
 	it("round-trips statement selections through ExploreData", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
 				statementSelections: ["6", "34"],
 			},
@@ -792,7 +833,7 @@ describe("statement selections in ExploreData", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
 				statementSelections: ["6", "34"],
 			},
@@ -831,7 +872,7 @@ describe("statement selections in ExploreData", () => {
 	it("importProgressData clears statements when not present in import", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
 				statementSelections: ["6"],
 			},
@@ -972,7 +1013,7 @@ describe("session data isolation", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
-				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false }],
+				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes from session 1",
 				statementSelections: [],
 			},

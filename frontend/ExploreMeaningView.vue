@@ -117,9 +117,26 @@ async function handleReflectOnEntry(questionId: string, index: number): Promise<
 	});
 }
 
+function handleEditAutoFill(entry: (typeof vm.entries)[number], index: number): void {
+	vm.acceptAutoFill(entry);
+	void nextTick(() => {
+		entryTextareas[index]?.focusAtEnd();
+		scrollCardIntoViewIfNeeded(index);
+	});
+}
+
+function handleClearAutoFill(entry: (typeof vm.entries)[number], index: number): void {
+	vm.clearAutoFill(entry);
+	void nextTick(() => {
+		entryTextareas[index]?.focus();
+		scrollCardIntoViewIfNeeded(index);
+	});
+}
+
 function onKeydown(index: number | null, event: KeyboardEvent): void {
 	if (!(event.key === "Enter" && event.shiftKey)) return;
 	event.preventDefault();
+	if (index !== null && index === vm.editingEntryIndex && vm.entries[index].autoFilledPending) return;
 	if (index === vm.editingEntryIndex) {
 		void handleSubmitAnswer();
 	} else if (index !== null) {
@@ -177,7 +194,6 @@ onMounted(() => {
 				><q>{{ vm.card.description }}</q
 				><br />{{ questionsById.get(entry.questionId)?.text }}</label
 			>
-			<p v-if="vm.prefilledQuestionIds.has(entry.questionId)" class="prefill-hint"><em>This answer was pre-filled based on your previous responses. Feel free to edit it.</em></p>
 			<template v-if="entry.submitted">
 				<template v-if="vm.manualReflectResult.has(entry.questionId)">
 					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail">
@@ -198,6 +214,7 @@ onMounted(() => {
 					}
 				"
 				v-model="entry.userAnswer"
+				:autofilled="index === vm.editingEntryIndex && entry.autoFilledPending"
 				:variant="index === vm.editingEntryIndex ? undefined : 'answered'"
 				:rows="index === vm.editingEntryIndex ? 5 : 3"
 				:placeholder="index === vm.editingEntryIndex ? 'Type your reflection here...' : ''"
@@ -209,9 +226,15 @@ onMounted(() => {
 			<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
 			<button v-else-if="entry.submitted && index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
 			<template v-if="index === vm.editingEntryIndex">
-				<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || entry.userAnswer.trim() === ''" @click="handleSubmitAnswer">Next</AppButton>
-				<p v-if="vm.manualReflectResult.has(entry.questionId)" class="hint">Press Next to continue as-is, or edit your answer above</p>
-				<p v-else-if="hasPhysicalKeyboard()" class="hint">Shift + Enter to submit</p>
+				<div v-if="entry.autoFilledPending" class="autofill-actions">
+					<AppButton variant="primary" @click="handleEditAutoFill(entry, index)">Edit answer</AppButton>
+					<AppButton variant="primary" @click="handleClearAutoFill(entry, index)">Write my own</AppButton>
+				</div>
+				<template v-else>
+					<AppButton variant="primary" class="submit-btn" :disabled="vm.awaitingReflection || entry.userAnswer.trim() === ''" @click="handleSubmitAnswer">Next</AppButton>
+					<p v-if="vm.manualReflectResult.has(entry.questionId)" class="hint">Press Next to continue as-is, or edit your answer above</p>
+					<p v-else-if="hasPhysicalKeyboard()" class="hint">Shift + Enter to submit</p>
+				</template>
 			</template>
 		</div>
 
@@ -328,10 +351,14 @@ label {
 	margin: var(--space-1) 0 0;
 }
 
-.prefill-hint {
-	font-size: var(--text-sm);
-	color: var(--color-warning);
-	margin: 0 0 var(--space-2);
+.autofill-actions {
+	display: flex;
+	gap: var(--space-3);
+	margin-top: var(--space-4);
+}
+
+.autofill-actions button {
+	flex: 1;
 }
 
 .statements-heading {

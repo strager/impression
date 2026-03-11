@@ -28,15 +28,29 @@ questions. If so, it drafts short answers in the user's own style.
 
 If the LLM determined that a remaining question was already addressed, that
 question is shown next with the LLM's suggested answer pre-filled in the
-textarea. The user can review the pre-fill, edit it, or replace it entirely
-before submitting. If no question was pre-filled, the next question is chosen at
-random from the remaining pool.
+textarea. The textarea is read-only with auto-fill styling (italic gray text and
+an "auto-filled" chip). The user must explicitly choose **Edit** or **Clear**
+before proceeding — the normal **Next** button is hidden while the auto-fill is
+pending. If no question was pre-filled, the next question is chosen at random
+from the remaining pool.
 
-## Editing or accepting pre-fills
+## Editing or clearing pre-fills
 
-When a pre-filled answer appears, the user is free to accept it as-is by
-clicking **Next**, or they can modify the text to better capture their thoughts.
-The textarea behaves exactly the same whether the answer was pre-filled or blank.
+When a pre-filled answer appears, two buttons are shown side by side:
+
+- **Edit** — accepts the pre-filled text, makes the textarea editable with the
+  cursor at the end, and shows the normal **Next** button.
+- **Clear** — empties the textarea, makes it editable and focused, and shows the
+  normal **Next** button.
+
+The `autoFilledPending` flag on the entry tracks whether the user has interacted
+with the pre-fill. It persists to localStorage so the auto-fill UI survives page
+refreshes.
+
+If the user presses **Clear** and then refreshes the page before typing a new
+answer, `loadExploreData` discards the blank active entry (since at least one
+non-blank answer exists for the card). On the next `initialize()`, the app
+regenerates the active question through the normal infer flow.
 
 ## Answering all five questions
 

@@ -331,8 +331,8 @@ textarea {
 		box-shadow 0.08s ease;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):focus,
-textarea:focus {
+input:not([type="checkbox"]):not([type="radio"]):not(.no-focus-ring):focus,
+textarea:not(.no-focus-ring):focus {
 	border-bottom-color: var(--color-green-600);
 	box-shadow: inset 1px 0 0 0 var(--color-green-600);
 }
