@@ -580,6 +580,11 @@ import AppButton from "./AppButton.vue";
 				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">All text is left-aligned by default. This includes headings, body text, labels, card content, and table cells. Left alignment creates a strong vertical anchor that the eye follows down the page, which is easier to read and scan than centered text.</p>
 				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Centered text may be used sparingly for standalone elements that are visually separate from the page flow, such as an empty state message in the middle of a blank area, or a single-line status label inside a visual widget. It should never be used for headings, paragraphs, labels, or any text that participates in a reading flow.</p>
 			</div>
+
+			<div class="sg-subsection">
+				<div class="sg-subsection-title">Terminology</div>
+				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Avoid the word "card" in user-facing text. Use the source of meaning's name directly, or say "source of meaning" if a generic term is needed.</p>
+			</div>
 		</div>
 
 		<!-- ===================== 7. COMPOSITION EXAMPLE ===================== -->

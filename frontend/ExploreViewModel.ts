@@ -3,10 +3,9 @@ import { ref } from "vue";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
-import { fetchSummary } from "./api.ts";
 import { capture } from "./analytics.ts";
 import type { ExploreEntry } from "./store.ts";
-import { loadChosenCardIds, loadExploreData, lookupCachedSummary, saveCachedSummary, saveExploreData } from "./store.ts";
+import { fetchOrGetCachedSummary, loadChosenCardIds, loadExploreData, saveExploreData } from "./store.ts";
 
 export interface SummaryEntry {
 	questionId: string;
@@ -170,7 +169,7 @@ export class ExploreViewModel {
 				this._cardSummaryEntries.value[cardId] = summaryRows;
 
 				for (const v of validEntries) {
-					promises.push(this.loadSummary(cardId, v.entry.questionId, v.entry.userAnswer, v.entry.questionId));
+					promises.push(this.loadSummary(cardId, v.entry.questionId, v.entry.userAnswer));
 				}
 			}
 
@@ -194,25 +193,13 @@ export class ExploreViewModel {
 		}
 	}
 
-	private async loadSummary(cardId: string, questionId: string, answer: string, requestQuestionId?: string): Promise<void> {
+	private async loadSummary(cardId: string, questionId: string, answer: string): Promise<void> {
 		const entry = this._cardSummaryEntries.value[cardId]?.find((e) => e.questionId === questionId);
 		if (entry === undefined) return;
 
-		const cached = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer, questionId });
-		if (cached !== null) {
-			entry.summary = cached;
-			return;
-		}
-
 		entry.loading = true;
 		try {
-			const result = await fetchSummary({
-				cardId,
-				...(requestQuestionId !== undefined ? { questionId: requestQuestionId } : {}),
-				answer,
-			});
-			entry.summary = result.summary;
-			saveCachedSummary({ sessionId: this.sessionId, cardId, answer, summary: result.summary, questionId });
+			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId, answer, questionId });
 		} catch (error) {
 			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
 		} finally {
@@ -221,17 +208,9 @@ export class ExploreViewModel {
 	}
 
 	private async loadFreeformSummary(cardId: string, noteText: string, entry: FreeformSummary): Promise<void> {
-		const cached = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer: noteText });
-		if (cached !== null) {
-			entry.summary = cached;
-			return;
-		}
-
 		entry.loading = true;
 		try {
-			const result = await fetchSummary({ cardId, answer: noteText });
-			entry.summary = result.summary;
-			saveCachedSummary({ sessionId: this.sessionId, cardId, answer: noteText, summary: result.summary });
+			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId, answer: noteText });
 		} catch (error) {
 			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
 		} finally {

@@ -4,11 +4,14 @@ import { fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import type { ReflectOnAnswerResponse } from "./api.ts";
 import { capture } from "./analytics.ts";
 import type { ExploreEntry } from "./store.ts";
-import { isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
+import { fetchOrGetCachedSummary, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+
+// eslint-disable-next-line @typescript-eslint/no-empty-function -- used as a silent catch handler
+function noop(): void {}
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
@@ -227,6 +230,7 @@ export class ExploreMeaningViewModel {
 
 			this.applyInferAndAdvance(this._pendingInferResult.value ?? new Map<string, string>(), this.remainingQuestionIds());
 			this._pendingInferResult.value = null;
+			if (this.allAnswered) this.prefetchSummaries();
 			return;
 		}
 
@@ -342,6 +346,7 @@ export class ExploreMeaningViewModel {
 		this._inferring.value = false;
 
 		this.applyInferAndAdvance(inferResult, remaining);
+		if (this.allAnswered) this.prefetchSummaries();
 	}
 
 	onActiveEntryInput(entry: ExploreEntry): void {
@@ -382,6 +387,7 @@ export class ExploreMeaningViewModel {
 			answer_length: entry.userAnswer.trim().length,
 		});
 		this.trackSubmittedSnapshot(entry.questionId, entry.userAnswer);
+		if (this.allAnswered) this.prefetchSummaries();
 	}
 
 	async reflectOnEntry(questionId: string): Promise<void> {
@@ -456,6 +462,11 @@ export class ExploreMeaningViewModel {
 		saveExploreData(this.sessionId, data);
 	}
 
+	onFreeformBlur(): void {
+		this.persistFreeform();
+		this.prefetchSummaries();
+	}
+
 	finishExploring(): void {
 		if (this.hasBlockingReflection()) {
 			this.acceptReflection();
@@ -486,6 +497,33 @@ export class ExploreMeaningViewModel {
 			completed_all_questions: answeredCount === EXPLORE_QUESTIONS.length,
 		});
 		this.maybeTrackExplorePhaseCompleted();
+		this.prefetchSummaries();
+	}
+
+	prefetchSummaries(): void {
+		const data = loadExploreData(this.sessionId);
+		if (data === null) return;
+		if (!(this.cardId in data)) return;
+		const cardData = data[this.cardId];
+
+		for (const entry of cardData.entries) {
+			if (entry.submitted && entry.userAnswer.trim() !== "") {
+				void fetchOrGetCachedSummary({
+					sessionId: this.sessionId,
+					cardId: this.cardId,
+					questionId: entry.questionId,
+					answer: entry.userAnswer,
+				}).catch(noop);
+			}
+		}
+
+		if (cardData.freeformNote !== "") {
+			void fetchOrGetCachedSummary({
+				sessionId: this.sessionId,
+				cardId: this.cardId,
+				answer: cardData.freeformNote,
+			}).catch(noop);
+		}
 	}
 
 	// --- Private helpers ---

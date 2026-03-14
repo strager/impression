@@ -1,5 +1,6 @@
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
+import { fetchSummary } from "./api.ts";
 import { capture } from "./analytics.ts";
 import { hashStrings } from "./deterministic-hash.ts";
 
@@ -532,6 +533,37 @@ export function saveCachedSummary(options: { sessionId: string; cardId: string; 
 	cache[cacheKey] = { answer: options.answer, summary: options.summary };
 	localStorage.setItem(summariesKey(options.sessionId), JSON.stringify(cache));
 	touchSession(options.sessionId);
+}
+
+const summaryInflight = new Map<string, Promise<string>>();
+
+export function fetchOrGetCachedSummary(options: { sessionId: string; cardId: string; questionId?: string; answer: string }): Promise<string> {
+	const cached = lookupCachedSummary(options);
+	if (cached !== null) {
+		return Promise.resolve(cached);
+	}
+
+	const inflightKey = `${options.cardId}:${options.questionId ?? "freeform"}:${options.answer}`;
+	const existing = summaryInflight.get(inflightKey);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const promise = fetchSummary({
+		cardId: options.cardId,
+		...(options.questionId !== undefined ? { questionId: options.questionId } : {}),
+		answer: options.answer,
+	})
+		.then((result) => {
+			saveCachedSummary({ sessionId: options.sessionId, cardId: options.cardId, answer: options.answer, summary: result.summary, questionId: options.questionId });
+			return result.summary;
+		})
+		.finally(() => {
+			summaryInflight.delete(inflightKey);
+		});
+
+	summaryInflight.set(inflightKey, promise);
+	return promise;
 }
 
 function isFreeformNotes(value: unknown): value is FreeformNotes {

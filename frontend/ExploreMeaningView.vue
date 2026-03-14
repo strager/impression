@@ -251,7 +251,7 @@ onMounted(() => {
 
 		<div v-if="vm.allAnswered && vm.statementsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
 			<label for="freeform-notes">Additional notes about this source of meaning</label>
-			<ExploreTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.persistFreeform()" @keydown="onKeydown(null, $event)" />
+			<ExploreTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
 		</div>
 
 		<AppButton variant="secondary" class="finish-btn" @click="handleFinishExploring">Finish exploring</AppButton>

@@ -9,7 +9,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ExploreViewModel } from "./ExploreViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, lookupCachedSummary, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureSessionsInitialized, fetchOrGetCachedSummary, getActiveSessionId, loadExploreData, lookupCachedSummary, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -470,6 +470,44 @@ describe("freeform summary loading", () => {
 		vm.initialize();
 
 		expect(vm.cardFreeformSummary[cardIds[0]]).toBeUndefined();
+	});
+});
+
+describe("fetchOrGetCachedSummary", () => {
+	it("returns cached summary without fetching", async () => {
+		saveCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", summary: "Cached", questionId: "interpretation" });
+
+		// No MSW handler — any fetch would fail with onUnhandledRequest: "error"
+		const result = await fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
+		expect(result).toBe("Cached");
+	});
+
+	it("fetches from API and saves to cache on miss", async () => {
+		setupDefaultSummarizeHandler();
+
+		const result = await fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
+		expect(result).toBe("A test summary");
+
+		const cached = lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
+		expect(cached).toBe("A test summary");
+	});
+
+	it("deduplicates concurrent fetches for the same key", async () => {
+		let callCount = 0;
+		server.use(
+			http.post("*/api/summarize", () => {
+				callCount++;
+				return HttpResponse.json({ summary: "Deduped summary" });
+			}),
+		);
+
+		const p1 = fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "Same answer", questionId: "interpretation" });
+		const p2 = fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "Same answer", questionId: "interpretation" });
+
+		const [r1, r2] = await Promise.all([p1, p2]);
+		expect(r1).toBe("Deduped summary");
+		expect(r2).toBe("Deduped summary");
+		expect(callCount).toBe(1);
 	});
 });
 

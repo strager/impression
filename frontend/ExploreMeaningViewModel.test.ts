@@ -10,7 +10,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
 import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
 import type { ExploreData, ExploreEntry } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, lookupCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -1207,5 +1207,137 @@ describe("deterministic initial question assignment", () => {
 		const questionId2 = data2![TEST_CARD_ID].entries[0].questionId;
 
 		expect(questionId1).toBe(questionId2);
+	});
+});
+
+describe("prefetchSummaries", () => {
+	it("fetches summaries for submitted entries and saves to cache", async () => {
+		let callCount = 0;
+		server.use(
+			http.post("*/api/summarize", () => {
+				callCount++;
+				return HttpResponse.json({ summary: "A summary" });
+			}),
+		);
+
+		const entries = makeAllSubmitted();
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.prefetchSummaries();
+
+		// Wait for all fire-and-forget fetches to settle
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+
+		expect(callCount).toBe(EXPLORE_QUESTIONS.length);
+		for (const q of EXPLORE_QUESTIONS) {
+			const cached = lookupCachedSummary({ sessionId: sid(), cardId: TEST_CARD_ID, answer: `Answer for ${q.id}`, questionId: q.id });
+			expect(cached).toBe("A summary");
+		}
+	});
+
+	it("fetches freeform summary when note exists", async () => {
+		server.use(
+			http.post("*/api/summarize", () => {
+				return HttpResponse.json({ summary: "Freeform summary" });
+			}),
+		);
+
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", true)];
+		saveChosenCardIds(sid(), [TEST_CARD_ID]);
+		saveExploreData(sid(), { [TEST_CARD_ID]: { entries, freeformNote: "My notes", statementSelections: [] } });
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.prefetchSummaries();
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+
+		const cached = lookupCachedSummary({ sessionId: sid(), cardId: TEST_CARD_ID, answer: "My notes" });
+		expect(cached).toBe("Freeform summary");
+	});
+
+	it("skips entries that are not submitted", async () => {
+		let callCount = 0;
+		server.use(
+			http.post("*/api/summarize", () => {
+				callCount++;
+				return HttpResponse.json({ summary: "Summary" });
+			}),
+		);
+
+		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", true), makeEntry(EXPLORE_QUESTIONS[1].id, "pending", false)];
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.prefetchSummaries();
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+
+		expect(callCount).toBe(1);
+	});
+
+	it("is triggered by finishExploring", async () => {
+		let callCount = 0;
+		server.use(
+			http.post("*/api/summarize", () => {
+				callCount++;
+				return HttpResponse.json({ summary: "Summary" });
+			}),
+		);
+
+		const entries = makeAllSubmitted();
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.finishExploring();
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+
+		expect(callCount).toBe(EXPLORE_QUESTIONS.length);
+	});
+
+	it("is triggered after submitting the last answer", async () => {
+		let summarizeCallCount = 0;
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				return HttpResponse.json({ type: "none", message: "" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return HttpResponse.json({ inferredAnswers: [] });
+			}),
+			http.post("*/api/summarize", () => {
+				summarizeCallCount++;
+				return HttpResponse.json({ summary: "Summary" });
+			}),
+		);
+
+		// Set up with all but the last question submitted
+		const entries = makeSubmittedEntries(EXPLORE_QUESTIONS.length - 1);
+		const lastQ = EXPLORE_QUESTIONS.find((q) => !entries.some((e) => e.questionId === q.id))!;
+		entries.push(makeEntry(lastQ.id, "Final answer", false));
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 50);
+		});
+
+		// All questions should have been prefetched
+		expect(summarizeCallCount).toBe(EXPLORE_QUESTIONS.length);
 	});
 });
