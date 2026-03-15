@@ -3,7 +3,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSummary, renameSession, saveCachedSummary, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSummary, markExploreCompleteVisited, renameSession, saveCachedSummary, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
 	return getActiveSessionId();
@@ -1245,5 +1245,56 @@ describe("formatSessionDate", () => {
 	it("formats a date as 'Month Day, Year'", () => {
 		const date = new Date(2026, 1, 13); // Feb 13, 2026
 		expect(formatSessionDate(date)).toBe("February 13, 2026");
+	});
+});
+
+describe("hasVisitedExploreComplete/markExploreCompleteVisited", () => {
+	it("returns false when no key exists", () => {
+		expect(hasVisitedExploreComplete(sid(), "self-knowledge")).toBe(false);
+	});
+
+	it("returns true after markExploreCompleteVisited", () => {
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		expect(hasVisitedExploreComplete(sid(), "self-knowledge")).toBe(true);
+	});
+
+	it("is idempotent (marking twice does not duplicate)", () => {
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		const raw = JSON.parse(localStorage.getItem(activeKey("complete-visited"))!);
+		expect(raw).toEqual(["self-knowledge"]);
+	});
+
+	it("tracks multiple cards independently", () => {
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		markExploreCompleteVisited(sid(), "community");
+		expect(hasVisitedExploreComplete(sid(), "self-knowledge")).toBe(true);
+		expect(hasVisitedExploreComplete(sid(), "community")).toBe(true);
+		expect(hasVisitedExploreComplete(sid(), "challenge")).toBe(false);
+	});
+
+	it("is cleaned up by deleteSession", () => {
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		const id = getActiveSessionId();
+		deleteSession(id);
+		expect(localStorage.getItem(`somecam-${id}-complete-visited`)).toBeNull();
+	});
+
+	it("round-trips through export/import", () => {
+		saveChosenCardIds(sid(), ["self-knowledge"]);
+		markExploreCompleteVisited(sid(), "self-knowledge");
+		const activeId = getActiveSessionId();
+
+		const exported = exportProgressData();
+
+		// Clear data
+		for (const suffix of ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"]) {
+			localStorage.removeItem(`somecam-${activeId}-${suffix}`);
+		}
+		expect(hasVisitedExploreComplete(sid(), "self-knowledge")).toBe(false);
+
+		importProgressData(exported);
+		localStorage.setItem("somecam-active-session", activeId);
+		expect(hasVisitedExploreComplete(sid(), "self-knowledge")).toBe(true);
 	});
 });

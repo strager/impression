@@ -6,6 +6,7 @@ import AppButton from "./AppButton.vue";
 import ExploreTextarea from "./ExploreTextarea.vue";
 import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+import { hasVisitedExploreComplete } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 
@@ -159,7 +160,7 @@ const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 function handleFinishExploring(): void {
 	vm.finishExploring();
 	if (vm.allAnswered) {
-		if (prefersReducedMotion.value) {
+		if (prefersReducedMotion.value || hasVisitedExploreComplete(sessionId, cardId)) {
 			void router.push({ name: "exploreComplete", params: { sessionId, meaningId: cardId } });
 		} else {
 			fadingOut.value = true;

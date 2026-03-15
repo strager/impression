@@ -6,7 +6,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { capture } from "./analytics.ts";
 import { hashStrings } from "./deterministic-hash.ts";
 import type { SummaryEntry, FreeformSummary } from "./ExploreViewModel.ts";
-import { fetchOrGetCachedSummary, isCardFullyExplored, isExplorePhaseComplete, loadChosenCardIds, loadExploreData } from "./store.ts";
+import { fetchOrGetCachedSummary, hasVisitedExploreComplete, isCardFullyExplored, isExplorePhaseComplete, loadChosenCardIds, loadExploreData, markExploreCompleteVisited } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
@@ -60,6 +60,10 @@ export class ExploreCompleteViewModel {
 
 	get warmPhrase(): string {
 		return WARM_PHRASES[hashStrings(this.sessionId, this.cardId) % WARM_PHRASES.length];
+	}
+
+	get hasBeenVisited(): boolean {
+		return hasVisitedExploreComplete(this.sessionId, this.cardId);
 	}
 
 	get isLoading(): boolean {
@@ -150,6 +154,10 @@ export class ExploreCompleteViewModel {
 		});
 
 		return "ready";
+	}
+
+	onAnimationComplete(): void {
+		markExploreCompleteVisited(this.sessionId, this.cardId);
 	}
 
 	private async loadSummary(questionId: string, answer: string): Promise<void> {

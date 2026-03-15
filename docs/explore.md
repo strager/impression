@@ -196,3 +196,7 @@ The call-to-action varies based on progress:
 
 The page is purely presentational — no user input is collected. If accessed
 directly without data (e.g. via URL), it redirects to the explore list.
+
+On the first visit for a given card, elements cascade in with timed fade-in
+animations. On revisit, all animations (including the fade-out transition from
+the explore page) are skipped and content appears immediately.

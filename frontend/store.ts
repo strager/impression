@@ -10,7 +10,7 @@ const LLM_TEST_KEY = "somecam-llm-test";
 const PERSIST_REQUESTED_KEY = "somecam-persist-requested";
 const RATE_LIMIT_SESSION_KEY = "somecam-api-session-id";
 
-const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements"] as const;
+const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"] as const;
 
 const DEFAULT_QUESTION_ID = EXPLORE_QUESTIONS[0]?.id ?? "";
 
@@ -275,6 +275,9 @@ function freeformKey(sessionId: string): string {
 }
 function statementsKey(sessionId: string): string {
 	return sessionKey(sessionId, "statements");
+}
+function completeVisitedKey(sessionId: string): string {
+	return sessionKey(sessionId, "complete-visited");
 }
 
 // --- Internal helpers ---
@@ -806,6 +809,25 @@ export function loadRateLimitToken(): string | null {
 
 export function saveRateLimitToken(token: string): void {
 	localStorage.setItem(RATE_LIMIT_SESSION_KEY, token);
+}
+
+// --- Complete-visited tracking ---
+
+export function hasVisitedExploreComplete(sessionId: string, cardId: string): boolean {
+	const parsed = parseJsonFromStorage(completeVisitedKey(sessionId));
+	if (!isStringArray(parsed)) {
+		return false;
+	}
+	return parsed.includes(cardId);
+}
+
+export function markExploreCompleteVisited(sessionId: string, cardId: string): void {
+	const parsed = parseJsonFromStorage(completeVisitedKey(sessionId));
+	const visited = isStringArray(parsed) ? parsed : [];
+	if (!visited.includes(cardId)) {
+		visited.push(cardId);
+	}
+	localStorage.setItem(completeVisitedKey(sessionId), JSON.stringify(visited));
 }
 
 export function loadProgressFile(): Promise<void> {

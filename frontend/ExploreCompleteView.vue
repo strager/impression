@@ -5,7 +5,16 @@ import { useRouter } from "vue-router";
 import AppButton from "./AppButton.vue";
 import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+import { hasVisitedExploreComplete } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
+
+/**
+ * Debug override for the animation cascade on this page.
+ * - null: auto (skip animations if the user has already visited this page for this card)
+ * - true: always play animations
+ * - false: always skip animations
+ */
+const DEBUG_FORCE_ANIMATE: boolean | null = null;
 
 interface DeviceSize {
 	width: number;
@@ -228,6 +237,9 @@ const cardId = useStringParam("meaningId");
 
 const vm = new ExploreCompleteViewModel(sessionId, cardId);
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExploreComplete(sessionId, cardId) : !DEBUG_FORCE_ANIMATE;
+
 const titleVisible = ref(false);
 const warmPhraseVisible = ref(false);
 const progressSquaresVisible = ref(false);
@@ -272,6 +284,19 @@ onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
 		void router.replace({ name: "explore", params: { sessionId } });
+		return;
+	}
+
+	if (skipAnimations) {
+		titleVisible.value = true;
+		warmPhraseVisible.value = true;
+		freeformVisible.value = true;
+		visibleEntryCount.value = vm.summaryEntries.length;
+		visibleSummaryTextCount.value = vm.summaryEntries.length;
+		progressSquaresVisible.value = true;
+		animatedExploredCount.value = vm.exploredCount;
+		primaryActionVisible.value = true;
+		secondaryActionVisible.value = true;
 		return;
 	}
 
@@ -336,6 +361,7 @@ onMounted(() => {
 		secondaryActionVisible.value = true;
 		scrollIntoView(actionsEl.value);
 		document.documentElement.classList.remove("nav-hidden");
+		vm.onAnimationComplete();
 	});
 });
 
@@ -381,8 +407,8 @@ function handleOpenReport(): void {
 			</span>
 			<span class="progress-text"
 				><span class="explored-count-wrapper"
-					><span :class="['explored-count', 'count-old', { 'count-leaving': countSwapActive }]">{{ Math.max(0, vm.exploredCount - 1) }}</span
-					><span :class="['explored-count', 'count-new', { 'count-entering': countSwapActive }]">{{ vm.exploredCount }}</span></span
+					><span v-if="!skipAnimations" :class="['explored-count', 'count-old', { 'count-leaving': countSwapActive }]">{{ Math.max(0, vm.exploredCount - 1) }}</span
+					><span :class="['explored-count', { 'count-new': !skipAnimations, 'count-entering': countSwapActive }]">{{ vm.exploredCount }}</span></span
 				>
 				of {{ vm.totalCount }} explored</span
 			>

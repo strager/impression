@@ -9,7 +9,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureSessionsInitialized, getActiveSessionId, hasVisitedExploreComplete, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -280,6 +280,22 @@ describe("progress", () => {
 
 		expect(vm.allComplete).toBe(true);
 		expect(vm.exploredCount).toBe(2);
+	});
+});
+
+describe("onAnimationComplete", () => {
+	it("marks the card as visited in store", () => {
+		saveChosenCardIds(sid(), [TEST_CARD_ID]);
+		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		setupDefaultSummarizeHandler();
+
+		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+
+		expect(vm.hasBeenVisited).toBe(false);
+		vm.onAnimationComplete();
+		expect(vm.hasBeenVisited).toBe(true);
+		expect(hasVisitedExploreComplete(sid(), TEST_CARD_ID)).toBe(true);
 	});
 });
 
