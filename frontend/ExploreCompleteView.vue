@@ -436,11 +436,13 @@ main {
 
 .cascading {
 	opacity: 0;
+	visibility: hidden;
 	transition: opacity 1.5s ease;
 }
 
 .cascading.visible {
 	opacity: 1;
+	visibility: visible;
 }
 
 @media (prefers-reduced-motion: reduce) {
