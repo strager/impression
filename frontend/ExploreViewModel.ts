@@ -5,7 +5,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { capture } from "./analytics.ts";
 import type { ExploreEntry } from "./store.ts";
-import { fetchOrGetCachedSummary, loadChosenCardIds, loadExploreData, saveExploreData } from "./store.ts";
+import { fetchOrGetCachedSummary, isCardFullyExplored, loadChosenCardIds, loadExploreData, saveExploreData } from "./store.ts";
 
 export interface SummaryEntry {
 	questionId: string;
@@ -82,9 +82,12 @@ export class ExploreViewModel {
 	}
 
 	cardStatus(cardId: string): "untouched" | "partial" | "complete" {
+		const exploreData = loadExploreData(this.sessionId);
+		if (exploreData !== null && cardId in exploreData && isCardFullyExplored(exploreData[cardId].entries)) {
+			return "complete";
+		}
 		const count = this._cardAnswerCounts.value[cardId] ?? 0;
 		if (count === 0) return "untouched";
-		if (count >= EXPLORE_QUESTIONS.length) return "complete";
 		return "partial";
 	}
 

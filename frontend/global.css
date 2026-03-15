@@ -578,3 +578,25 @@ small {
 .instruction-stack > .instruction.active {
 	visibility: visible;
 }
+
+/* ============================================================
+   PAGE TRANSITION: NavBar hide/fade
+   ============================================================ */
+html.page-fading-out {
+	overflow: hidden;
+}
+
+html.nav-hidden .nav-bar,
+html.page-fading-out .nav-bar {
+	opacity: 0;
+}
+
+.nav-bar {
+	transition: opacity 2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.nav-bar {
+		transition: none;
+	}
+}

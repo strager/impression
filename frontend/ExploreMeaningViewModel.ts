@@ -4,7 +4,7 @@ import { fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import type { ReflectOnAnswerResponse } from "./api.ts";
 import { capture } from "./analytics.ts";
 import type { ExploreEntry } from "./store.ts";
-import { fetchOrGetCachedSummary, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
+import { fetchOrGetCachedSummary, isCardFullyExplored, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
@@ -100,7 +100,7 @@ export class ExploreMeaningViewModel {
 	}
 
 	get allAnswered(): boolean {
-		return this._entries.value.length === EXPLORE_QUESTIONS.length && this._entries.value.every((e) => e.submitted);
+		return isCardFullyExplored(this._entries.value);
 	}
 
 	get submittedCount(): number {

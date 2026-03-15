@@ -166,5 +166,33 @@ the sources-of-meaning overview.
 
 At any point during the exploration, a **Stop Exploring** button is visible below
 the active question. Clicking it saves whatever text is currently in the textarea
-(if any) and immediately navigates to `/explore`. The user does not need to answer
-all five questions — they can stop whenever they feel they have reflected enough.
+(if any) and returns to the explore list. The user does not need to answer all
+five questions — they can stop whenever they feel they have reflected enough.
+
+## Exploration complete
+
+After answering all five questions for a source of meaning, clicking
+**Finish exploring** takes the user to an interstitial page at
+`/:sessionId/explore/:meaningId/complete`. This page makes completion feel more
+satisfying by showing the user's reflections distilled back to them.
+
+The page displays:
+
+- The source of meaning's description as a heading.
+- A warm rotating phrase (e.g. "Your reflections, distilled"), selected
+  deterministically from the session and card IDs.
+- Progress squares showing how many sources have been fully explored.
+- AI-generated summaries for each answered question, displayed as topic:summary
+  pairs.
+
+Summaries are pre-fetched during the last question(s) of exploration and cached
+in localStorage, so they typically appear instantly on the complete page.
+
+The call-to-action varies based on progress:
+
+- If more sources remain: a **Keep exploring** button returns to the explore list.
+- If all sources are complete: **Print your report** is the primary action, with
+  **Back to explore list** as a secondary option.
+
+The page is purely presentational — no user input is collected. If accessed
+directly without data (e.g. via URL), it redirects to the explore list.

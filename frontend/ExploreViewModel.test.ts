@@ -255,8 +255,10 @@ describe("sortedCards", () => {
 		// Card 0: complete, Card 1: untouched, Card 2: partial
 		for (let i = 0; i < EXPLORE_QUESTIONS.length; i++) {
 			data[cardIds[0]].entries[i].userAnswer = `answer ${String(i)}`;
+			data[cardIds[0]].entries[i].submitted = true;
 		}
 		data[cardIds[2]].entries[0].userAnswer = "partial answer";
+		data[cardIds[2]].entries[0].submitted = true;
 		saveExploreData(sid(), data);
 		setupDefaultSummarizeHandler();
 

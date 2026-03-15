@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
 import ExploreTextarea from "./ExploreTextarea.vue";
 import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+import { useMatchMedia } from "./use-match-media.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 
 const router = useRouter();
@@ -151,10 +152,31 @@ function onKeydown(index: number | null, event: KeyboardEvent): void {
 	}
 }
 
+const fadingOut = ref(false);
+let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
+
 function handleFinishExploring(): void {
 	vm.finishExploring();
-	void router.push({ name: "explore", params: { sessionId } });
+	if (vm.allAnswered) {
+		if (prefersReducedMotion.value) {
+			void router.push({ name: "exploreComplete", params: { sessionId, meaningId: cardId } });
+		} else {
+			fadingOut.value = true;
+			document.documentElement.classList.add("page-fading-out");
+			fadeTimer = setTimeout(() => {
+				void router.push({ name: "exploreComplete", params: { sessionId, meaningId: cardId } });
+			}, 2000);
+		}
+	} else {
+		void router.push({ name: "explore", params: { sessionId } });
+	}
 }
+
+onBeforeUnmount(() => {
+	if (fadeTimer !== undefined) clearTimeout(fadeTimer);
+	document.documentElement.classList.remove("page-fading-out");
+});
 
 onMounted(() => {
 	const status = vm.initialize();
@@ -165,7 +187,7 @@ onMounted(() => {
 </script>
 
 <template>
-	<main v-if="vm.card">
+	<main v-if="vm.card" :class="{ 'fading-out': fadingOut }">
 		<header>
 			<h1>Explore meaning</h1>
 
@@ -264,6 +286,17 @@ main {
 	max-width: 36rem;
 	padding: 0 var(--space-6);
 	color: var(--color-black);
+	transition: opacity 2s ease;
+}
+
+main.fading-out {
+	opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	main {
+		transition: none;
+	}
 }
 
 header {

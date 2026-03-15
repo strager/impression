@@ -649,6 +649,10 @@ export function detectSessionPhase(id: string): ProgressPhase {
 	return "none";
 }
 
+export function isCardFullyExplored(entries: readonly ExploreEntry[]): boolean {
+	return entries.length === EXPLORE_QUESTIONS.length && entries.every((entry) => entry.submitted);
+}
+
 export function isExplorePhaseComplete(sessionId: string): boolean {
 	const chosenCardIds = loadChosenCardIds(sessionId);
 	const data = loadExploreData(sessionId);
@@ -658,8 +662,7 @@ export function isExplorePhaseComplete(sessionId: string): boolean {
 
 	return chosenCardIds.every((chosenId) => {
 		if (!(chosenId in data)) return false;
-		const cardData = data[chosenId];
-		return cardData.entries.length === EXPLORE_QUESTIONS.length && cardData.entries.every((entry) => entry.submitted);
+		return isCardFullyExplored(data[chosenId].entries);
 	});
 }
 

@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { initAnalytics } from "./analytics.ts";
 import "./global.css";
+import ExploreCompleteView from "./ExploreCompleteView.vue";
 import ExploreMeaningView from "./ExploreMeaningView.vue";
 import ExploreView from "./ExploreView.vue";
 import FindMeaningManualView from "./FindMeaningManualView.vue";
@@ -56,6 +57,11 @@ const router = createRouter({
 			path: "/:sessionId/explore/:meaningId",
 			name: "exploreMeaning",
 			component: ExploreMeaningView,
+		},
+		{
+			path: "/:sessionId/explore/:meaningId/complete",
+			name: "exploreComplete",
+			component: ExploreCompleteView,
 		},
 		{
 			path: "/privacy",
