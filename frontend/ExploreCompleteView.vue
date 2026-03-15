@@ -136,8 +136,16 @@ class PulseAnimation {
 			this.animationFrameId = requestAnimationFrame(frame);
 		});
 
-		this.measurementObserver.observe(canvas, { box: "device-pixel-content-box" });
-		this.measurementObserver.observe(square, { box: "device-pixel-content-box" });
+		try {
+			this.measurementObserver.observe(canvas, { box: "device-pixel-content-box" });
+			this.measurementObserver.observe(square, { box: "device-pixel-content-box" });
+		} catch {
+			// Safari does not support device-pixel-content-box.
+			// getDevicePixelSize falls back to clientWidth * devicePixelRatio.
+			console.warn("ResizeObserver does not support device-pixel-content-box; falling back to content-box");
+			this.measurementObserver.observe(canvas);
+			this.measurementObserver.observe(square);
+		}
 	}
 
 	private getDevicePixelSize(entry: ResizeObserverEntry, element: HTMLElement): DeviceSize {
