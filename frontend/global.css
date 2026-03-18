@@ -292,6 +292,30 @@ button:disabled {
 }
 
 /* ============================================================
+   CHIPS
+   ============================================================ */
+.chip {
+	padding: var(--space-1) var(--space-2);
+	font-size: var(--text-xs);
+	font-weight: 600;
+}
+
+.chip-success {
+	color: var(--color-green-700);
+	background: var(--color-success-bg);
+}
+
+.chip-warning {
+	color: var(--color-warning);
+	background: var(--color-warning-bg);
+}
+
+.chip-neutral {
+	color: var(--color-gray-600);
+	background: var(--color-gray-200);
+}
+
+/* ============================================================
    FORM INPUTS
    ============================================================ */
 .form-group {

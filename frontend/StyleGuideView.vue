@@ -376,6 +376,26 @@ import AppButton from "./AppButton.vue";
 				<div class="alert alert-error">Unable to process your request. Please try again.</div>
 			</div>
 
+			<!-- Chips -->
+			<div class="sg-subsection">
+				<div class="sg-subsection-title">Chips</div>
+				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Small inline labels for status or metadata. Sharp corners, semibold text, background fill. Three semantic variants match the alert color scheme. Chip text uses sentence case, like all other UI text.</p>
+
+				<h4 class="sg-group-label">Success</h4>
+				<div class="sg-chip-row">
+					<span class="chip chip-success">Complete</span>
+					<span class="chip chip-success">Explored</span>
+				</div>
+				<h4 class="sg-group-label">Warning</h4>
+				<div class="sg-chip-row">
+					<span class="chip chip-warning">In progress</span>
+				</div>
+				<h4 class="sg-group-label">Neutral</h4>
+				<div class="sg-chip-row">
+					<span class="chip chip-neutral">Auto-filled</span>
+				</div>
+			</div>
+
 			<!-- Tables -->
 			<div class="sg-subsection">
 				<div class="sg-subsection-title">Tables</div>
@@ -820,6 +840,14 @@ import AppButton from "./AppButton.vue";
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--space-4);
+	align-items: center;
+	margin-bottom: var(--space-6);
+}
+
+.sg-chip-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3);
 	align-items: center;
 	margin-bottom: var(--space-6);
 }

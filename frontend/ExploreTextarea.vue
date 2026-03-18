@@ -47,7 +47,7 @@ defineExpose({ focus, focusAtEnd });
 <template>
 	<div class="textarea-wrapper">
 		<textarea :id="id" ref="textareaRef" v-bind="attrs" :class="[variant ?? 'active', { autofilled, 'no-focus-ring': autofilled }]" :value="modelValue" :rows="rows ?? 5" :placeholder="placeholder ?? ''" :readonly="autofilled || undefined" @input="onInput" @blur="emit('blur')"></textarea>
-		<span v-if="autofilled" class="autofill-chip">auto-filled</span>
+		<span v-if="autofilled" class="chip chip-neutral autofill-chip">Auto-filled</span>
 	</div>
 </template>
 
@@ -65,9 +65,5 @@ textarea.autofilled {
 	position: absolute;
 	bottom: var(--space-2);
 	right: 0;
-	background: var(--color-gray-200);
-	color: var(--color-gray-600);
-	font-size: var(--text-xs);
-	padding: var(--space-1) var(--space-2);
 }
 </style>

@@ -76,8 +76,8 @@ function handleOpenReport(source: string): void {
 				<div class="card-title">
 					{{ card.description }} <span class="source-label">({{ card.source }})</span>
 				</div>
-				<span v-if="vm.cardStatus(card.id) === 'complete'" class="status-badge complete">Complete</span>
-				<span v-else-if="vm.cardStatus(card.id) === 'partial'" class="status-badge partial">In progress</span>
+				<span v-if="vm.cardStatus(card.id) === 'complete'" class="chip chip-success status-chip">Complete</span>
+				<span v-else-if="vm.cardStatus(card.id) === 'partial'" class="chip chip-warning status-chip">In progress</span>
 				<div v-if="vm.cardSummaryEntries[card.id]?.some((e) => e.loading) || vm.cardFreeformSummary[card.id]?.loading" class="summary-loading">Generating summary...</div>
 				<template v-else-if="vm.cardSummaryEntries[card.id]">
 					<p v-if="vm.cardFreeformSummary[card.id]?.summary" class="freeform-summary">{{ vm.cardFreeformSummary[card.id]!.summary }}</p>
@@ -152,23 +152,10 @@ h1 {
 	position: relative;
 }
 
-.status-badge {
+.status-chip {
 	position: absolute;
 	top: 0;
 	right: 0;
-	padding: var(--space-1) var(--space-2);
-	font-size: var(--text-xs);
-	font-weight: 600;
-}
-
-.status-badge.complete {
-	color: var(--color-green-700);
-	background: var(--color-success-bg);
-}
-
-.status-badge.partial {
-	color: var(--color-warning);
-	background: var(--color-warning-bg);
 }
 
 .source-label {

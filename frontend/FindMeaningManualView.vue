@@ -116,7 +116,7 @@ onMounted(() => {
 					<span class="card-source">{{ card.source }}</span>
 					<span class="card-desc">{{ card.description }}</span>
 				</div>
-				<span v-if="isExplored(card.id)" class="explored-badge">Explored</span>
+				<span v-if="isExplored(card.id)" class="chip chip-success explored-chip">Explored</span>
 
 				<div v-if="confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 					<p>This card has exploration answers. Remove it?</p>
@@ -212,12 +212,9 @@ h1 {
 	color: var(--color-gray-600);
 }
 
-.explored-badge {
+.explored-chip {
 	flex-shrink: 0;
-	margin-left: 0.75rem;
-	font-size: 0.75rem;
-	font-weight: 600;
-	color: var(--color-green-600);
+	margin-left: var(--space-3);
 }
 
 .confirm-overlay {
