@@ -39,6 +39,10 @@
 			</ul>
 			<p><b>Storage:</b> This data is stored in PostHog for at least 7 days. PostHog does <em>not</em> receive or store which specific cards you choose, the text of your answers, or any personally identifiable information.</p>
 		</section>
+
+		<nav class="back-nav">
+			<router-link to="/">&larr; Back to home</router-link>
+		</nav>
 	</main>
 </template>
 
