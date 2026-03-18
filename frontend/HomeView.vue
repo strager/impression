@@ -4,29 +4,16 @@ import { useRouter } from "vue-router";
 import type { RouteLocationRaw } from "vue-router";
 import AppButton from "./AppButton.vue";
 import { capture } from "./analytics.ts";
+import { HomeViewModel } from "./HomeViewModel.ts";
 import type { ProgressPhase, SessionMeta } from "./store.ts";
-import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, formatSessionDate, listSessions, loadProgressFile, renameSession, saveProgressFile } from "./store.ts";
+import { formatSessionDate } from "./store.ts";
 
 const router = useRouter();
-
-const sessions = ref<SessionMeta[]>([]);
-const sessionPhases = ref<Record<string, ProgressPhase>>({});
-const renamingId = ref<string | null>(null);
-const renameInput = ref("");
+const vm = new HomeViewModel();
 const renameInputEl = ref<HTMLInputElement[]>([]);
 
-function refreshState(): void {
-	sessions.value = listSessions();
-	const phases: Record<string, ProgressPhase> = {};
-	for (const s of sessions.value) {
-		phases[s.id] = detectSessionPhase(s.id);
-	}
-	sessionPhases.value = phases;
-}
-
 onMounted(() => {
-	ensureSessionsInitialized();
-	refreshState();
+	vm.initialize();
 });
 
 function phaseRoute(sessionId: string, p: ProgressPhase): RouteLocationRaw {
@@ -43,16 +30,12 @@ function phaseRoute(sessionId: string, p: ProgressPhase): RouteLocationRaw {
 }
 
 function onNewSession(): void {
-	const isFirst = sessions.value.length === 0;
-	const newId = createSession();
-	capture("session_created", { session_id: newId, is_first: isFirst });
-	refreshState();
+	const newId = vm.createSession();
 	void router.push({ name: "findMeaning", params: { sessionId: newId } });
 }
 
 function onStartRename(session: SessionMeta): void {
-	renamingId.value = session.id;
-	renameInput.value = session.name;
+	vm.startRename(session);
 	void nextTick(() => {
 		const el = renameInputEl.value[0];
 		el.focus();
@@ -61,19 +44,11 @@ function onStartRename(session: SessionMeta): void {
 }
 
 function onConfirmRename(): void {
-	if (renamingId.value === null) return;
-	const id = renamingId.value;
-	const trimmed = renameInput.value.trim();
-	if (trimmed.length > 0) {
-		renameSession(id, trimmed);
-		capture("session_renamed", { session_id: id });
-	}
-	renamingId.value = null;
-	refreshState();
+	vm.confirmRename();
 }
 
 function onCancelRename(): void {
-	renamingId.value = null;
+	vm.cancelRename();
 }
 
 function onRenameKeydown(event: KeyboardEvent): void {
@@ -86,34 +61,27 @@ function onRenameKeydown(event: KeyboardEvent): void {
 
 function onDelete(id: string): void {
 	if (!window.confirm("Delete this session? This cannot be undone.")) return;
-	deleteSession(id);
-	capture("session_deleted", { session_id: id });
-	refreshState();
+	vm.deleteSession(id);
 }
 
 function sessionRoute(session: SessionMeta): RouteLocationRaw {
-	const phase = sessionPhases.value[session.id] ?? detectSessionPhase(session.id);
+	const phase = vm.phaseForSession(session.id);
 	return phaseRoute(session.id, phase);
 }
 
 function onOpenSession(session: SessionMeta): void {
-	const phase = sessionPhases.value[session.id] ?? detectSessionPhase(session.id);
+	const phase = vm.phaseForSession(session.id);
 	capture("session_resumed", { session_id: session.id, phase });
 }
 
 function onExport(): void {
-	saveProgressFile();
+	vm.exportSessions();
 }
 
 function onLoadFile(): void {
-	loadProgressFile().then(
-		() => {
-			refreshState();
-		},
-		(err: unknown) => {
-			window.alert(err instanceof Error ? err.message : "Failed to load progress file");
-		},
-	);
+	vm.importSessions().catch((err: unknown) => {
+		window.alert(err instanceof Error ? err.message : "Failed to load progress file");
+	});
 }
 </script>
 
@@ -135,16 +103,16 @@ function onLoadFile(): void {
 		</section>
 
 		<section class="sessions">
-			<div v-if="sessions.length === 0" class="cta">
+			<div v-if="vm.sessions.length === 0" class="cta">
 				<AppButton variant="primary" type="button" @click="onNewSession">Start finding meaning</AppButton>
 			</div>
 			<template v-else>
 				<h2>Your sessions</h2>
 				<div class="session-list">
-					<div v-for="session in sessions" :key="session.id" class="card-hrule">
+					<div v-for="session in vm.sessions" :key="session.id" class="card-hrule">
 						<div class="card-title">
-							<template v-if="renamingId === session.id">
-								<input ref="renameInputEl" v-model="renameInput" type="text" @keydown="onRenameKeydown" @blur="onConfirmRename" />
+							<template v-if="vm.renamingId === session.id">
+								<input ref="renameInputEl" v-model="vm.renameInput" type="text" @keydown="onRenameKeydown" @blur="onConfirmRename" />
 							</template>
 							<router-link v-else :to="sessionRoute(session)" class="session-link" @click="onOpenSession(session)">{{ session.name }}</router-link>
 						</div>
@@ -163,7 +131,7 @@ function onLoadFile(): void {
 
 		<div class="file-actions">
 			<!-- eslint-disable vue/no-restricted-html-elements -->
-			<button v-if="sessions.length > 0" type="button" class="file-btn" @click="onExport">Export all sessions</button>
+			<button v-if="vm.sessions.length > 0" type="button" class="file-btn" @click="onExport">Export all sessions</button>
 			<button type="button" class="file-btn" @click="onLoadFile">Import sessions file</button>
 			<!-- eslint-enable vue/no-restricted-html-elements -->
 		</div>
