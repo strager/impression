@@ -120,13 +120,13 @@ function onLoadFile(): void {
 <template>
 	<main>
 		<header>
-			<h1>SoMeCaM</h1>
-			<p class="subtitle">Sources of Meaning Card Method</p>
+			<h1>Impression</h1>
+			<p class="subtitle">Explore your sources of meaning</p>
 		</header>
 
 		<section>
 			<h2>Explore what makes life meaningful</h2>
-			<p>SoMeCaM is a method for mapping and exploring your personal sources of meaning. Based on 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
+			<p>Impression is a tool for mapping and exploring your personal sources of meaning. Based on the Sources of Meaning Card Method (SoMeCaM) and its 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
 		</section>
 
 		<section>
@@ -174,7 +174,7 @@ function onLoadFile(): void {
 				<cite>Journal of Humanistic Psychology, 60</cite>(1), 20–42.
 				<a href="https://doi.org/10.1177/0022167816669620" target="_blank" rel="noopener">doi:10.1177/0022167816669620</a>
 			</p>
-			<a class="github-link" href="https://github.com/strager/somecam" target="_blank" rel="noopener" aria-label="View source on GitHub">
+			<a class="github-link" href="https://github.com/strager/impression" target="_blank" rel="noopener" aria-label="View source on GitHub">
 				<!-- GitHub mark icon from Primer Octicons (mark-github-24)
 					 https://github.com/primer/octicons/blob/main/icons/mark-github-24.svg -->
 				<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.303 16.652c-2.837-.344-4.835-2.385-4.835-5.028 0-1.074.387-2.235 1.031-3.008-.279-.709-.236-2.214.086-2.837.86-.107 2.02.344 2.708.967.816-.258 1.676-.386 2.728-.386 1.053 0 1.913.128 2.686.365.666-.602 1.848-1.053 2.708-.946.3.581.344 2.085.064 2.815.688.817 1.053 1.913 1.053 3.03 0 2.643-1.998 4.641-4.877 5.006.73.473 1.224 1.504 1.224 2.686v2.235c0 .644.537 1.01 1.182.752 3.889-1.483 6.94-5.372 6.94-10.185 0-6.081-4.942-11.044-11.022-11.044-6.081 0-10.98 4.963-10.98 11.044a10.84 10.84 0 0 0 7.112 10.206c.58.215 1.139-.172 1.139-.752v-1.719a2.768 2.768 0 0 1-1.032.215c-1.418 0-2.256-.773-2.857-2.213-.237-.58-.495-.924-.989-.988-.258-.022-.344-.129-.344-.258 0-.258.43-.451.86-.451.623 0 1.16.386 1.719 1.181.43.623.881.903 1.418.903.537 0 .881-.194 1.375-.688.365-.365.645-.687.903-.902Z" fill="currentColor" /></svg>

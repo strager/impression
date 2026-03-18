@@ -34,7 +34,7 @@ export async function renderPdfHtml(fontCss: string, componentCss: string, repor
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SoMeCaM Report</title>
+<title>Impression Report</title>
 <style>
 ${globalCss}
 </style>

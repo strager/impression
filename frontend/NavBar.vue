@@ -59,7 +59,7 @@ const exploreRoute = computed(() => {
 <template>
 	<nav v-if="showNav" class="nav-bar">
 		<div class="nav-content">
-			<RouterLink to="/" class="nav-home">SoMeCaM</RouterLink>
+			<RouterLink to="/" class="nav-home">Impression</RouterLink>
 			<template v-if="phaseLabel !== null">
 				<span class="nav-separator">/</span>
 				<span class="nav-phase">{{ phaseLabel }}</span>

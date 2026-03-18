@@ -1,12 +1,12 @@
 [Unit]
-Description=SoMeCaM
+Description=Impression
 After=network.target
 
 [Service]
 ExecStart={{ node_dir }}/bin/node --env-file-if-exists=.env backend/main.ts
-WorkingDirectory=/home/somecam/app
-User=somecam
-Group=somecam
+WorkingDirectory=/home/impression/app
+User=impression
+Group=impression
 Environment=NODE_ENV=production PORT=3011
 Type=notify
 NotifyAccess=all

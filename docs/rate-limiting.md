@@ -1,6 +1,6 @@
 # Anonymous Session and Proof-of-Work Design
 
-This document defines SoMeCaM's anonymous session system using proof-of-work (PoW) challenges and server-side budget credits.
+This document defines Impression's anonymous session system using proof-of-work (PoW) challenges and server-side budget credits.
 
 The same mechanism applies to:
 
@@ -145,7 +145,7 @@ Challenge scope:
 2. User clicks download.
 3. Server checks the rolling 24-hour daily limit (max 3 successful PDF downloads). If exceeded, returns `429` with `code: "daily_limit_exceeded"` and a `Retry-After` header (seconds). The UI shows "You've reached the daily download limit. Try again in X hours." and disables the button.
 4. If the daily limit has not been reached, the normal budget check runs. If the endpoint returns `429 challenge_required`, run solve -> `/api/session/verify` -> retry once.
-5. On success, the `X-SoMeCaM-PDF-Downloads-Remaining` header indicates remaining downloads.
+5. On success, the `X-Impression-PDF-Downloads-Remaining` header indicates remaining downloads.
 6. Do not display numeric budget values.
 
 ## PDF Daily Limit
@@ -155,7 +155,7 @@ PDF downloads are limited to 3 per rolling 24-hour window per session.
 - **Storage:** `pdf_downloads` table (separate from budget model).
 - **Check order:** Daily limit is checked **before** the budget check. This avoids wasting budget credits or forcing a PoW challenge when the limit is already hit.
 - **Counting rule:** The daily limit increments only after a successful PDF generation (`200`). Failed attempts (`400`/`500`/`502`) do not consume the daily download quota.
-- **Headers:** `X-SoMeCaM-PDF-Downloads-Remaining` is included on 200, 429 (daily limit), 500, and 502 responses from `/api/report-pdf`. `Retry-After` is included on `daily_limit_exceeded` 429 responses.
+- **Headers:** `X-Impression-PDF-Downloads-Remaining` is included on 200, 429 (daily limit), 500, and 502 responses from `/api/report-pdf`. `Retry-After` is included on `daily_limit_exceeded` 429 responses.
 - **Circumvention:** Creating a new session resets the daily limit. This is acceptable — the limit prevents casual misuse, not denial-of-service attacks. PoW challenges still provide the DoS protection layer.
 
 ## SQLite Schema (Proposed)

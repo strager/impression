@@ -1,6 +1,6 @@
 # Production
 
-SoMeCaM runs on **c.quick-lint-js.com** (Ubuntu 22.04) as a systemd service.
+Impression runs on **c.quick-lint-js.com** (Ubuntu 22.04) as a systemd service.
 Deployment is managed with **Ansible** — the playbook, inventory, and service
 template live in `deploy/`.
 
@@ -36,24 +36,24 @@ SSH into the server and use `journalctl`:
 ssh root@c.quick-lint-js.com
 
 # follow live logs
-journalctl -u somecam -f
+journalctl -u impression -f
 
 # last 100 lines
-journalctl -u somecam -n 100
+journalctl -u impression -n 100
 ```
 
 ## Service management
 
 ```sh
 # on the server
-systemctl status somecam
-systemctl restart somecam
+systemctl status impression
+systemctl restart impression
 ```
 
 ## How it works
 
 - Node.js is installed from the NodeSource apt repository.
-- The app runs as a `somecam` system user under `/home/somecam/app/`.
+- The app runs as a `impression` system user under `/home/impression/app/`.
 - In production (`NODE_ENV=production`), Express serves the pre-built frontend
   from `frontend/dist/` with an SPA fallback — Vite is not used at runtime.
 - The service listens on port 3011.

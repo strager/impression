@@ -1,6 +1,10 @@
 ---
-- name: Deploy SoMeCaM
-  hosts: somecam
+# TEMPORARY: Remove this import after the old somecam service has been cleaned
+# up on all servers, then delete deploy/cleanup-somecam.yml.
+- import_playbook: cleanup-somecam.yml
+
+- name: Deploy Impression
+  hosts: impression
 
   vars:
     node_version: "25.6.1"
@@ -31,9 +35,9 @@
         state: link
       become: true
 
-    - name: Create somecam user
+    - name: Create impression user
       ansible.builtin.user:
-        name: somecam
+        name: impression
         system: true
         create_home: true
         shell: /usr/sbin/nologin
@@ -49,7 +53,7 @@
     - name: Synchronize app files
       ansible.builtin.synchronize:
         src: "{{ playbook_dir }}/../"
-        dest: /home/somecam/app/
+        dest: /home/impression/app/
         rsync_opts:
           - "--include=backend/"
           - "--include=backend/**"
@@ -66,39 +70,39 @@
           - "--exclude=*"
         delete: true
       become: true
-      become_user: somecam
-      notify: Restart somecam
+      become_user: impression
+      notify: Restart impression
 
     - name: Install production npm dependencies
       ansible.builtin.command:
         cmd: "{{ node_dir }}/bin/npm ci --omit=dev"
-        chdir: /home/somecam/app
+        chdir: /home/impression/app
       environment:
         PATH: "{{ node_dir }}/bin:{{ ansible_env.PATH }}"
       become: true
-      become_user: somecam
-      notify: Restart somecam
+      become_user: impression
+      notify: Restart impression
 
     - name: Deploy .env
       ansible.builtin.copy:
         src: "{{ lookup('first_found', [playbook_dir + '/../.env.prod', playbook_dir + '/../.env']) }}"
-        dest: /home/somecam/app/.env
+        dest: /home/impression/app/.env
         mode: "0600"
       become: true
-      become_user: somecam
-      notify: Restart somecam
+      become_user: impression
+      notify: Restart impression
 
     - name: Install systemd service
       ansible.builtin.template:
-        src: somecam.service.j2
-        dest: /etc/systemd/system/somecam.service
+        src: impression.service.j2
+        dest: /etc/systemd/system/impression.service
         mode: "0644"
       become: true
-      notify: Restart somecam
+      notify: Restart impression
 
     - name: Create empty document root for Apache vhost
       ansible.builtin.file:
-        path: /var/www/somecam.strager.net
+        path: /var/www/impression.strager.net
         state: directory
         owner: root
         group: root
@@ -113,8 +117,8 @@
 
     - name: Deploy Apache vhost config
       ansible.builtin.template:
-        src: 004-somecam.strager.net.conf.j2
-        dest: /etc/apache2/sites-available/004-somecam.strager.net.conf
+        src: 004-impression.strager.net.conf.j2
+        dest: /etc/apache2/sites-available/004-impression.strager.net.conf
         owner: root
         group: root
         mode: "0644"
@@ -123,13 +127,29 @@
 
     - name: Enable Apache site
       ansible.builtin.command:
+        cmd: a2ensite --quiet 004-impression.strager.net
+      become: true
+      notify: Reload Apache
+
+    - name: Deploy somecam.strager.net redirect vhost
+      ansible.builtin.template:
+        src: 004-somecam.strager.net.conf.j2
+        dest: /etc/apache2/sites-available/004-somecam.strager.net.conf
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      notify: Reload Apache
+
+    - name: Enable somecam.strager.net redirect vhost
+      ansible.builtin.command:
         cmd: a2ensite --quiet 004-somecam.strager.net
       become: true
       notify: Reload Apache
 
-    - name: Enable and start somecam service
+    - name: Enable and start impression service
       ansible.builtin.systemd:
-        name: somecam
+        name: impression
         enabled: true
         state: started
         daemon_reload: true
@@ -142,9 +162,9 @@
         state: reloaded
       become: true
 
-    - name: Restart somecam
+    - name: Restart impression
       ansible.builtin.systemd:
-        name: somecam
+        name: impression
         state: restarted
         daemon_reload: true
       become: true

@@ -38,12 +38,12 @@ async function main(): Promise<void> {
 
 	app.listen(port, () => {
 		const mode = isProduction ? "production" : "dev";
-		console.log(`SoMeCaM ${mode} server listening at http://localhost:${port.toString()}`);
+		console.log(`Impression ${mode} server listening at http://localhost:${port.toString()}`);
 		void notifyReady();
 	});
 }
 
 main().catch((error: unknown) => {
-	console.error("Failed to start SoMeCaM:", error);
+	console.error("Failed to start Impression:", error);
 	process.exitCode = 1;
 });

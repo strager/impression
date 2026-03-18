@@ -1207,7 +1207,7 @@ describe("PDF daily limit", () => {
 		expect(body).not.toHaveProperty("remaining");
 		expect(body).not.toHaveProperty("retryAfter");
 		expect(limitedResponse.headers.get("Retry-After")).not.toBeNull();
-		expect(limitedResponse.headers.get("X-SoMeCaM-PDF-Downloads-Remaining")).toBe("0");
+		expect(limitedResponse.headers.get("X-Impression-PDF-Downloads-Remaining")).toBe("0");
 	});
 
 	it("remaining header decrements correctly", async () => {
@@ -1218,7 +1218,7 @@ describe("PDF daily limit", () => {
 		for (let i = 0; i < MAX_PDF_DOWNLOADS_PER_DAY; i++) {
 			const result = await doPdfDownloadAndRefresh(currentToken);
 			expect(result.response.status).toBe(200);
-			const remaining = result.response.headers.get("X-SoMeCaM-PDF-Downloads-Remaining");
+			const remaining = result.response.headers.get("X-Impression-PDF-Downloads-Remaining");
 			expect(remaining).not.toBeNull();
 			remainingValues.push(parseInt(remaining!, 10));
 			currentToken = result.token;
@@ -1237,7 +1237,7 @@ describe("PDF daily limit", () => {
 			body: "not valid json",
 		});
 		expect(failedAttempt.status).toBe(400);
-		expect(failedAttempt.headers.get("X-SoMeCaM-PDF-Downloads-Remaining")).toBe(MAX_PDF_DOWNLOADS_PER_DAY.toString());
+		expect(failedAttempt.headers.get("X-Impression-PDF-Downloads-Remaining")).toBe(MAX_PDF_DOWNLOADS_PER_DAY.toString());
 
 		for (let i = 0; i < MAX_PDF_DOWNLOADS_PER_DAY; i++) {
 			const result = await doPdfDownloadAndRefresh(currentToken);
@@ -1272,7 +1272,7 @@ describe("PDF daily limit", () => {
 			body: validSessionExport,
 		});
 		expect(failedAttempt.status).toBe(502);
-		expect(failedAttempt.headers.get("X-SoMeCaM-PDF-Downloads-Remaining")).toBe(MAX_PDF_DOWNLOADS_PER_DAY.toString());
+		expect(failedAttempt.headers.get("X-Impression-PDF-Downloads-Remaining")).toBe(MAX_PDF_DOWNLOADS_PER_DAY.toString());
 
 		// Restore DocRaptor to succeed
 		mswServer.resetHandlers();

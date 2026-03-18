@@ -188,7 +188,7 @@ async function checkBudget(context: Context, req: ExpressRequest): Promise<ApiRe
 	if (rateLimiter === undefined) return null;
 
 	const operation: Record<string, unknown> = context.operation;
-	const cost: unknown = operation["x-somecam-budget-cost"];
+	const cost: unknown = operation["x-impression-budget-cost"];
 	if (typeof cost !== "number" || cost === 0) return null;
 
 	const authHeader = req.headers.authorization;
@@ -597,7 +597,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			return;
 		}
 
-		res.status(200).type("text/html").setHeader("Content-Disposition", 'attachment; filename="somecam-report.html"').send(html);
+		res.status(200).type("text/html").setHeader("Content-Disposition", 'attachment; filename="impression-report.html"').send(html);
 	},
 	postReportPdf: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
 		// Daily PDF limit check (before budget, to avoid wasting credits)
@@ -610,7 +610,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 				res
 					.status(429)
 					.type("application/problem+json")
-					.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", "0")
+					.setHeader("X-Impression-PDF-Downloads-Remaining", "0")
 					.setHeader("Retry-After", retryAfterSeconds.toString())
 					.send(
 						JSON.stringify({
@@ -633,7 +633,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			}
 			const responseWithHeaders: ApiResponse = {
 				...budgetBlock,
-				headers: { ...(budgetBlock.headers ?? {}), "X-SoMeCaM-PDF-Downloads-Remaining": pdfRemaining.toString() },
+				headers: { ...(budgetBlock.headers ?? {}), "X-Impression-PDF-Downloads-Remaining": pdfRemaining.toString() },
 			};
 			sendApiResponse(res, responseWithHeaders);
 			return;
@@ -643,7 +643,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		if (apiKey === undefined || apiKey === "") {
 			const response = res.status(500).type("application/problem+json");
 			if (pdfRemaining !== null) {
-				response.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", pdfRemaining.toString());
+				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
 			response.send(JSON.stringify(createProblemDetails(500, "Internal Server Error", "PDF generation is not configured.")));
 			return;
@@ -653,7 +653,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		if (typeof sessionExport !== "string" || sessionExport === "") {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
-				response.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", pdfRemaining.toString());
+				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
 			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", "Request body must be a non-empty session export string.")));
 			return;
@@ -665,7 +665,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		} catch {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
-				response.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", pdfRemaining.toString());
+				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
 			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", safeErrorDetails.invalidSessionData)));
 			return;
@@ -679,15 +679,15 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			if (rateLimiter !== undefined) {
 				pdfRemaining = rateLimiter.recordPdfDownload(req.headers.authorization);
 			}
-			const response = res.status(200).type("application/pdf").setHeader("Content-Disposition", 'attachment; filename="somecam-report.pdf"');
+			const response = res.status(200).type("application/pdf").setHeader("Content-Disposition", 'attachment; filename="impression-report.pdf"');
 			if (pdfRemaining !== null) {
-				response.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", pdfRemaining.toString());
+				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
 			response.send(pdf);
 		} catch {
 			const response = res.status(502).type("application/problem+json");
 			if (pdfRemaining !== null) {
-				response.setHeader("X-SoMeCaM-PDF-Downloads-Remaining", pdfRemaining.toString());
+				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
 			response.send(JSON.stringify(createProblemDetails(502, "Bad Gateway", safeErrorDetails.pdfGenerationService)));
 		}
@@ -734,12 +734,12 @@ function validateBudgetCosts(): void {
 		if (!isRecord(methods)) continue;
 		for (const [method, operation] of Object.entries(methods)) {
 			if (!isRecord(operation) || !("operationId" in operation)) continue;
-			const cost: unknown = operation["x-somecam-budget-cost"];
+			const cost: unknown = operation["x-impression-budget-cost"];
 			if (cost === undefined) {
-				throw new Error(`Operation ${method.toUpperCase()} ${pathKey} is missing x-somecam-budget-cost`);
+				throw new Error(`Operation ${method.toUpperCase()} ${pathKey} is missing x-impression-budget-cost`);
 			}
 			if (typeof cost !== "number" || !Number.isInteger(cost) || cost < 0) {
-				throw new Error(`Operation ${method.toUpperCase()} ${pathKey} has invalid x-somecam-budget-cost: ${JSON.stringify(cost)}`);
+				throw new Error(`Operation ${method.toUpperCase()} ${pathKey} has invalid x-impression-budget-cost: ${JSON.stringify(cost)}`);
 			}
 		}
 	}

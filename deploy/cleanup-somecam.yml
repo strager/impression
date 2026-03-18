@@ -1,0 +1,35 @@
+# TEMPORARY: Delete this file after the old somecam service has been cleaned up
+# on all servers. This playbook removes the old "somecam" systemd service, user,
+# and home directory left over from the rename to "impression".
+---
+- name: Clean up old somecam service
+  hosts: impression
+
+  tasks:
+    - name: Stop and disable old somecam service
+      ansible.builtin.systemd:
+        name: somecam
+        state: stopped
+        enabled: false
+      become: true
+      ignore_errors: true
+
+    - name: Remove old somecam systemd unit file
+      ansible.builtin.file:
+        path: /etc/systemd/system/somecam.service
+        state: absent
+      become: true
+      notify: Reload systemd
+
+    - name: Remove old somecam user and home directory
+      ansible.builtin.user:
+        name: somecam
+        state: absent
+        remove: true
+      become: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true

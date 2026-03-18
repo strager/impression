@@ -1,29 +1,18 @@
+# Redirects all somecam.strager.net traffic to impression.strager.net,
+# preserving the request path.
+
 <VirtualHost *:80>
 	ServerName somecam.strager.net
-
-	ServerAdmin strager.nds@gmail.com
-	DocumentRoot /var/www/somecam.strager.net
-
-	ErrorLog ${APACHE_LOG_DIR}/error.log
-	CustomLog ${APACHE_LOG_DIR}/access.log combined
-
 	RewriteEngine on
-	RewriteCond %{SERVER_NAME} =somecam.strager.net
-	RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+	RewriteRule ^ https://impression.strager.net%{REQUEST_URI} [END,NE,R=permanent]
 </VirtualHost>
 
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
 	ServerName somecam.strager.net
 
-	ServerAdmin strager.nds@gmail.com
-	DocumentRoot /var/www/somecam.strager.net
-
-	ErrorLog ${APACHE_LOG_DIR}/error.log
-	CustomLog ${APACHE_LOG_DIR}/access.log combined
-
-	ProxyPass / http://localhost:3011/
-	ProxyPassReverse / http://localhost:3011/
+	RewriteEngine on
+	RewriteRule ^ https://impression.strager.net%{REQUEST_URI} [END,NE,R=permanent]
 
 	SSLCertificateFile /etc/letsencrypt/live/somecam.strager.net/fullchain.pem
 	SSLCertificateKeyFile /etc/letsencrypt/live/somecam.strager.net/privkey.pem

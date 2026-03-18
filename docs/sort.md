@@ -1,6 +1,6 @@
 # How card sorting works
 
-SoMeCaM presents you with 26 cards, each representing a potential source
+Impression presents you with 26 cards, each representing a potential source
 of meaning in your life. Through a multi-step sorting process, you
 prioritize a small handful that resonate most with you.
 

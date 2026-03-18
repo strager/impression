@@ -15,10 +15,10 @@
 
 		<section>
 			<h2>Third-party services</h2>
-			<p>SoMeCaM uses third-party services to provide its features. Here is what each service receives and why.</p>
+			<p>Impression uses third-party services to provide its features. Here is what each service receives and why.</p>
 
 			<h3>Vultr</h3>
-			<p><a href="https://www.vultr.com/" rel="external">Vultr</a> provides the server infrastructure that hosts SoMeCaM.</p>
+			<p><a href="https://www.vultr.com/" rel="external">Vultr</a> provides the server infrastructure that hosts Impression.</p>
 
 			<h3>Grok</h3>
 			<p><a href="https://x.ai/" rel="external">Grok by xAI</a> powers the AI-assisted features such as summarization during the exploration phase. When you use these features, the prompts and your selected card information are sent to Grok to generate responses. No other personal data is shared.</p>
@@ -30,7 +30,7 @@
 			<p><b>Storage:</b> DocRaptor does not store your data. We use the "As short as possible" Data Retention Time. "[DocRaptor] will delete your input immediately after it is used. [DocRaptor] will delete your finished document as soon as you download it."</p>
 
 			<h3>PostHog</h3>
-			<p><a href="https://posthog.com/" rel="external">PostHog</a> provides product analytics so we can understand how people use SoMeCaM and improve the experience. We collect and store:</p>
+			<p><a href="https://posthog.com/" rel="external">PostHog</a> provides product analytics so we can understand how people use Impression and improve the experience. We collect and store:</p>
 			<ul>
 				<li>Page view events with route names</li>
 				<li>Aggregate card counts (e.g. how many cards were agreed/disagreed, kept/removed)</li>

@@ -1,4 +1,4 @@
-This repository contains the SoMeCaM application:
+This repository contains the Impression application:
 
 - `backend/`: Node.js backend (Express + openapi-backend)
 - `frontend/`: Vue 3 frontend (Vite + Vue Router)

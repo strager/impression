@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
-  title: SoMeCaM API
+  title: Impression API
   version: 0.1.0
 paths:
   /health:
     get:
       operationId: getHealth
-      x-somecam-budget-cost: 0
+      x-impression-budget-cost: 0
       summary: Health check endpoint
       parameters:
         - in: query
@@ -49,7 +49,7 @@ paths:
   /session/verify:
     post:
       operationId: postSessionVerify
-      x-somecam-budget-cost: 0
+      x-impression-budget-cost: 0
       summary: Verify a solved PoW challenge and obtain or refresh a session
       requestBody:
         required: true
@@ -97,7 +97,7 @@ paths:
   /summarize:
     post:
       operationId: postSummarize
-      x-somecam-budget-cost: 5
+      x-impression-budget-cost: 5
       summary: Generate an AI summary of a card exploration answer
       requestBody:
         required: true
@@ -151,7 +151,7 @@ paths:
   /infer-answers:
     post:
       operationId: postInferAnswers
-      x-somecam-budget-cost: 5
+      x-impression-budget-cost: 5
       summary: Infer answers to unanswered exploration questions from existing answers
       requestBody:
         required: true
@@ -205,7 +205,7 @@ paths:
   /report-html:
     post:
       operationId: postReportHtml
-      x-somecam-budget-cost: 5
+      x-impression-budget-cost: 5
       summary: Generate an HTML report
       requestBody:
         required: true
@@ -234,7 +234,7 @@ paths:
   /report-pdf:
     post:
       operationId: postReportPdf
-      x-somecam-budget-cost: 100
+      x-impression-budget-cost: 100
       summary: Generate a PDF report
       requestBody:
         required: true
@@ -247,7 +247,7 @@ paths:
         "200":
           description: Report generated successfully.
           headers:
-            X-SoMeCaM-PDF-Downloads-Remaining:
+            X-Impression-PDF-Downloads-Remaining:
               schema:
                 type: integer
               description: Number of PDF downloads remaining in the rolling 24-hour window.
@@ -259,7 +259,7 @@ paths:
         "500":
           description: Internal server error.
           headers:
-            X-SoMeCaM-PDF-Downloads-Remaining:
+            X-Impression-PDF-Downloads-Remaining:
               schema:
                 type: integer
               description: Number of PDF downloads remaining in the rolling 24-hour window.
@@ -272,7 +272,7 @@ paths:
             Budget insufficient (challenge_required) or daily PDF download limit
             reached (daily_limit_exceeded).
           headers:
-            X-SoMeCaM-PDF-Downloads-Remaining:
+            X-Impression-PDF-Downloads-Remaining:
               schema:
                 type: integer
               description: Number of PDF downloads remaining (0 when daily limit exceeded).
@@ -289,7 +289,7 @@ paths:
         "502":
           description: PDF generation service error.
           headers:
-            X-SoMeCaM-PDF-Downloads-Remaining:
+            X-Impression-PDF-Downloads-Remaining:
               schema:
                 type: integer
               description: Number of PDF downloads remaining in the rolling 24-hour window.
@@ -300,7 +300,7 @@ paths:
   /reflect-on-answer:
     post:
       operationId: postReflectOnAnswer
-      x-somecam-budget-cost: 5
+      x-impression-budget-cost: 5
       summary: Reflect on an exploration answer to provide guardrails or thought bubbles
       requestBody:
         required: true

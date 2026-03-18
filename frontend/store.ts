@@ -776,7 +776,7 @@ export function saveProgressFile(): void {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
-	a.download = "somecam-sessions.json";
+	a.download = "impression-sessions.json";
 	a.click();
 	URL.revokeObjectURL(url);
 }

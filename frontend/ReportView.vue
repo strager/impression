@@ -101,7 +101,7 @@ async function downloadReport(endpoint: string, filename: string): Promise<void>
 			body,
 		});
 
-		const remainingHeader = response.headers.get("X-SoMeCaM-PDF-Downloads-Remaining");
+		const remainingHeader = response.headers.get("X-Impression-PDF-Downloads-Remaining");
 		if (remainingHeader !== null) {
 			const parsedRemaining = Number.parseInt(remainingHeader, 10);
 			if (Number.isFinite(parsedRemaining) && parsedRemaining >= 0) {
@@ -147,11 +147,11 @@ async function downloadReport(endpoint: string, filename: string): Promise<void>
 
 async function downloadPdf(): Promise<void> {
 	capture("pdf_download_initiated", { session_id: sessionId });
-	await downloadReport("/api/report-pdf", "somecam-report.pdf");
+	await downloadReport("/api/report-pdf", "impression-report.pdf");
 }
 
 async function downloadHtml(): Promise<void> {
-	await downloadReport("/api/report-html", "somecam-report.html");
+	await downloadReport("/api/report-html", "impression-report.html");
 }
 
 onMounted(() => {

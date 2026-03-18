@@ -10,7 +10,7 @@ async function main(): Promise<void> {
 	const cards = MEANING_CARDS.slice(0, 8);
 	const ranking = new Ranking<MeaningCard>(cards, { seed: 42 });
 
-	console.log("=== SoMeCaM Card Ranking (MaxDiff) ===");
+	console.log("=== Impression Card Ranking (MaxDiff) ===");
 	console.log(`Ranking ${String(cards.length)} cards to find your top ${String(ranking.effectiveK)}.\n`);
 	console.log("For each set of 3 cards, choose which resonates MOST and LEAST.\n");
 

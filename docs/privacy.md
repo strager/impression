@@ -1,6 +1,6 @@
 # Analytics Privacy Policy
 
-SoMeCaM uses PostHog for product analytics. This document describes what data we collect and what we deliberately avoid collecting.
+Impression uses PostHog for product analytics. This document describes what data we collect and what we deliberately avoid collecting.
 
 ## Guiding Principle
 
