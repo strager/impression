@@ -7,8 +7,7 @@ import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitial
 export class HomeViewModel {
 	private readonly _sessions = ref<SessionMeta[]>([]);
 	private readonly _sessionPhases = ref<Record<string, ProgressPhase>>({});
-	private readonly _renamingId = ref<string | null>(null);
-	private readonly _renameInput = ref("");
+	private readonly _renameInputs = ref<Record<string, string>>({});
 
 	get sessions(): SessionMeta[] {
 		return this._sessions.value;
@@ -18,16 +17,16 @@ export class HomeViewModel {
 		return this._sessionPhases.value;
 	}
 
-	get renamingId(): string | null {
-		return this._renamingId.value;
+	isRenaming(id: string): boolean {
+		return id in this._renameInputs.value;
 	}
 
-	get renameInput(): string {
-		return this._renameInput.value;
+	renameInputFor(id: string): string {
+		return this._renameInputs.value[id] ?? "";
 	}
 
-	set renameInput(value: string) {
-		this._renameInput.value = value;
+	setRenameInput(id: string, value: string): void {
+		this._renameInputs.value[id] = value;
 	}
 
 	initialize(): void {
@@ -52,25 +51,28 @@ export class HomeViewModel {
 		return newId;
 	}
 
-	startRename(session: SessionMeta): void {
-		this._renamingId.value = session.id;
-		this._renameInput.value = session.name;
+	startRename(id: string, currentName: string): void {
+		this._renameInputs.value[id] = currentName;
 	}
 
-	confirmRename(): void {
-		if (this._renamingId.value === null) return;
-		const id = this._renamingId.value;
-		const trimmed = this._renameInput.value.trim();
+	confirmRename(id: string): void {
+		if (!this.isRenaming(id)) return;
+		const trimmed = this._renameInputs.value[id].trim();
 		if (trimmed.length > 0) {
 			renameSession(id, trimmed);
 			capture("session_renamed", { session_id: id });
 		}
-		this._renamingId.value = null;
+		this.clearRenameEntry(id);
 		this.refreshState();
 	}
 
-	cancelRename(): void {
-		this._renamingId.value = null;
+	cancelRename(id: string): void {
+		this.clearRenameEntry(id);
+	}
+
+	private clearRenameEntry(id: string): void {
+		const { [id]: _, ...rest } = this._renameInputs.value;
+		this._renameInputs.value = rest;
 	}
 
 	deleteSession(id: string): void {

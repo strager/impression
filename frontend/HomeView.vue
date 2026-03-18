@@ -35,7 +35,7 @@ function onNewSession(): void {
 }
 
 function onStartRename(session: SessionMeta): void {
-	vm.startRename(session);
+	vm.startRename(session.id, session.name);
 	void nextTick(() => {
 		const el = renameInputEl.value[0];
 		el.focus();
@@ -43,19 +43,19 @@ function onStartRename(session: SessionMeta): void {
 	});
 }
 
-function onConfirmRename(): void {
-	vm.confirmRename();
+function onConfirmRename(id: string): void {
+	vm.confirmRename(id);
 }
 
-function onCancelRename(): void {
-	vm.cancelRename();
+function onCancelRename(id: string): void {
+	vm.cancelRename(id);
 }
 
-function onRenameKeydown(event: KeyboardEvent): void {
+function onRenameKeydown(id: string, event: KeyboardEvent): void {
 	if (event.key === "Enter") {
-		onConfirmRename();
+		onConfirmRename(id);
 	} else if (event.key === "Escape") {
-		onCancelRename();
+		onCancelRename(id);
 	}
 }
 
@@ -111,8 +111,9 @@ function onLoadFile(): void {
 				<div class="session-list">
 					<div v-for="session in vm.sessions" :key="session.id" class="card-hrule">
 						<div class="card-title">
-							<template v-if="vm.renamingId === session.id">
-								<input ref="renameInputEl" v-model="vm.renameInput" type="text" @keydown="onRenameKeydown" @blur="onConfirmRename" />
+							<template v-if="vm.isRenaming(session.id)">
+								<input ref="renameInputEl" :value="vm.renameInputFor(session.id)" type="text" @input="vm.setRenameInput(session.id, ($event.target as HTMLInputElement).value)" @keydown="onRenameKeydown(session.id, $event)" />
+								<AppButton variant="primary" type="button" @click="onConfirmRename(session.id)">Save</AppButton>
 							</template>
 							<router-link v-else :to="sessionRoute(session)" class="session-link" @click="onOpenSession(session)">{{ session.name }}</router-link>
 						</div>
@@ -200,12 +201,35 @@ section p {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	/* Match the input's bottom border so .card-title height stays
+	   the same when switching between link and rename input. */
+	border-bottom: 1px solid transparent;
+}
+
+.card-title {
+	display: flex;
+	gap: var(--space-2);
+	align-items: center;
+}
+
+/* Negative vertical margins on the input and save button prevent their
+   padding from increasing .card-title's height, avoiding a layout shift
+   when switching between the static session name and the rename form. */
+.card-title input,
+.card-title :deep(button) {
+	margin-top: calc(-1 * var(--space-2));
+	margin-bottom: calc(-1 * var(--space-2));
 }
 
 .card-title input {
 	font-family: var(--font-heading);
 	font-size: var(--text-xl);
 	font-weight: 600;
+	line-height: inherit;
+	flex: 1;
+	min-width: 0;
+	/* Compensate for left padding so text aligns with the session name link. */
+	margin-left: calc(-1 * var(--space-3));
 }
 
 .text-btn {

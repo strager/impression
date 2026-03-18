@@ -50,6 +50,7 @@ Vite runs in middleware mode and is attached by `backend/main.ts`.
 ## Workflow
 
 - After making changes, run `npm run lint`, `npm run typecheck`, and `npm test`. Fix all errors — including pre-existing ones — before finishing.
+- When a lint rule flags an error, do not add a disable comment without asking the user first.
 
 ## Shared Data
 
