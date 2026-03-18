@@ -66,8 +66,10 @@ function handleOpenReport(source: string): void {
 			<span class="progress-label">{{ vm.totalAnswered }} of {{ vm.totalQuestions }} questions answered</span>
 		</div>
 
-		<AppButton v-if="vm.allComplete" variant="primary" class="report-btn" @click="handleOpenReport('explore_overview_primary')">Download report</AppButton>
-		<AppButton variant="secondary" class="edit-cards-btn" @click="handleEditSelection">Edit selection</AppButton>
+		<div class="top-actions">
+			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenReport('explore_overview_primary')">Download report</AppButton>
+			<AppButton variant="secondary" @click="handleEditSelection">Edit selection</AppButton>
+		</div>
 
 		<div class="card-list">
 			<div v-for="card in vm.sortedCards" :key="card.id" :class="['card-hrule', 'chosen-card', 'status-' + vm.cardStatus(card.id)]">
@@ -230,7 +232,9 @@ h1 {
 	content: "\2610";
 }
 
-.edit-cards-btn {
+.top-actions {
+	display: flex;
+	gap: var(--space-3);
 	margin-bottom: var(--space-6);
 }
 

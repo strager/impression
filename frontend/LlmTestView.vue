@@ -255,7 +255,7 @@ textarea {
 
 .row-actions {
 	display: flex;
-	gap: 0.5rem;
+	gap: var(--space-2);
 }
 
 .row-actions button,
@@ -270,7 +270,7 @@ textarea {
 
 .global-actions {
 	display: flex;
-	gap: 0.5rem;
+	gap: var(--space-2);
 }
 
 .result-section pre {

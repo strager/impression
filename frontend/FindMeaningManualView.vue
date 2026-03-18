@@ -239,7 +239,7 @@ h1 {
 
 .confirm-actions {
 	display: flex;
-	gap: 0.5rem;
+	gap: var(--space-2);
 }
 
 .confirm-remove {
