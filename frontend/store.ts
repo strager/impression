@@ -2,7 +2,6 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
 import { fetchSummary } from "./api.ts";
 import { capture } from "./analytics.ts";
-import { hashStrings } from "./deterministic-hash.ts";
 
 const SESSIONS_KEY = "somecam-sessions";
 const ACTIVE_SESSION_KEY = "somecam-active-session";
@@ -500,15 +499,18 @@ export function saveExploreData(sessionId: string, data: ExploreData): void {
 	touchSession(sessionId);
 }
 
-export function selectNextQuestion(sessionId: string, cardId: string, allowedQuestionIds: string[], priorityQuestionIds: string[]): string {
-	for (const qId of allowedQuestionIds) {
-		if (priorityQuestionIds.includes(qId)) {
-			return qId;
+export function selectNextQuestion(allowedQuestionIds: string[], priorityQuestionIds: string[]): string {
+	for (const q of EXPLORE_QUESTIONS) {
+		if (allowedQuestionIds.includes(q.id) && priorityQuestionIds.includes(q.id)) {
+			return q.id;
 		}
 	}
-	const entryCount = EXPLORE_QUESTIONS.length - allowedQuestionIds.length;
-	const index = hashStrings(cardId, sessionId, String(entryCount)) % allowedQuestionIds.length;
-	return allowedQuestionIds[index];
+	for (const q of EXPLORE_QUESTIONS) {
+		if (allowedQuestionIds.includes(q.id)) {
+			return q.id;
+		}
+	}
+	throw new Error("no allowed question found in EXPLORE_QUESTIONS");
 }
 
 function isSummaryCache(value: unknown): value is SummaryCache {

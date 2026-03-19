@@ -126,7 +126,7 @@ export class ExploreMeaningViewModel {
 					data[this.cardId] = { entries: [], freeformNote: "", statementSelections: [] };
 				}
 				const allQuestionIds = EXPLORE_QUESTIONS.map((q) => q.id);
-				const questionId = selectNextQuestion(this.sessionId, this.cardId, allQuestionIds, []);
+				const questionId = selectNextQuestion(allQuestionIds, []);
 				data[this.cardId].entries.push({
 					questionId,
 					userAnswer: "",
@@ -586,7 +586,7 @@ export class ExploreMeaningViewModel {
 			return;
 		}
 
-		const nextQuestionId = selectNextQuestion(this.sessionId, this.cardId, remaining, [...inferredMap.keys()]);
+		const nextQuestionId = selectNextQuestion(remaining, [...inferredMap.keys()]);
 		const nextPrefill = inferredMap.get(nextQuestionId) ?? "";
 
 		// Trailing "\n" reserves space for the autofill chip in the textarea's bottom-right corner.

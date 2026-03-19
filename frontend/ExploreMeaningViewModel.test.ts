@@ -537,7 +537,7 @@ describe("submitAnswer", () => {
 		expect(nextEntry!.prefilledAnswer).toBe("Inferred answer");
 	});
 
-	it("picks random question when infer fails", async () => {
+	it("picks next sequential question when infer fails", async () => {
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -555,6 +555,28 @@ describe("submitAnswer", () => {
 
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[1].prefilledAnswer).toBe("");
+		expect(vm.entries[1].questionId).toBe(EXPLORE_QUESTIONS[1].id);
+	});
+
+	it("picks next sequential question when infer fails mid-sequence", async () => {
+		server.use(
+			http.post("*/api/reflect-on-answer", () => {
+				return HttpResponse.json({ type: "none", message: "" });
+			}),
+			http.post("*/api/infer-answers", () => {
+				return new HttpResponse(null, { status: 500 });
+			}),
+		);
+		const entries = makeSubmittedEntries(2);
+		entries.push(makeEntry(EXPLORE_QUESTIONS[2].id, "My answer", false));
+		setupExploreData(TEST_CARD_ID, entries);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.submitAnswer();
+
+		expect(vm.entries).toHaveLength(4);
+		expect(vm.entries[3].questionId).toBe(EXPLORE_QUESTIONS[3].id);
 	});
 
 	it("sets allAnswered when last question answered", async () => {
@@ -1144,7 +1166,7 @@ describe("derived properties", () => {
 	});
 });
 
-describe("deterministic question selection", () => {
+describe("sequential question selection", () => {
 	async function submitAllQuestions(): Promise<string[]> {
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
@@ -1177,36 +1199,24 @@ describe("deterministic question selection", () => {
 		expect(new Set(questionIds).size).toBe(EXPLORE_QUESTIONS.length);
 	});
 
-	it("two runs with same session+card produce the same sequence", async () => {
-		const questionIds1 = await submitAllQuestions();
+	it("asks questions in EXPLORE_QUESTIONS list order", async () => {
+		const questionIds = await submitAllQuestions();
 
-		server.resetHandlers();
-
-		const questionIds2 = await submitAllQuestions();
-
-		expect(questionIds1).toEqual(questionIds2);
+		expect(questionIds).toEqual(EXPLORE_QUESTIONS.map((q) => q.id));
 	});
 });
 
-describe("deterministic initial question assignment", () => {
-	it("two VMs with same session and card assign the same initial question", () => {
+describe("initial question assignment", () => {
+	it("assigns the first question in EXPLORE_QUESTIONS order", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", statementSelections: [] } });
 
-		const vm1 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
-		vm1.initialize();
-		const data1 = loadExploreData(sid());
-		const questionId1 = data1![TEST_CARD_ID].entries[0].questionId;
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		const data = loadExploreData(sid());
+		const questionId = data![TEST_CARD_ID].entries[0].questionId;
 
-		// Reset to empty entries so the second VM re-runs selectNextQuestion
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", statementSelections: [] } });
-
-		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
-		vm2.initialize();
-		const data2 = loadExploreData(sid());
-		const questionId2 = data2![TEST_CARD_ID].entries[0].questionId;
-
-		expect(questionId1).toBe(questionId2);
+		expect(questionId).toBe(EXPLORE_QUESTIONS[0].id);
 	});
 });
 
