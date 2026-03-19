@@ -7,6 +7,7 @@ import type { AppConfig } from "./config.ts";
 import { isAllowedOrigin, shouldCheckOrigin } from "./origin-check.ts";
 import { callDocRaptor, renderReportHtml } from "./pdf-report.ts";
 import { ChallengeError, MAX_PDF_DOWNLOADS_PER_DAY, type RateLimiter } from "./rate-limit.ts";
+import { createAnthropicCompletion } from "./anthropic-client.ts";
 import { createChatCompletion } from "./xai-client.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
@@ -658,24 +659,17 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		const userMessage = answeredPairs.join("\n\n");
 
+		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail. " + "Write in the first person, as if the user is writing about themselves. " + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying. " + "Do not ask questions. Do not use bullet points or numbered lists — write in flowing prose. " + "4 to 7 sentences.";
+
 		try {
-			const content = await createChatCompletion({
-				apiKey: appConfig.xaiApiKey,
-				model: "grok-4.20-beta-0309-reasoning",
-				messages: [
-					{
-						role: "system",
-						content: "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail. " + "Write in the first person, as if the user is writing about themselves. " + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying. " + "Do not ask questions. Do not use bullet points or numbered lists — write in flowing prose. " + "4 to 7 sentences.",
-					},
-					{
-						role: "user",
-						content: userMessage,
-					},
-				],
+			const content = await createAnthropicCompletion({
+				apiKey: appConfig.anthropicApiKey,
+				model: "claude-haiku-4-5-20251001",
+				system: systemPrompt,
+				messages: [{ role: "user", content: userMessage }],
 				maxTokens: 500,
 				temperature: 0.7,
 				debugPrompt: appConfig.debugPrompt,
-				reasoningEffort: "low",
 			});
 
 			return { statusCode: 200, body: { synthesis: content } };

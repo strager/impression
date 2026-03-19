@@ -546,10 +546,13 @@ describe("Error sanitization", () => {
 	let server: Server | undefined;
 	let baseUrl = "";
 	let originalXaiApiKey: string | undefined;
+	let originalAnthropicApiKey: string | undefined;
 
 	beforeAll(async () => {
 		originalXaiApiKey = process.env.XAI_API_KEY;
 		process.env.XAI_API_KEY = "test-xai-api-key";
+		originalAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+		process.env.ANTHROPIC_API_KEY = "test-anthropic-api-key";
 
 		const dbPath = path.join(os.tmpdir(), `rate-limit-test-${crypto.randomUUID()}.sqlite`);
 		const app = await createApp({ rateLimitConfig: { rateLimitDbPath: dbPath, powSecret: crypto.randomUUID(), enableCleanup: false } });
@@ -592,6 +595,11 @@ describe("Error sanitization", () => {
 			delete process.env.XAI_API_KEY;
 		} else {
 			process.env.XAI_API_KEY = originalXaiApiKey;
+		}
+		if (originalAnthropicApiKey === undefined) {
+			delete process.env.ANTHROPIC_API_KEY;
+		} else {
+			process.env.ANTHROPIC_API_KEY = originalAnthropicApiKey;
 		}
 	});
 

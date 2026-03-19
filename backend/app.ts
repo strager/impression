@@ -22,7 +22,7 @@ export async function createApp(overrides?: { rateLimitConfig?: RateLimitConfig 
 	try {
 		config = loadConfig();
 	} catch {
-		console.warn("XAI_API_KEY is not set; AI summarization will be disabled.");
+		console.warn("XAI_API_KEY or ANTHROPIC_API_KEY is not set; AI features will be disabled.");
 	}
 
 	const rateLimitConfig = overrides?.rateLimitConfig ?? loadRateLimitConfig();
