@@ -529,6 +529,8 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: DEFAULT_QUESTION_ID, answer: "" }],
+			selectedStatements: [],
+			freeformNote: "",
 		});
 	});
 
@@ -543,6 +545,8 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: DEFAULT_QUESTION_ID, answer: "answer" }],
+			selectedStatements: [],
+			freeformNote: "",
 		});
 	});
 
@@ -557,6 +561,8 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: "interpretation", answer: "" }],
+			selectedStatements: [],
+			freeformNote: "",
 		});
 	});
 
@@ -567,6 +573,8 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 				{ questionId: "interpretation", answer: "answer 1" },
 				{ questionId: "importance", answer: "answer 2" },
 			],
+			selectedStatements: ["3", "5"],
+			freeformNote: "some notes",
 		});
 
 		expect(loadLlmTestState()).toEqual({
@@ -575,6 +583,8 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 				{ questionId: "interpretation", answer: "answer 1" },
 				{ questionId: "importance", answer: "answer 2" },
 			],
+			selectedStatements: ["3", "5"],
+			freeformNote: "some notes",
 		});
 	});
 });

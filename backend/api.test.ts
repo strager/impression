@@ -303,6 +303,49 @@ describe("API", () => {
 		);
 	});
 
+	it("returns 400 for POST /api/synthesize with missing fields", async () => {
+		const response = await fetch(`${baseUrl}/api/synthesize`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
+			body: JSON.stringify({ cardId: "self-knowledge" }),
+		});
+		expect(response.status).toBe(400);
+		expect(response.headers.get("content-type")).toContain("application/problem+json");
+
+		const body: unknown = await response.json();
+		expect(body).toHaveProperty("type", "about:blank");
+		expect(body).toHaveProperty("title", expect.any(String));
+		expect(body).toHaveProperty("status", 400);
+		expect(body).toHaveProperty("detail", expect.any(String));
+	});
+
+	it("returns 500 for POST /api/synthesize when config is not set", async () => {
+		const token = await obtainSessionToken(baseUrl);
+		const response = await fetch(`${baseUrl}/api/synthesize`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
+			body: JSON.stringify({
+				cardId: "self-knowledge",
+				questions: [
+					{ questionId: "interpretation", answer: "I want to understand my motivations." },
+					{ questionId: "significance", answer: "It helps me make better decisions." },
+				],
+			}),
+		});
+		expect(response.status).toBe(500);
+		expect(response.headers.get("content-type")).toContain("application/problem+json");
+
+		const body: unknown = await response.json();
+		expect(body).toEqual(
+			expect.objectContaining({
+				type: "about:blank",
+				title: "Internal Server Error",
+				status: 500,
+				detail: "AI synthesis is not configured.",
+			}),
+		);
+	});
+
 	it("returns 400 for POST /api/reflect-on-answer with missing fields", async () => {
 		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",

@@ -34,6 +34,17 @@ interface InferAnswersResponse {
 	inferredAnswers: { questionId: string; answer: string }[];
 }
 
+interface SynthesizeRequest {
+	cardId: string;
+	questions: { questionId: string; answer: string }[];
+	selectedStatements?: string[];
+	freeformNote?: string;
+}
+
+interface SynthesizeResponse {
+	synthesis: string;
+}
+
 interface ChallengePayload {
 	challengeId: string;
 	expiresAt: number;
@@ -196,6 +207,17 @@ function validateInferAnswersResponse(raw: unknown): InferAnswersResponse {
 		}
 	}
 	return { inferredAnswers };
+}
+
+function validateSynthesizeResponse(raw: unknown): SynthesizeResponse {
+	if (typeof raw !== "object" || raw === null || !("synthesis" in raw) || typeof raw.synthesis !== "string") {
+		throw new Error("Invalid synthesize response");
+	}
+	return { synthesis: raw.synthesis };
+}
+
+export async function fetchSynthesis(request: SynthesizeRequest): Promise<SynthesizeResponse> {
+	return postJson("/api/synthesize", request, "Synthesize", validateSynthesizeResponse);
 }
 
 export async function fetchSummary(request: SummarizeRequest): Promise<SummarizeResponse> {

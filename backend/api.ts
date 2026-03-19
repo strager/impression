@@ -10,6 +10,7 @@ import { ChallengeError, MAX_PDF_DOWNLOADS_PER_DAY, type RateLimiter } from "./r
 import { createChatCompletion } from "./xai-client.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
 
 interface ApiProblemDetails {
 	type: string;
@@ -568,6 +569,116 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			} catch {
 				return { statusCode: 200, body: { type: "none", message: "" } };
 			}
+		} catch {
+			return {
+				statusCode: 502,
+				headers: problemJsonHeader,
+				body: createProblemDetails(502, "Bad Gateway", safeErrorDetails.upstreamAiService),
+			};
+		}
+	},
+	postSynthesize: async (context: Context, req: ExpressRequest): Promise<ApiResponse> => {
+		const budgetBlock = await checkBudget(context, req);
+		if (budgetBlock !== null) return budgetBlock;
+
+		if (appConfig === undefined) {
+			return {
+				statusCode: 500,
+				headers: problemJsonHeader,
+				body: createProblemDetails(500, "Internal Server Error", "AI synthesis is not configured."),
+			};
+		}
+
+		const body: unknown = context.request.requestBody;
+		if (typeof body !== "object" || body === null || !("cardId" in body) || typeof body.cardId !== "string" || !("questions" in body) || !Array.isArray(body.questions)) {
+			throw new Error("Invalid request body for postSynthesize");
+		}
+		const cardId = body.cardId;
+		const items: unknown[] = body.questions;
+		const questions: { questionId: string; answer: string }[] = [];
+		for (const q of items) {
+			if (typeof q === "object" && q !== null && "questionId" in q && typeof q.questionId === "string" && "answer" in q && typeof q.answer === "string") {
+				questions.push({ questionId: q.questionId, answer: q.answer });
+			}
+		}
+
+		const selectedStatementIds: string[] = [];
+		if ("selectedStatements" in body && Array.isArray(body.selectedStatements)) {
+			for (const s of body.selectedStatements) {
+				if (typeof s === "string") {
+					selectedStatementIds.push(s);
+				}
+			}
+		}
+
+		const freeformNote = "freeformNote" in body && typeof body.freeformNote === "string" ? body.freeformNote.trim() : "";
+
+		const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
+		const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+
+		const card = cardsById.get(cardId);
+		if (card === undefined) {
+			return {
+				statusCode: 400,
+				headers: problemJsonHeader,
+				body: createProblemDetails(400, "Bad Request", `Unknown card ID: ${cardId}`),
+			};
+		}
+
+		for (const q of questions) {
+			if (!questionsById.has(q.questionId)) {
+				return {
+					statusCode: 400,
+					headers: problemJsonHeader,
+					body: createProblemDetails(400, "Bad Request", `Unknown question ID: ${q.questionId}`),
+				};
+			}
+		}
+
+		const selectedStatementSet = new Set(selectedStatementIds);
+		const cardStatements = MEANING_STATEMENTS.filter((s) => s.meaningId === cardId);
+		let checkedDescriptions = cardStatements.filter((s) => selectedStatementSet.has(s.id)).map((s) => s.statement);
+		if (checkedDescriptions.length === 0) {
+			checkedDescriptions = [card.description];
+		}
+
+		const topicContext = `The user is reflecting the following statements related to ${card.source.toLowerCase()}:\n${checkedDescriptions.map((d) => `- ${d}`).join("\n")}`;
+
+		const answeredPairs: string[] = [];
+		for (const q of questions) {
+			if (q.answer.trim() === "") continue;
+			const question = questionsById.get(q.questionId);
+			if (question === undefined) continue;
+			answeredPairs.push(`${question.topic}: ${question.text}\nAnswer: ${q.answer}`);
+		}
+
+		if (freeformNote !== "") {
+			answeredPairs.push(`Additional notes:\n${freeformNote}`);
+		}
+
+		const userMessage = answeredPairs.join("\n\n");
+
+		try {
+			const content = await createChatCompletion({
+				apiKey: appConfig.xaiApiKey,
+				model: "grok-4.20-beta-0309-reasoning",
+				messages: [
+					{
+						role: "system",
+						content: "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail. " + "Write in the first person, as if the user is writing about themselves. " + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying. " + "Do not ask questions. Do not use bullet points or numbered lists — write in flowing prose. " + "4 to 7 sentences.",
+					},
+					{
+						role: "user",
+						content: userMessage,
+					},
+				],
+				maxTokens: 500,
+				temperature: 0.7,
+				debugPrompt: appConfig.debugPrompt,
+				reasoningEffort: "low",
+			});
+
+			return { statusCode: 200, body: { synthesis: content } };
 		} catch {
 			return {
 				statusCode: 502,

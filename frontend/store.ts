@@ -89,6 +89,8 @@ interface LlmTestRow {
 export interface LlmTestState {
 	cardId: string;
 	rows: LlmTestRow[];
+	selectedStatements: string[];
+	freeformNote: string;
 }
 
 // --- Session management ---
@@ -624,9 +626,20 @@ export function loadLlmTestState(): LlmTestState | null {
 		};
 	});
 
+	const selectedStatements: string[] = [];
+	if (Array.isArray(parsed.selectedStatements)) {
+		for (const s of parsed.selectedStatements) {
+			if (typeof s === "string") {
+				selectedStatements.push(s);
+			}
+		}
+	}
+
 	return {
 		cardId: parsed.cardId,
 		rows,
+		selectedStatements,
+		freeformNote: typeof parsed.freeformNote === "string" ? parsed.freeformNote : "",
 	};
 }
 

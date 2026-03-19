@@ -10,6 +10,7 @@ interface ChatCompletionOptions {
 	maxTokens?: number;
 	temperature?: number;
 	responseFormat?: Record<string, unknown>;
+	reasoningEffort?: "low" | "medium" | "high";
 	debugPrompt?: boolean;
 }
 
@@ -26,6 +27,9 @@ export async function createChatCompletion(options: ChatCompletionOptions): Prom
 	}
 	if (options.responseFormat !== undefined) {
 		body.response_format = options.responseFormat;
+	}
+	if (options.reasoningEffort !== undefined) {
+		body.reasoning_effort = options.reasoningEffort;
 	}
 
 	if (options.debugPrompt) {

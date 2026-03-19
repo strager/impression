@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 
-import { fetchReflectOnAnswer, fetchInferredAnswers, fetchSummary } from "./api.ts";
+import { fetchReflectOnAnswer, fetchInferredAnswers, fetchSummary, fetchSynthesis } from "./api.ts";
 import type { LlmTestState } from "./store.ts";
 import { loadLlmTestState, saveLlmTestState } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
+import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
 
 interface QuestionRow {
 	questionId: string;
@@ -53,6 +54,8 @@ function persistState(): void {
 			questionId: row.questionId,
 			answer: row.answer,
 		})),
+		selectedStatements: [...selectedStatements],
+		freeformNote: freeformNote.value,
 	});
 }
 
@@ -67,12 +70,29 @@ function debouncedSave(): void {
 const stored = loadLlmTestState();
 const selectedCardId = ref(stored !== null ? stored.cardId : MEANING_CARDS[0].id);
 const rows = reactive<QuestionRow[]>(stored !== null ? toQuestionRows(stored.rows) : [createRow()]);
+const selectedStatements = reactive<Set<string>>(new Set(stored !== null ? stored.selectedStatements : []));
+const freeformNote = ref(stored !== null ? stored.freeformNote : "");
+
+const cardStatements = computed(() => MEANING_STATEMENTS.filter((s) => s.meaningId === selectedCardId.value));
+
+function toggleStatement(id: string): void {
+	if (selectedStatements.has(id)) {
+		selectedStatements.delete(id);
+	} else {
+		selectedStatements.add(id);
+	}
+	persistState();
+}
 
 watch(selectedCardId, persistState);
 
 const inferResult = ref<string | null>(null);
 const inferLoading = ref(false);
 const inferError = ref<string | null>(null);
+
+const synthesizeResult = ref<string | null>(null);
+const synthesizeLoading = ref(false);
+const synthesizeError = ref<string | null>(null);
 
 function addRow() {
 	rows.push(createRow());
@@ -136,6 +156,27 @@ async function inferAnswers() {
 		inferLoading.value = false;
 	}
 }
+
+async function synthesize() {
+	synthesizeLoading.value = true;
+	synthesizeError.value = null;
+	synthesizeResult.value = null;
+	try {
+		const stmts = [...selectedStatements];
+		const note = freeformNote.value.trim();
+		const result = await fetchSynthesis({
+			cardId: selectedCardId.value,
+			questions: rows.map((r) => ({ questionId: r.questionId, answer: r.answer })),
+			selectedStatements: stmts.length > 0 ? stmts : undefined,
+			freeformNote: note !== "" ? note : undefined,
+		});
+		synthesizeResult.value = result.synthesis;
+	} catch (e) {
+		synthesizeError.value = e instanceof Error ? e.message : String(e);
+	} finally {
+		synthesizeLoading.value = false;
+	}
+}
 </script>
 
 <template>
@@ -149,6 +190,14 @@ async function inferAnswers() {
 				<option v-for="card in MEANING_CARDS" :key="card.id" :value="card.id">{{ card.source }} &mdash; {{ card.description }}</option>
 			</select>
 		</label>
+
+		<fieldset v-if="cardStatements.length > 0" class="statements-section">
+			<legend>Statements</legend>
+			<label v-for="s in cardStatements" :key="s.id" class="statement-label">
+				<input type="checkbox" :checked="selectedStatements.has(s.id)" @change="toggleStatement(s.id)" />
+				{{ s.statement }}
+			</label>
+		</fieldset>
 
 		<div v-for="(row, i) in rows" :key="i" class="question-row">
 			<div class="row-header">
@@ -190,10 +239,18 @@ async function inferAnswers() {
 			</div>
 		</div>
 
+		<label>
+			Additional notes
+			<textarea v-model="freeformNote" rows="3" placeholder="Free-form notes..." @input="debouncedSave()"></textarea>
+		</label>
+
 		<div class="global-actions">
 			<button @click="addRow">+ Add question</button>
 			<button :disabled="inferLoading" @click="inferAnswers">
 				{{ inferLoading ? "Inferring..." : "Infer Answers" }}
+			</button>
+			<button :disabled="synthesizeLoading" @click="synthesize">
+				{{ synthesizeLoading ? "Synthesizing..." : "Synthesize" }}
 			</button>
 		</div>
 
@@ -202,6 +259,13 @@ async function inferAnswers() {
 			<p v-if="inferLoading">Loading...</p>
 			<pre v-if="inferResult">{{ inferResult }}</pre>
 			<p v-if="inferError" class="error">{{ inferError }}</p>
+		</div>
+
+		<div v-if="synthesizeLoading || synthesizeResult || synthesizeError" class="result-section">
+			<h2>Synthesize</h2>
+			<p v-if="synthesizeLoading">Loading...</p>
+			<pre v-if="synthesizeResult">{{ synthesizeResult }}</pre>
+			<p v-if="synthesizeError" class="error">{{ synthesizeError }}</p>
 		</div>
 	</div>
 </template>
@@ -227,6 +291,22 @@ textarea {
 	width: 100%;
 	font-size: 1rem;
 	padding: 0.5rem;
+}
+
+.statements-section {
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	padding: 0.75rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.statement-label {
+	flex-direction: row;
+	align-items: center;
+	gap: 0.5rem;
+	cursor: pointer;
 }
 
 .question-row {

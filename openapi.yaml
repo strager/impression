@@ -297,6 +297,60 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
+  /synthesize:
+    post:
+      operationId: postSynthesize
+      x-impression-budget-cost: 5
+      summary: Generate a cohesive synthesis across all answers for a meaning card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SynthesizeRequest"
+      responses:
+        "200":
+          description: Synthesis generated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SynthesizeResponse"
+        "400":
+          description: Request failed validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Route not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "405":
+          description: Method not allowed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal API error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Budget insufficient; challenge required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/RateLimitProblem"
+        "502":
+          description: Upstream AI service error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
   /reflect-on-answer:
     post:
       operationId: postReflectOnAnswer
@@ -431,6 +485,46 @@ components:
                 type: string
               answer:
                 type: string
+    SynthesizeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - cardId
+        - questions
+      properties:
+        cardId:
+          type: string
+          minLength: 1
+        questions:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - questionId
+              - answer
+            properties:
+              questionId:
+                type: string
+                minLength: 1
+              answer:
+                type: string
+        selectedStatements:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        freeformNote:
+          type: string
+    SynthesizeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - synthesis
+      properties:
+        synthesis:
+          type: string
     ReflectOnAnswerRequest:
       type: object
       additionalProperties: false
