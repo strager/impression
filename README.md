@@ -44,6 +44,9 @@ Then open: <http://localhost:3011/>
 
 ## Developer pages
 
-- `/llm-test` — Debug page for manually testing the LLM-backed API endpoints
-  (reflect-on-answer, infer-answers, summarize). Select a card and question,
-  type an answer, and fire each endpoint to see the raw JSON responses.
+- <http://localhost:3011/llm-test> — Debug page for manually testing the
+  LLM-backed API endpoints.
+- <http://localhost:3011/style-guide> — Showcase of visual styles used in the
+  application.
+- <http://localhost:3011/ranking-convergence> — Debug page for testing the
+  accuracy of the ranking algorithm.
