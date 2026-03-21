@@ -224,7 +224,24 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 		const selectedIds = statementSelections[cardId] ?? [];
 		const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
 
-		reports.push({ card, questions, selectedStatements, freeformNote, freeformSummary });
+		// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
+		const questionOrderMap = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		const answeredPairs: { questionId: string; userAnswer: string }[] = [];
+		for (const entry of entries) {
+			if (isRecord(entry) && typeof entry.questionId === "string" && typeof entry.userAnswer === "string" && entry.submitted === true && entry.userAnswer.trim() !== "" && questionOrderMap.has(entry.questionId)) {
+				answeredPairs.push({ questionId: entry.questionId, userAnswer: entry.userAnswer });
+			}
+		}
+		answeredPairs.sort((a, b) => (questionOrderMap.get(a.questionId) ?? 0) - (questionOrderMap.get(b.questionId) ?? 0));
+		const fingerprintParts = answeredPairs.map((e) => e.userAnswer);
+		if (freeformNote !== "") {
+			fingerprintParts.push(freeformNote);
+		}
+		const fingerprint = fingerprintParts.join("\x00");
+		const cachedSynthesis = summaries.get(`${cardId}:synthesis`);
+		const synthesis = cachedSynthesis?.answer === fingerprint ? cachedSynthesis.summary : "";
+
+		reports.push({ card, questions, selectedStatements, freeformNote, freeformSummary, synthesis });
 	}
 
 	return reports;

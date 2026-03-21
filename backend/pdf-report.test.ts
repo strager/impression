@@ -137,6 +137,46 @@ describe("assembleReportData", () => {
 		const reports = assembleReportData(json);
 		expect(reports[0].freeformSummary).toBe("Personal reflections");
 	});
+
+	it("includes synthesis when cached fingerprint matches", () => {
+		const fingerprint = "Understanding myself";
+		const json = makeSessionExport({
+			chosen: ["self-knowledge"],
+			explore: {
+				"self-knowledge": [{ questionId: "interpretation", userAnswer: "Understanding myself", prefilledAnswer: "", submitted: true }],
+			},
+			summaries: {
+				"self-knowledge:synthesis": { answer: fingerprint, summary: "A beautiful synthesis" },
+			},
+		});
+
+		const reports = assembleReportData(json);
+		expect(reports[0].synthesis).toBe("A beautiful synthesis");
+	});
+
+	it("returns empty synthesis when fingerprint does not match", () => {
+		const json = makeSessionExport({
+			chosen: ["self-knowledge"],
+			explore: {
+				"self-knowledge": [{ questionId: "interpretation", userAnswer: "New answer", prefilledAnswer: "", submitted: true }],
+			},
+			summaries: {
+				"self-knowledge:synthesis": { answer: "Old answer", summary: "Stale synthesis" },
+			},
+		});
+
+		const reports = assembleReportData(json);
+		expect(reports[0].synthesis).toBe("");
+	});
+
+	it("returns empty synthesis when no synthesis cache entry exists", () => {
+		const json = makeSessionExport({
+			chosen: ["self-knowledge"],
+		});
+
+		const reports = assembleReportData(json);
+		expect(reports[0].synthesis).toBe("");
+	});
 });
 
 // --- callDocRaptor ---

@@ -1,0 +1,123 @@
+import { ref } from "vue";
+
+import type { CardReport, QuestionReport } from "../shared/report-types.ts";
+import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { MEANING_CARDS } from "../shared/meaning-cards.ts";
+import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { capture } from "./analytics.ts";
+import { fetchSynthesis } from "./api.ts";
+import { loadChosenCardIds, loadExploreData, lookupCachedSummary, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
+
+const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
+const statementTextById = new Map(MEANING_STATEMENTS.map((s) => [s.id, s.statement]));
+const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+
+export class ReportViewModel {
+	private readonly sessionId: string;
+
+	private readonly _reports = ref<CardReport[]>([]);
+	private readonly _loading = ref(true);
+	private _loadingPromise: Promise<void> | null = null;
+
+	constructor(sessionId: string) {
+		this.sessionId = sessionId;
+	}
+
+	get reports(): CardReport[] {
+		return this._reports.value;
+	}
+
+	get loading(): boolean {
+		return this._loading.value;
+	}
+
+	get whenReady(): Promise<void> {
+		return this._loadingPromise ?? Promise.resolve();
+	}
+
+	initialize(): "ready" | "no-data" {
+		const cardIds = loadChosenCardIds(this.sessionId);
+		if (cardIds === null) {
+			return "no-data";
+		}
+
+		const exploreData = loadExploreData(this.sessionId) ?? {};
+
+		const reports: CardReport[] = [];
+		const fetchTasks: Promise<void>[] = [];
+
+		for (const cardId of cardIds) {
+			const card = cardsById.get(cardId);
+			if (card === undefined) continue;
+
+			const hasCardData = cardId in exploreData;
+			const entries = hasCardData ? exploreData[cardId].entries : [];
+			const answersByQuestionId = new Map(entries.map((e) => [e.questionId, e.userAnswer]));
+			const questions: QuestionReport[] = [];
+
+			for (const question of EXPLORE_QUESTIONS) {
+				const answer = answersByQuestionId.get(question.id) ?? "";
+				const summary = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer, questionId: question.id }) ?? "";
+
+				questions.push({
+					topic: question.topic,
+					question: question.questionFirstPerson,
+					answer,
+					summary,
+				});
+			}
+
+			const freeformNote = hasCardData ? exploreData[cardId].freeformNote : "";
+			const freeformSummary = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer: freeformNote }) ?? "";
+
+			const selectedIds = hasCardData ? exploreData[cardId].statementSelections : [];
+			const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
+
+			// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
+			const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
+			const fingerprintParts = answered.map((e) => e.userAnswer);
+			if (freeformNote !== "") {
+				fingerprintParts.push(freeformNote);
+			}
+			const fingerprint = fingerprintParts.join("\x00");
+
+			const cachedSynthesis = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint });
+
+			const report: CardReport = { card, questions, selectedStatements, freeformNote, freeformSummary, synthesis: cachedSynthesis ?? "" };
+			reports.push(report);
+
+			// If no cached synthesis and there are answered questions, fetch from API
+			if (cachedSynthesis === null && answered.length > 0) {
+				const questionsForApi = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
+				fetchTasks.push(
+					fetchSynthesis({
+						cardId,
+						questions: questionsForApi,
+						...(selectedIds.length > 0 ? { selectedStatements: selectedIds } : {}),
+						...(freeformNote !== "" ? { freeformNote } : {}),
+					})
+						.then((result) => {
+							report.synthesis = result.synthesis;
+							saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis });
+						})
+						.catch(() => {
+							// Leave synthesis empty on failure
+						}),
+				);
+			}
+		}
+
+		if (fetchTasks.length > 0) {
+			this._loadingPromise = Promise.allSettled(fetchTasks).then(() => {
+				this._reports.value = reports;
+				this._loading.value = false;
+			});
+		} else {
+			this._reports.value = reports;
+			this._loading.value = false;
+		}
+
+		capture("report_viewed", { session_id: this.sessionId });
+		return "ready";
+	}
+}

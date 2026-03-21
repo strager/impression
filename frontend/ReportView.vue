@@ -5,19 +5,15 @@ import { useRouter } from "vue-router";
 import AppButton from "./AppButton.vue";
 import ReportContent from "./ReportContent.vue";
 import { budgetedFetch } from "./api.ts";
-import type { CardReport, QuestionReport } from "../shared/report-types.ts";
 import { capture } from "./analytics.ts";
 import { useStringParam } from "./route-utils.ts";
-import { exportSessionData, loadChosenCardIds, loadExploreData, lookupCachedSummary } from "./store.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
-import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { exportSessionData } from "./store.ts";
+import { ReportViewModel } from "./ReportViewModel.ts";
 
 const router = useRouter();
 const sessionId = useStringParam("sessionId");
-const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
+const vm = new ReportViewModel(sessionId);
 
-const reports = ref<CardReport[]>([]);
 const downloading = ref(false);
 const downloadError = ref("");
 const pdfDownloadsRemaining = ref<number | null>(null);
@@ -155,47 +151,8 @@ async function downloadHtml(): Promise<void> {
 }
 
 onMounted(() => {
-	try {
-		const cardIds = loadChosenCardIds(sessionId);
-		if (cardIds === null) {
-			void router.replace({ name: "findMeaning", params: { sessionId } });
-			return;
-		}
-
-		const exploreData = loadExploreData(sessionId) ?? {};
-		const statementTextById = new Map(MEANING_STATEMENTS.map((s) => [s.id, s.statement]));
-
-		for (const cardId of cardIds) {
-			const card = cardsById.get(cardId);
-			if (card === undefined) continue;
-
-			const hasCardData = cardId in exploreData;
-			const entries = hasCardData ? exploreData[cardId].entries : [];
-			const answersByQuestionId = new Map(entries.map((e) => [e.questionId, e.userAnswer]));
-			const questions: QuestionReport[] = [];
-
-			for (const question of EXPLORE_QUESTIONS) {
-				const answer = answersByQuestionId.get(question.id) ?? "";
-				const summary = lookupCachedSummary({ sessionId, cardId, answer, questionId: question.id }) ?? "";
-
-				questions.push({
-					topic: question.topic,
-					question: question.questionFirstPerson,
-					answer,
-					summary,
-				});
-			}
-
-			const freeformNote = hasCardData ? exploreData[cardId].freeformNote : "";
-			const freeformSummary = lookupCachedSummary({ sessionId, cardId, answer: freeformNote }) ?? "";
-
-			const selectedIds = hasCardData ? exploreData[cardId].statementSelections : [];
-			const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
-
-			reports.value.push({ card, questions, selectedStatements, freeformNote, freeformSummary });
-		}
-		capture("report_viewed", { session_id: sessionId });
-	} catch {
+	const result = vm.initialize();
+	if (result === "no-data") {
 		void router.replace({ name: "findMeaning", params: { sessionId } });
 	}
 });
@@ -206,7 +163,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<ReportContent :reports="reports">
+	<ReportContent :reports="vm.reports">
 		<template #header-actions>
 			<AppButton variant="primary" class="download-btn" :disabled="downloading || dailyLimitReached" @click="downloadPdf">
 				{{ downloading ? "Generating…" : "Download PDF" }}

@@ -24,14 +24,10 @@ defineProps<{
 			<h2>What is meaningful to me?</h2>
 			<div v-for="report in reports" :key="report.card.id" class="report-card">
 				<h4>{{ report.card.source }}</h4>
-				<p class="summary-statements">{{ report.selectedStatements.length > 0 ? report.selectedStatements.join("; ") : report.card.description }}</p>
-				<p v-if="report.freeformSummary" class="freeform-summary">{{ report.freeformSummary }}</p>
-				<ul class="summary-list">
-					<template v-for="q in report.questions" :key="q.topic">
-						<li v-if="q.summary">{{ q.summary }}</li>
-					</template>
-				</ul>
-				<p v-if="!report.freeformSummary && report.questions.every((q) => !q.summary)" class="qa-unanswered">No self reflections</p>
+				<template v-if="report.synthesis">
+					<p v-for="(paragraph, i) in report.synthesis.split('\n\n')" :key="i" class="synthesis-paragraph">{{ paragraph }}</p>
+				</template>
+				<p v-else class="qa-unanswered">No self reflections</p>
 			</div>
 		</section>
 
@@ -103,27 +99,10 @@ section h2 {
 	margin: 32px 0 16px;
 }
 
-.summary-list {
-	margin-bottom: 0;
-}
-
-.summary-list li {
-	margin: 4px 0;
-	font-size: 16px;
-	line-height: 1.5;
-	color: #333333;
-}
-
-.summary-statements {
-	margin: 4px 0 0;
-	font-size: 16px;
-	line-height: 1.5;
-	color: #333333;
-}
-
-.freeform-summary {
+.synthesis-paragraph {
 	margin: 8px 0 0;
 	font-size: 16px;
+	line-height: 1.5;
 	color: #333333;
 }
 
