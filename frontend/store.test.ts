@@ -3,7 +3,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSummary, lookupCachedSynthesis, markExploreCompleteVisited, renameSession, saveCachedSummary, saveCachedSynthesis, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExploreCompleteVisited, renameSession, saveCachedSynthesis, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
 	return getActiveSessionId();
@@ -457,27 +457,6 @@ describe("loadExploreData/saveExploreData", () => {
 			}),
 		);
 		expect(loadExploreData(sid())).toBeNull();
-	});
-});
-
-describe("lookupCachedSummary/saveCachedSummary", () => {
-	it("returns null when key is absent", () => {
-		expect(lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" })).toBeNull();
-	});
-
-	it("returns null for corrupt JSON", () => {
-		localStorage.setItem(activeKey("summaries"), "{");
-		expect(lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" })).toBeNull();
-	});
-
-	it("returns null on answer mismatch", () => {
-		saveCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", summary: "My summary", questionId: "interpretation" });
-		expect(lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "Different answer", questionId: "interpretation" })).toBeNull();
-	});
-
-	it("round-trips saved summary", () => {
-		saveCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", summary: "My summary", questionId: "interpretation" });
-		expect(lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" })).toBe("My summary");
 	});
 });
 

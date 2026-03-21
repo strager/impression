@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 
-import { fetchReflectOnAnswer, fetchInferredAnswers, fetchSummary, fetchSynthesis } from "./api.ts";
+import { fetchReflectOnAnswer, fetchInferredAnswers, fetchSynthesis } from "./api.ts";
 import type { LlmTestState } from "./store.ts";
 import { loadLlmTestState, saveLlmTestState } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
@@ -14,9 +14,6 @@ interface QuestionRow {
 	depthLoading: boolean;
 	depthResult: string | null;
 	depthError: string | null;
-	summarizeLoading: boolean;
-	summarizeResult: string | null;
-	summarizeError: string | null;
 }
 
 function createRow(): QuestionRow {
@@ -26,9 +23,6 @@ function createRow(): QuestionRow {
 		depthLoading: false,
 		depthResult: null,
 		depthError: null,
-		summarizeLoading: false,
-		summarizeResult: null,
-		summarizeError: null,
 	};
 }
 
@@ -39,9 +33,6 @@ function toQuestionRows(storedRows: LlmTestState["rows"]): QuestionRow[] {
 		depthLoading: false,
 		depthResult: null,
 		depthError: null,
-		summarizeLoading: false,
-		summarizeResult: null,
-		summarizeError: null,
 	}));
 }
 
@@ -120,24 +111,6 @@ async function checkDepth(row: QuestionRow) {
 		row.depthError = e instanceof Error ? e.message : String(e);
 	} finally {
 		row.depthLoading = false;
-	}
-}
-
-async function summarize(row: QuestionRow) {
-	row.summarizeLoading = true;
-	row.summarizeError = null;
-	row.summarizeResult = null;
-	try {
-		const result = await fetchSummary({
-			cardId: selectedCardId.value,
-			questionId: row.questionId,
-			answer: row.answer,
-		});
-		row.summarizeResult = JSON.stringify(result, null, 2);
-	} catch (e) {
-		row.summarizeError = e instanceof Error ? e.message : String(e);
-	} finally {
-		row.summarizeLoading = false;
 	}
 }
 
@@ -221,9 +194,6 @@ async function synthesize() {
 				<button :disabled="row.depthLoading" @click="checkDepth(row)">
 					{{ row.depthLoading ? "Reflecting..." : "Reflect" }}
 				</button>
-				<button :disabled="row.summarizeLoading" @click="summarize(row)">
-					{{ row.summarizeLoading ? "Summarizing..." : "Summarize" }}
-				</button>
 			</div>
 
 			<div v-if="row.depthLoading || row.depthResult || row.depthError" class="result-section">
@@ -231,13 +201,6 @@ async function synthesize() {
 				<p v-if="row.depthLoading">Loading...</p>
 				<pre v-if="row.depthResult">{{ row.depthResult }}</pre>
 				<p v-if="row.depthError" class="error">{{ row.depthError }}</p>
-			</div>
-
-			<div v-if="row.summarizeLoading || row.summarizeResult || row.summarizeError" class="result-section">
-				<h3>Summarize</h3>
-				<p v-if="row.summarizeLoading">Loading...</p>
-				<pre v-if="row.summarizeResult">{{ row.summarizeResult }}</pre>
-				<p v-if="row.summarizeError" class="error">{{ row.summarizeError }}</p>
 			</div>
 		</div>
 

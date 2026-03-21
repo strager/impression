@@ -94,60 +94,6 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
-  /summarize:
-    post:
-      operationId: postSummarize
-      x-impression-budget-cost: 5
-      summary: Generate an AI summary of a card exploration answer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SummarizeRequest"
-      responses:
-        "200":
-          description: Summary generated successfully.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SummarizeResponse"
-        "400":
-          description: Request failed validation.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "404":
-          description: Route not found.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "405":
-          description: Method not allowed.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "500":
-          description: Internal API error.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "429":
-          description: Budget insufficient; challenge required.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/RateLimitProblem"
-        "502":
-          description: Upstream AI service error.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
   /infer-answers:
     post:
       operationId: postInferAnswers
@@ -417,30 +363,6 @@ components:
           type: string
           enum:
             - ok
-    SummarizeRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - cardId
-        - answer
-      properties:
-        cardId:
-          type: string
-          minLength: 1
-        questionId:
-          type: string
-          minLength: 1
-        answer:
-          type: string
-          minLength: 1
-    SummarizeResponse:
-      type: object
-      additionalProperties: false
-      required:
-        - summary
-      properties:
-        summary:
-          type: string
     InferAnswersRequest:
       type: object
       additionalProperties: false

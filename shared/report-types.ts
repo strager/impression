@@ -7,7 +7,6 @@ export interface QuestionReport {
 	topic: string;
 	question: string;
 	answer: string;
-	summary: string;
 }
 
 export interface CardReport {
@@ -15,6 +14,5 @@ export interface CardReport {
 	questions: QuestionReport[];
 	selectedStatements: string[];
 	freeformNote: string;
-	freeformSummary: string;
 	synthesis: string;
 }

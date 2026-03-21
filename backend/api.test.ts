@@ -105,7 +105,7 @@ async function solveAndVerify(baseUrl: string, challengeBody: ChallengeResponse,
 
 async function obtainSessionToken(baseUrl: string): Promise<string> {
 	// Hit a budgeted endpoint to trigger a challenge
-	const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+	const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 		body: JSON.stringify({
@@ -192,71 +192,6 @@ describe("API", () => {
 		});
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("");
-	});
-
-	it("returns 400 for POST /api/summarize with missing fields", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
-			body: JSON.stringify({ cardId: "self-knowledge" }),
-		});
-		expect(response.status).toBe(400);
-		expect(response.headers.get("content-type")).toContain("application/problem+json");
-
-		const body: unknown = await response.json();
-		expect(body).toHaveProperty("type", "about:blank");
-		expect(body).toHaveProperty("title", expect.any(String));
-		expect(body).toHaveProperty("status", 400);
-		expect(body).toHaveProperty("detail", expect.any(String));
-	});
-
-	it("returns 500 for POST /api/summarize when config is not set", async () => {
-		const token = await obtainSessionToken(baseUrl);
-		const response = await fetch(`${baseUrl}/api/summarize`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
-			body: JSON.stringify({
-				cardId: "self-knowledge",
-				questionId: "interpretation",
-				answer: "Family gives me a sense of belonging.",
-			}),
-		});
-		expect(response.status).toBe(500);
-		expect(response.headers.get("content-type")).toContain("application/problem+json");
-
-		const body: unknown = await response.json();
-		expect(body).toEqual(
-			expect.objectContaining({
-				type: "about:blank",
-				title: "Internal Server Error",
-				status: 500,
-				detail: "AI summarization is not configured.",
-			}),
-		);
-	});
-
-	it("returns 500 for POST /api/summarize without questionId when config is not set", async () => {
-		const token = await obtainSessionToken(baseUrl);
-		const response = await fetch(`${baseUrl}/api/summarize`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
-			body: JSON.stringify({
-				cardId: "self-knowledge",
-				answer: "These are my personal reflections on self-knowledge.",
-			}),
-		});
-		expect(response.status).toBe(500);
-		expect(response.headers.get("content-type")).toContain("application/problem+json");
-
-		const body: unknown = await response.json();
-		expect(body).toEqual(
-			expect.objectContaining({
-				type: "about:blank",
-				title: "Internal Server Error",
-				status: 500,
-				detail: "AI summarization is not configured.",
-			}),
-		);
 	});
 
 	it("returns 400 for POST /api/infer-answers with missing fields", async () => {
@@ -492,7 +427,7 @@ describe("API", () => {
 	});
 
 	it("returns 403 for POST without Origin header", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
@@ -509,7 +444,7 @@ describe("API", () => {
 	});
 
 	it("returns 403 for POST with wrong Origin header", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Origin: "https://evil.example.com" },
 			body: JSON.stringify({
@@ -526,7 +461,7 @@ describe("API", () => {
 	});
 
 	it("allows POST with matching Referer when Origin is absent", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Referer: `${TEST_ORIGIN}/some-page` },
 			body: JSON.stringify({
@@ -613,7 +548,7 @@ describe("Error sanitization", () => {
 			}),
 		);
 
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -677,7 +612,7 @@ describe("Rate limiting", () => {
 	});
 
 	it("returns 429 challenge_required for budgeted endpoint without token", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -707,7 +642,7 @@ describe("Rate limiting", () => {
 
 	it("returns 200 with token after solving challenge and verifying", async () => {
 		// Get a challenge
-		const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -728,7 +663,7 @@ describe("Rate limiting", () => {
 		const token = await obtainSessionToken(baseUrl);
 
 		// Retry with token — should reach the handler (500 because no AI config)
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -741,12 +676,12 @@ describe("Rate limiting", () => {
 		// 500 means it got past the rate limiter and reached the handler
 		expect(response.status).toBe(500);
 		const body: unknown = await response.json();
-		expect(body).toHaveProperty("detail", "AI summarization is not configured.");
+		expect(body).toHaveProperty("detail", "AI reflection is not configured.");
 	});
 
 	it("returns 409 challenge_replayed when reusing a solved challenge", async () => {
 		// Get a challenge
-		const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -795,7 +730,7 @@ describe("Rate limiting", () => {
 	});
 
 	it("allows only one successful verify across three concurrent replay attempts", async () => {
-		const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -851,7 +786,7 @@ describe("Rate limiting", () => {
 		// Use up budget with many 5-credit calls (bootstrap gives 100 credits)
 		// 100 / 5 = 20 calls should exhaust the budget
 		for (let i = 0; i < 20; i++) {
-			const response = await fetch(`${baseUrl}/api/summarize`, {
+			const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -865,7 +800,7 @@ describe("Rate limiting", () => {
 		}
 
 		// 21st call should get 429 — budget exhausted
-		const exhaustedResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const exhaustedResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -882,7 +817,7 @@ describe("Rate limiting", () => {
 
 		// Exhaust budget
 		for (let i = 0; i < 20; i++) {
-			await fetch(`${baseUrl}/api/summarize`, {
+			await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -894,7 +829,7 @@ describe("Rate limiting", () => {
 		}
 
 		// Get new challenge
-		const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -922,7 +857,7 @@ describe("Rate limiting", () => {
 
 		// Trigger a refresh while we still have budget
 		// First, use 1 call to leave 95 credits
-		await fetch(`${baseUrl}/api/summarize`, {
+		await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -957,7 +892,7 @@ describe("Rate limiting", () => {
 
 		// After PDF we have 50 credits left. Do 10 more summarize calls (5 each = 50)
 		for (let i = 0; i < 10; i++) {
-			const resp = await fetch(`${baseUrl}/api/summarize`, {
+			const resp = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -970,7 +905,7 @@ describe("Rate limiting", () => {
 		}
 
 		// Now at 0 credits — should get 429
-		const finalResponse = await fetch(`${baseUrl}/api/summarize`, {
+		const finalResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: JSON.stringify({
@@ -983,7 +918,7 @@ describe("Rate limiting", () => {
 	});
 
 	it("invalid bearer token triggers challenge flow, not 401", async () => {
-		const response = await fetch(`${baseUrl}/api/summarize`, {
+		const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1015,7 +950,7 @@ describe("Rate limiting", () => {
 	it("different challenges issue different challenge IDs", async () => {
 		const ids: string[] = [];
 		for (let i = 0; i < 3; i++) {
-			const response = await fetch(`${baseUrl}/api/summarize`, {
+			const response = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -1039,7 +974,7 @@ describe("Rate limiting", () => {
 		try {
 			const token = await obtainSessionToken(baseUrl);
 
-			const initialUse = await fetch(`${baseUrl}/api/summarize`, {
+			const initialUse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -1052,7 +987,7 @@ describe("Rate limiting", () => {
 
 			vi.setSystemTime(new Date(Date.now() + 30 * 60 * 1000 + 1));
 
-			const expiredUse = await fetch(`${baseUrl}/api/summarize`, {
+			const expiredUse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -1075,7 +1010,7 @@ describe("Rate limiting", () => {
 		try {
 			const originalToken = await obtainSessionToken(baseUrl);
 
-			const beforeExpiry = await fetch(`${baseUrl}/api/summarize`, {
+			const beforeExpiry = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${originalToken}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -1088,7 +1023,7 @@ describe("Rate limiting", () => {
 
 			vi.setSystemTime(new Date(Date.now() + 24 * 60 * 60 * 1000 + 1));
 
-			const challengeResponse = await fetch(`${baseUrl}/api/summarize`, {
+			const challengeResponse = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${originalToken}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({
@@ -1103,7 +1038,7 @@ describe("Rate limiting", () => {
 			const refreshedToken = await solveAndVerify(baseUrl, challengeBody, originalToken);
 			expect(refreshedToken).not.toBe(originalToken);
 
-			const withRefreshed = await fetch(`${baseUrl}/api/summarize`, {
+			const withRefreshed = await fetch(`${baseUrl}/api/reflect-on-answer`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", Authorization: `Bearer ${refreshedToken}`, Origin: TEST_ORIGIN },
 				body: JSON.stringify({

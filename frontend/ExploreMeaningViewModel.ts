@@ -227,7 +227,7 @@ export class ExploreMeaningViewModel {
 
 			this.applyInferAndAdvance(this._pendingInferResult.value ?? new Map<string, string>(), this.remainingQuestionIds());
 			this._pendingInferResult.value = null;
-			if (this.allAnswered) this.prefetchSummaries();
+
 			return;
 		}
 
@@ -343,7 +343,6 @@ export class ExploreMeaningViewModel {
 		this._inferring.value = false;
 
 		this.applyInferAndAdvance(inferResult, remaining);
-		if (this.allAnswered) this.prefetchSummaries();
 	}
 
 	onActiveEntryInput(entry: ExploreEntry): void {
@@ -384,7 +383,6 @@ export class ExploreMeaningViewModel {
 			answer_length: entry.userAnswer.trim().length,
 		});
 		this.trackSubmittedSnapshot(entry.questionId, entry.userAnswer);
-		if (this.allAnswered) this.prefetchSummaries();
 	}
 
 	async reflectOnEntry(questionId: string): Promise<void> {
@@ -461,7 +459,6 @@ export class ExploreMeaningViewModel {
 
 	onFreeformBlur(): void {
 		this.persistFreeform();
-		this.prefetchSummaries();
 	}
 
 	finishExploring(): void {
@@ -494,13 +491,6 @@ export class ExploreMeaningViewModel {
 			completed_all_questions: answeredCount === EXPLORE_QUESTIONS.length,
 		});
 		this.maybeTrackExplorePhaseCompleted();
-		this.prefetchSummaries();
-	}
-
-	prefetchSummaries(): void {
-		// Per-question summaries are no longer used — the explore list view
-		// now fetches short syntheses instead. Keep the method as a no-op
-		// since it is called from multiple places.
 	}
 
 	// --- Private helpers ---

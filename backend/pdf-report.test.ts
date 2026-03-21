@@ -38,26 +38,8 @@ describe("assembleReportData", () => {
 
 		const interpretationQ = reports[0].questions.find((q) => q.topic === "Interpretation");
 		expect(interpretationQ?.answer).toBe("Understanding myself");
-		expect(interpretationQ?.summary).toBe("Self-understanding");
 
 		expect(reports[0].questions).toHaveLength(EXPLORE_QUESTIONS.length);
-	});
-
-	it("returns empty summary when cached answer does not match current answer", () => {
-		const json = makeSessionExport({
-			chosen: ["self-knowledge"],
-			explore: {
-				"self-knowledge": [{ questionId: "interpretation", userAnswer: "New answer", prefilledAnswer: "", submitted: true }],
-			},
-			summaries: {
-				"self-knowledge:interpretation": { answer: "Old answer", summary: "Stale summary" },
-			},
-		});
-
-		const reports = assembleReportData(json);
-		const interpretationQ = reports[0].questions.find((q) => q.topic === "Interpretation");
-		expect(interpretationQ?.answer).toBe("New answer");
-		expect(interpretationQ?.summary).toBe("");
 	});
 
 	it("skips unknown card IDs", () => {
@@ -78,10 +60,8 @@ describe("assembleReportData", () => {
 		const reports = assembleReportData(json);
 		expect(reports).toHaveLength(1);
 		expect(reports[0].freeformNote).toBe("");
-		expect(reports[0].freeformSummary).toBe("");
 		for (const q of reports[0].questions) {
 			expect(q.answer).toBe("");
-			expect(q.summary).toBe("");
 		}
 	});
 
@@ -123,19 +103,6 @@ describe("assembleReportData", () => {
 
 		const reports = assembleReportData(json);
 		expect(reports[0].selectedStatements).toEqual([]);
-	});
-
-	it("includes freeform summary when cached answer matches", () => {
-		const json = makeSessionExport({
-			chosen: ["self-knowledge"],
-			freeform: { "self-knowledge": "My reflections" },
-			summaries: {
-				"self-knowledge:freeform": { answer: "My reflections", summary: "Personal reflections" },
-			},
-		});
-
-		const reports = assembleReportData(json);
-		expect(reports[0].freeformSummary).toBe("Personal reflections");
 	});
 
 	it("includes synthesis when cached fingerprint matches", () => {

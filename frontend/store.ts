@@ -1,6 +1,5 @@
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
-import { fetchSummary } from "./api.ts";
 import { capture } from "./analytics.ts";
 
 const SESSIONS_KEY = "somecam-sessions";
@@ -523,25 +522,6 @@ function isSummaryCache(value: unknown): value is SummaryCache {
 	return true;
 }
 
-export function lookupCachedSummary(options: { sessionId: string; cardId: string; answer: string; questionId?: string }): string | null {
-	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
-	const cache = isSummaryCache(parsed) ? parsed : {};
-	const cacheKey = `${options.cardId}:${options.questionId ?? "freeform"}`;
-	if (cacheKey in cache && cache[cacheKey].answer === options.answer) {
-		return cache[cacheKey].summary;
-	}
-	return null;
-}
-
-export function saveCachedSummary(options: { sessionId: string; cardId: string; answer: string; summary: string; questionId?: string }): void {
-	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
-	const cache = isSummaryCache(parsed) ? parsed : {};
-	const cacheKey = `${options.cardId}:${options.questionId ?? "freeform"}`;
-	cache[cacheKey] = { answer: options.answer, summary: options.summary };
-	localStorage.setItem(summariesKey(options.sessionId), JSON.stringify(cache));
-	touchSession(options.sessionId);
-}
-
 export function lookupCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; short?: boolean }): string | null {
 	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
 	const cache = isSummaryCache(parsed) ? parsed : {};
@@ -559,37 +539,6 @@ export function saveCachedSynthesis(options: { sessionId: string; cardId: string
 	cache[cacheKey] = { answer: options.fingerprint, summary: options.synthesis };
 	localStorage.setItem(summariesKey(options.sessionId), JSON.stringify(cache));
 	touchSession(options.sessionId);
-}
-
-const summaryInflight = new Map<string, Promise<string>>();
-
-export function fetchOrGetCachedSummary(options: { sessionId: string; cardId: string; questionId?: string; answer: string }): Promise<string> {
-	const cached = lookupCachedSummary(options);
-	if (cached !== null) {
-		return Promise.resolve(cached);
-	}
-
-	const inflightKey = `${options.cardId}:${options.questionId ?? "freeform"}:${options.answer}`;
-	const existing = summaryInflight.get(inflightKey);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const promise = fetchSummary({
-		cardId: options.cardId,
-		...(options.questionId !== undefined ? { questionId: options.questionId } : {}),
-		answer: options.answer,
-	})
-		.then((result) => {
-			saveCachedSummary({ sessionId: options.sessionId, cardId: options.cardId, answer: options.answer, summary: result.summary, questionId: options.questionId });
-			return result.summary;
-		})
-		.finally(() => {
-			summaryInflight.delete(inflightKey);
-		});
-
-	summaryInflight.set(inflightKey, promise);
-	return promise;
 }
 
 function isFreeformNotes(value: unknown): value is FreeformNotes {

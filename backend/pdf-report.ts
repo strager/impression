@@ -206,20 +206,15 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 		const questions: QuestionReport[] = [];
 		for (const q of EXPLORE_QUESTIONS) {
 			const answer = answersByQuestionId.get(q.id) ?? "";
-			const cached = summaries.get(`${cardId}:${q.id}`);
-			const summary = cached?.answer === answer ? cached.summary : "";
 
 			questions.push({
 				topic: q.topic,
 				question: q.questionFirstPerson,
 				answer,
-				summary,
 			});
 		}
 
 		const freeformNote = freeform[cardId] ?? "";
-		const cachedFreeform = summaries.get(`${cardId}:freeform`);
-		const freeformSummary = cachedFreeform?.answer === freeformNote ? cachedFreeform.summary : "";
 
 		const selectedIds = statementSelections[cardId] ?? [];
 		const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
@@ -241,7 +236,7 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 		const cachedSynthesis = summaries.get(`${cardId}:synthesis`);
 		const synthesis = cachedSynthesis?.answer === fingerprint ? cachedSynthesis.summary : "";
 
-		reports.push({ card, questions, selectedStatements, freeformNote, freeformSummary, synthesis });
+		reports.push({ card, questions, selectedStatements, freeformNote, synthesis });
 	}
 
 	return reports;

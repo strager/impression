@@ -6,7 +6,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
 import { capture } from "./analytics.ts";
 import { fetchSynthesis } from "./api.ts";
-import { loadChosenCardIds, loadExploreData, lookupCachedSummary, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
+import { loadChosenCardIds, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const statementTextById = new Map(MEANING_STATEMENTS.map((s) => [s.id, s.statement]));
@@ -57,18 +57,15 @@ export class ReportViewModel {
 
 			for (const question of EXPLORE_QUESTIONS) {
 				const answer = answersByQuestionId.get(question.id) ?? "";
-				const summary = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer, questionId: question.id }) ?? "";
 
 				questions.push({
 					topic: question.topic,
 					question: question.questionFirstPerson,
 					answer,
-					summary,
 				});
 			}
 
 			const freeformNote = hasCardData ? exploreData[cardId].freeformNote : "";
-			const freeformSummary = lookupCachedSummary({ sessionId: this.sessionId, cardId, answer: freeformNote }) ?? "";
 
 			const selectedIds = hasCardData ? exploreData[cardId].statementSelections : [];
 			const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
@@ -83,7 +80,7 @@ export class ReportViewModel {
 
 			const cachedSynthesis = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint });
 
-			const report: CardReport = { card, questions, selectedStatements, freeformNote, freeformSummary, synthesis: cachedSynthesis ?? "" };
+			const report: CardReport = { card, questions, selectedStatements, freeformNote, synthesis: cachedSynthesis ?? "" };
 			reports.push(report);
 
 			// If no cached synthesis and there are answered questions, fetch from API

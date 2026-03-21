@@ -3,16 +3,6 @@ import { solveChallenge } from "altcha-lib";
 import { capture } from "./analytics.ts";
 import { loadRateLimitToken, saveRateLimitToken } from "./store.ts";
 
-interface SummarizeRequest {
-	cardId: string;
-	questionId?: string;
-	answer: string;
-}
-
-interface SummarizeResponse {
-	summary: string;
-}
-
 interface ReflectOnAnswerRequest {
 	cardId: string;
 	questionId: string;
@@ -179,13 +169,6 @@ export async function budgetedFetch(endpoint: string, init: Omit<RequestInit, "h
 	}));
 }
 
-function validateSummarizeResponse(raw: unknown): SummarizeResponse {
-	if (typeof raw !== "object" || raw === null || !("summary" in raw) || typeof raw.summary !== "string") {
-		throw new Error("Invalid summarize response");
-	}
-	return { summary: raw.summary };
-}
-
 function validateReflectOnAnswerResponse(raw: unknown): ReflectOnAnswerResponse {
 	if (typeof raw !== "object" || raw === null || !("type" in raw) || typeof raw.type !== "string" || !("message" in raw) || typeof raw.message !== "string") {
 		throw new Error("Invalid reflect-on-answer response");
@@ -219,10 +202,6 @@ function validateSynthesizeResponse(raw: unknown): SynthesizeResponse {
 
 export async function fetchSynthesis(request: SynthesizeRequest): Promise<SynthesizeResponse> {
 	return postJson("/api/synthesize", request, "Synthesize", validateSynthesizeResponse);
-}
-
-export async function fetchSummary(request: SummarizeRequest): Promise<SummarizeResponse> {
-	return postJson("/api/summarize", request, "Summarize", validateSummarizeResponse);
 }
 
 export async function fetchReflectOnAnswer(request: ReflectOnAnswerRequest): Promise<ReflectOnAnswerResponse> {

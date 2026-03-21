@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { budgetedFetch, fetchReflectOnAnswer, fetchInferredAnswers, fetchSummary } from "./api.ts";
+import { budgetedFetch, fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import { loadRateLimitToken, saveRateLimitToken } from "./store.ts";
 
 const TEST_HMAC_KEY = "test-hmac-key-for-challenges";
@@ -49,7 +49,7 @@ function setGlobalDom(win: Window): void {
 
 const server = setupServer();
 
-// MSW's Node.js interceptor cannot handle relative URLs (e.g. "/api/summarize").
+// MSW's Node.js interceptor cannot handle relative URLs (e.g. "/api/reflect-on-answer").
 // Wrap globalThis.fetch after MSW patches it so relative paths resolve to absolute URLs.
 beforeAll(() => {
 	server.listen({ onUnhandledRequest: "error" });
@@ -219,17 +219,17 @@ describe("budgetedFetch", () => {
 	it("deduplicates concurrent 429 challenges into one verify call", async () => {
 		const challengeBody = await makeChallenge();
 		let verifyCount = 0;
-		const callCounts: Record<string, number> = { summarize: 0, "reflect-on-answer": 0 };
+		const callCounts: Record<string, number> = { "infer-answers": 0, "reflect-on-answer": 0 };
 		const retryAuths: string[] = [];
 
 		server.use(
-			http.post("*/api/summarize", ({ request }) => {
-				callCounts.summarize++;
-				if (callCounts.summarize === 1) {
+			http.post("*/api/infer-answers", ({ request }) => {
+				callCounts["infer-answers"]++;
+				if (callCounts["infer-answers"] === 1) {
 					return HttpResponse.json(challengeBody, { status: 429 });
 				}
 				retryAuths.push(request.headers.get("Authorization") ?? "");
-				return HttpResponse.json({ summary: "ok" });
+				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 			http.post("*/api/reflect-on-answer", ({ request }) => {
 				callCounts["reflect-on-answer"]++;
@@ -245,9 +245,9 @@ describe("budgetedFetch", () => {
 			}),
 		);
 
-		const [summary, depth] = await Promise.all([fetchSummary({ cardId: "c", answer: "a" }), fetchReflectOnAnswer({ cardId: "c", questionId: "q", answer: "a" })]);
+		const [inferred, depth] = await Promise.all([fetchInferredAnswers({ cardId: "c", questions: [{ questionId: "q", answer: "a" }] }), fetchReflectOnAnswer({ cardId: "c", questionId: "q", answer: "a" })]);
 
-		expect(summary).toEqual({ summary: "ok" });
+		expect(inferred).toEqual({ inferredAnswers: [] });
 		expect(depth).toEqual({ type: "none", message: "" });
 		expect(verifyCount).toBe(1);
 		expect(loadRateLimitToken()).toBe(TEST_SESSION_TOKEN);
@@ -277,17 +277,17 @@ describe("budgetedFetch", () => {
 	});
 });
 
-// --- postJson error handling (tested via fetchSummary) ---
+// --- postJson error handling (tested via fetchInferredAnswers) ---
 
-describe("postJson error handling (via fetchSummary)", () => {
+describe("postJson error handling (via fetchInferredAnswers)", () => {
 	it("throws on non-429 error (500)", async () => {
 		server.use(
-			http.post("*/api/summarize", () => {
+			http.post("*/api/infer-answers", () => {
 				return new HttpResponse("Internal Server Error", { status: 500 });
 			}),
 		);
 
-		await expect(fetchSummary({ cardId: "c", answer: "a" })).rejects.toThrow(/500/);
+		await expect(fetchInferredAnswers({ cardId: "c", questions: [{ questionId: "q", answer: "a" }] })).rejects.toThrow(/500/);
 	});
 
 	it("throws when retry after solve still fails", async () => {
@@ -295,7 +295,7 @@ describe("postJson error handling (via fetchSummary)", () => {
 		const challengeBody = await makeChallenge();
 
 		server.use(
-			http.post("*/api/summarize", () => {
+			http.post("*/api/infer-answers", () => {
 				callCount++;
 				if (callCount === 1) {
 					return HttpResponse.json(challengeBody, { status: 429 });
@@ -307,25 +307,25 @@ describe("postJson error handling (via fetchSummary)", () => {
 			}),
 		);
 
-		await expect(fetchSummary({ cardId: "c", answer: "a" })).rejects.toThrow(/500/);
+		await expect(fetchInferredAnswers({ cardId: "c", questions: [{ questionId: "q", answer: "a" }] })).rejects.toThrow(/500/);
 	});
 
 	it("retries when concurrent retry receives a second 429 challenge response", async () => {
 		const firstChallengeBody = await makeChallenge();
 		const secondChallengeBody = await makeChallenge();
 		let verifyCount = 0;
-		const callCounts: Record<string, number> = { summarize: 0, "reflect-on-answer": 0 };
+		const callCounts: Record<string, number> = { "infer-answers": 0, "reflect-on-answer": 0 };
 		const depthRetryAuths: string[] = [];
 		const firstToken = "abcdefghijklmnopqrstuvwxyzabcdef";
 		const secondToken = "bcdefghijklmnopqrstuvwxyzaabcde";
 
 		server.use(
-			http.post("*/api/summarize", () => {
-				callCounts.summarize++;
-				if (callCounts.summarize === 1) {
+			http.post("*/api/infer-answers", () => {
+				callCounts["infer-answers"]++;
+				if (callCounts["infer-answers"] === 1) {
 					return HttpResponse.json(firstChallengeBody, { status: 429 });
 				}
-				return HttpResponse.json({ summary: "ok" });
+				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 			http.post("*/api/reflect-on-answer", ({ request }) => {
 				callCounts["reflect-on-answer"]++;
@@ -347,9 +347,9 @@ describe("postJson error handling (via fetchSummary)", () => {
 			}),
 		);
 
-		const [summary, depth] = await Promise.all([fetchSummary({ cardId: "c", answer: "a" }), fetchReflectOnAnswer({ cardId: "c", questionId: "q", answer: "a" })]);
+		const [inferred, depth] = await Promise.all([fetchInferredAnswers({ cardId: "c", questions: [{ questionId: "q", answer: "a" }] }), fetchReflectOnAnswer({ cardId: "c", questionId: "q", answer: "a" })]);
 
-		expect(summary).toEqual({ summary: "ok" });
+		expect(inferred).toEqual({ inferredAnswers: [] });
 		expect(depth).toEqual({ type: "none", message: "" });
 		expect(depthRetryAuths).toEqual([`Bearer ${firstToken}`, `Bearer ${secondToken}`]);
 		expect(verifyCount).toBe(2);
@@ -358,7 +358,7 @@ describe("postJson error handling (via fetchSummary)", () => {
 
 	it("throws on 409 when response is not challenge_required", async () => {
 		server.use(
-			http.post("*/api/summarize", () => {
+			http.post("*/api/infer-answers", () => {
 				return HttpResponse.json(
 					{
 						type: "about:blank",
@@ -372,22 +372,7 @@ describe("postJson error handling (via fetchSummary)", () => {
 			}),
 		);
 
-		await expect(fetchSummary({ cardId: "c", answer: "a" })).rejects.toThrow(/409/);
-	});
-});
-
-// --- fetchSummary ---
-
-describe("fetchSummary", () => {
-	it("succeeds on 200", async () => {
-		server.use(
-			http.post("*/api/summarize", () => {
-				return HttpResponse.json({ summary: "A nice summary" });
-			}),
-		);
-
-		const result = await fetchSummary({ cardId: "self-knowledge", questionId: "interpretation", answer: "My answer" });
-		expect(result).toEqual({ summary: "A nice summary" });
+		await expect(fetchInferredAnswers({ cardId: "c", questions: [{ questionId: "q", answer: "a" }] })).rejects.toThrow(/409/);
 	});
 });
 
