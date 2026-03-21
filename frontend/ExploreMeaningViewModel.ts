@@ -4,14 +4,11 @@ import { fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import type { ReflectOnAnswerResponse } from "./api.ts";
 import { capture } from "./analytics.ts";
 import type { ExploreEntry } from "./store.ts";
-import { fetchOrGetCachedSummary, isCardFullyExplored, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
+import { isCardFullyExplored, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
-
-// eslint-disable-next-line @typescript-eslint/no-empty-function -- used as a silent catch handler
-function noop(): void {}
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
@@ -501,31 +498,9 @@ export class ExploreMeaningViewModel {
 	}
 
 	prefetchSummaries(): void {
-		// Synthesis is intentionally not prefetched here — it is fetched when
-		// the explore-complete page loads.
-		const data = loadExploreData(this.sessionId);
-		if (data === null) return;
-		if (!(this.cardId in data)) return;
-		const cardData = data[this.cardId];
-
-		for (const entry of cardData.entries) {
-			if (entry.submitted && entry.userAnswer.trim() !== "") {
-				void fetchOrGetCachedSummary({
-					sessionId: this.sessionId,
-					cardId: this.cardId,
-					questionId: entry.questionId,
-					answer: entry.userAnswer,
-				}).catch(noop);
-			}
-		}
-
-		if (cardData.freeformNote !== "") {
-			void fetchOrGetCachedSummary({
-				sessionId: this.sessionId,
-				cardId: this.cardId,
-				answer: cardData.freeformNote,
-			}).catch(noop);
-		}
+		// Per-question summaries are no longer used — the explore list view
+		// now fetches short syntheses instead. Keep the method as a no-op
+		// since it is called from multiple places.
 	}
 
 	// --- Private helpers ---

@@ -495,6 +495,23 @@ describe("lookupCachedSynthesis/saveCachedSynthesis", () => {
 		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint", synthesis: "My synthesis" });
 		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint" })).toBe("My synthesis");
 	});
+
+	it("short and normal syntheses use separate cache keys", () => {
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal", short: false });
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBe("Normal");
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBe("Short");
+	});
+
+	it("short lookup returns null when only normal is cached", () => {
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal" });
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBeNull();
+	});
+
+	it("normal lookup returns null when only short is cached", () => {
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBeNull();
+	});
 });
 
 describe("loadLlmTestState/saveLlmTestState", () => {

@@ -2,9 +2,12 @@
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
+import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import AppButton from "./AppButton.vue";
-import { ExploreViewModel } from "./ExploreViewModel.ts";
+import { ExploreViewModel, parseBullets } from "./ExploreViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+
+const questionsPerCard = EXPLORE_QUESTIONS.length;
 
 const router = useRouter();
 const sessionId = useStringParam("sessionId");
@@ -78,22 +81,20 @@ function handleOpenReport(source: string): void {
 				</div>
 				<span v-if="vm.cardStatus(card.id) === 'complete'" class="chip chip-success status-chip">Complete</span>
 				<span v-else-if="vm.cardStatus(card.id) === 'partial'" class="chip chip-warning status-chip">In progress</span>
-				<div v-if="vm.cardSummaryEntries[card.id]?.some((e) => e.loading) || vm.cardFreeformSummary[card.id]?.loading" class="summary-loading">Generating summary...</div>
-				<template v-else-if="vm.cardSummaryEntries[card.id]">
-					<p v-if="vm.cardFreeformSummary[card.id]?.summary" class="freeform-summary">{{ vm.cardFreeformSummary[card.id]!.summary }}</p>
-					<p v-else-if="vm.cardFreeformSummary[card.id]?.error" class="summary-error">Could not load notes summary.</p>
-					<ul class="summary-block">
-						<li v-for="entry in vm.cardSummaryEntries[card.id]" :key="entry.questionId" :class="['summary-item', { unanswered: entry.unanswered }]">
-							<span v-if="entry.unanswered" class="summary-unanswered"
-								><strong>{{ entry.topic }}:</strong> <em>Not yet answered.</em></span
-							>
-							<span v-else-if="entry.error" class="summary-error">Could not load summary.</span>
-							<span v-else-if="entry.summary"
-								><strong>{{ entry.topic }}:</strong> {{ entry.summary }}</span
-							>
-						</li>
+				<div v-if="vm.cardAnswerCounts[card.id] && vm.cardStatus(card.id) !== 'complete'" class="card-progress">
+					<div class="progress-bar">
+						<div class="progress-fill" :style="{ width: `${String(Math.round((vm.cardAnswerCounts[card.id] / questionsPerCard) * 100))}%` }" />
+					</div>
+					<span class="progress-label">{{ vm.cardAnswerCounts[card.id] }} of {{ questionsPerCard }} questions answered</span>
+				</div>
+				<div v-if="vm.cardSynthesis[card.id]?.loading" class="summary-loading">Generating summary...</div>
+				<template v-else-if="vm.cardSynthesis[card.id]?.text">
+					<ul v-if="parseBullets(vm.cardSynthesis[card.id]!.text)" class="card-synthesis-list">
+						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i">{{ bullet }}</li>
 					</ul>
+					<p v-else class="card-synthesis">{{ vm.cardSynthesis[card.id]!.text }}</p>
 				</template>
+				<p v-else-if="vm.cardSynthesis[card.id]?.error" class="summary-error">Could not load summary.</p>
 				<AppButton :variant="vm.cardStatus(card.id) !== 'complete' ? 'primary' : 'secondary'" class="explore-btn" @click="handleExploreCard(card.id)">{{ exploreButtonLabel(card.id) }}</AppButton>
 			</div>
 		</div>
@@ -163,15 +164,39 @@ h1 {
 	color: var(--color-gray-600);
 }
 
+.card-progress {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	margin-top: var(--space-3);
+}
+
 .explore-btn {
 	margin-top: var(--space-3);
 }
 
-.freeform-summary {
+.card-synthesis {
 	margin: var(--space-3) 0 0;
 	font-size: var(--text-base);
 	color: var(--color-gray-800);
 	line-height: var(--leading-normal);
+}
+
+.card-synthesis-list {
+	list-style: none;
+	margin-top: var(--space-3);
+	padding: 0;
+	font-size: var(--text-base);
+	line-height: var(--leading-normal);
+	color: var(--color-gray-800);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-2);
+}
+
+.card-synthesis-list li::before {
+	padding-right: var(--space-2);
+	content: "\2713";
 }
 
 .summary-loading {
@@ -185,38 +210,6 @@ h1 {
 	margin-top: var(--space-3);
 	font-size: var(--text-sm);
 	color: var(--color-error);
-}
-
-.summary-unanswered,
-.summary-item.unanswered::before {
-	color: var(--color-gray-400);
-}
-
-.summary-block {
-	list-style: none;
-	margin-top: var(--space-3);
-	padding: 0 0 0 var(--space-6);
-	font-size: var(--text-base);
-	line-height: var(--leading-normal);
-	color: var(--color-gray-800);
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-2);
-}
-
-.summary-item {
-	position: relative;
-	margin: var(--space-1) 0;
-}
-
-.summary-item::before {
-	position: absolute;
-	left: calc(-1 * var(--space-6));
-	content: "\2713";
-}
-
-.summary-item.unanswered::before {
-	content: "\2610";
 }
 
 .top-actions {

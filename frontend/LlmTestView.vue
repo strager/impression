@@ -93,6 +93,7 @@ const inferError = ref<string | null>(null);
 const synthesizeResult = ref<string | null>(null);
 const synthesizeLoading = ref(false);
 const synthesizeError = ref<string | null>(null);
+const synthesizeLength = ref<"normal" | "short">("normal");
 
 function addRow() {
 	rows.push(createRow());
@@ -169,6 +170,7 @@ async function synthesize() {
 			questions: rows.map((r) => ({ questionId: r.questionId, answer: r.answer })),
 			selectedStatements: stmts.length > 0 ? stmts : undefined,
 			freeformNote: note !== "" ? note : undefined,
+			short: synthesizeLength.value === "short" ? true : undefined,
 		});
 		synthesizeResult.value = result.synthesis;
 	} catch (e) {
@@ -249,6 +251,13 @@ async function synthesize() {
 			<button :disabled="inferLoading" @click="inferAnswers">
 				{{ inferLoading ? "Inferring..." : "Infer Answers" }}
 			</button>
+			<label class="synthesis-length-label">
+				Length
+				<select v-model="synthesizeLength">
+					<option value="normal">Normal (4–7 sentences)</option>
+					<option value="short">Short (2–3 sentences)</option>
+				</select>
+			</label>
 			<button :disabled="synthesizeLoading" @click="synthesize">
 				{{ synthesizeLoading ? "Synthesizing..." : "Synthesize" }}
 			</button>
@@ -351,6 +360,11 @@ textarea {
 .global-actions {
 	display: flex;
 	gap: var(--space-2);
+	align-items: end;
+}
+
+.synthesis-length-label {
+	margin-left: auto;
 }
 
 .result-section pre {

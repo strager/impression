@@ -517,6 +517,8 @@ components:
             minLength: 1
         freeformNote:
           type: string
+        short:
+          type: boolean
     SynthesizeResponse:
       type: object
       additionalProperties: false

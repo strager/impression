@@ -613,6 +613,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		}
 
 		const freeformNote = "freeformNote" in body && typeof body.freeformNote === "string" ? body.freeformNote.trim() : "";
+		const short = "short" in body && body.short === true;
 
 		const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 		const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
@@ -659,21 +660,25 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		const userMessage = answeredPairs.join("\n\n");
 
-		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail. " + "Write in the first person, as if the user is writing about themselves. " + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying. " + "Do not ask questions. Do not use bullet points or numbered lists — write in flowing prose. " + "4 to 7 sentences.";
+		const answeredCount = questions.filter((q) => q.answer.trim() !== "").length;
+		const shortBulletRange = answeredCount >= EXPLORE_QUESTIONS.length ? "2-3" : "1-3";
+
+		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail.\n\n" + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying.\n\n" + "Do not ask questions.\n\n" + (short ? `IMPORTANT: Return ${shortBulletRange} bullet points. Each bullet point should be a short phrase (fewer than 10 words), not a complete sentence. No periods. Use "- " prefix for each bullet. No other text.` : "IMPORTANT: Write in the first person, as if the user is writing about themselves.\n\nDo not use bullet points or numbered lists — write in flowing prose.\n\n4 to 7 sentences.");
 
 		try {
 			const content = await createAnthropicCompletion({
 				apiKey: appConfig.anthropicApiKey,
-				model: "claude-haiku-4-5-20251001",
+				model: short ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001",
 				system: systemPrompt,
 				messages: [{ role: "user", content: userMessage }],
-				maxTokens: 500,
+				maxTokens: short ? 150 : 500,
 				temperature: 0.7,
 				debugPrompt: appConfig.debugPrompt,
 			});
 
 			return { statusCode: 200, body: { synthesis: content } };
-		} catch {
+		} catch (error) {
+			console.error("syntehsize AI call failed", error);
 			return {
 				statusCode: 502,
 				headers: problemJsonHeader,

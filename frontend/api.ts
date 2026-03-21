@@ -39,6 +39,7 @@ interface SynthesizeRequest {
 	questions: { questionId: string; answer: string }[];
 	selectedStatements?: string[];
 	freeformNote?: string;
+	short?: boolean;
 }
 
 interface SynthesizeResponse {

@@ -4,33 +4,32 @@ import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { capture } from "./analytics.ts";
-import type { ExploreEntry } from "./store.ts";
-import { fetchOrGetCachedSummary, isCardFullyExplored, loadChosenCardIds, loadExploreData, saveExploreData } from "./store.ts";
+import { fetchSynthesis } from "./api.ts";
+import { isCardFullyExplored, loadChosenCardIds, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveExploreData } from "./store.ts";
+import type { CardExploreData } from "./store.ts";
 
-export interface SummaryEntry {
-	questionId: string;
-	topic: string;
-	summary: string;
-	loading: boolean;
-	error: string;
-	unanswered: boolean;
+export function parseBullets(text: string): string[] | null {
+	const bullets = text
+		.split("\n")
+		.filter((l) => l.trimStart().startsWith("- "))
+		.map((l) => l.trimStart().slice(2).trim())
+		.filter((l) => l !== "");
+	return bullets.length > 0 ? bullets : null;
 }
 
-export interface FreeformSummary {
-	summary: string;
+interface CardSynthesisState {
+	text: string;
 	loading: boolean;
 	error: string;
 }
 
-const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
 
 export class ExploreViewModel {
 	private readonly sessionId: string;
 	private readonly _chosenCards = ref<MeaningCard[]>([]);
 	private readonly _cardAnswerCounts = ref<Record<string, number>>({});
-	private readonly _cardSummaryEntries = ref<Partial<Record<string, SummaryEntry[]>>>({});
-	private readonly _cardFreeformSummary = ref<Partial<Record<string, FreeformSummary>>>({});
+	private readonly _cardSynthesis = ref<Partial<Record<string, CardSynthesisState>>>({});
 	private _loadingPromise: Promise<void> | null = null;
 
 	constructor(sessionId: string) {
@@ -45,12 +44,8 @@ export class ExploreViewModel {
 		return this._cardAnswerCounts.value;
 	}
 
-	get cardSummaryEntries(): Partial<Record<string, SummaryEntry[]>> {
-		return this._cardSummaryEntries.value;
-	}
-
-	get cardFreeformSummary(): Partial<Record<string, FreeformSummary>> {
-		return this._cardFreeformSummary.value;
+	get cardSynthesis(): Partial<Record<string, CardSynthesisState>> {
+		return this._cardSynthesis.value;
 	}
 
 	get totalQuestions(): number {
@@ -129,61 +124,11 @@ export class ExploreViewModel {
 
 			for (const [cardId, cardData] of Object.entries(exploreData)) {
 				const entries = cardData.entries;
-				const answered = entries.filter((e) => e.userAnswer !== "");
+				const answered = entries.filter((e) => e.userAnswer !== "" && !e.autoFilledPending);
 				this._cardAnswerCounts.value[cardId] = answered.length;
 				if (answered.length === 0) continue;
 
-				const card = cardsById.get(cardId);
-				if (card === undefined) continue;
-
-				const isPartial = answered.length < EXPLORE_QUESTIONS.length;
-				const answeredIds = new Set(answered.map((e) => e.questionId));
-
-				const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
-				const validEntries = answered
-					.map((e) => ({ entry: e, question: questionsById.get(e.questionId) }))
-					.filter((v): v is { entry: ExploreEntry; question: (typeof EXPLORE_QUESTIONS)[number] } => v.question !== undefined)
-					.sort((a, b) => (questionOrder.get(a.entry.questionId) ?? 0) - (questionOrder.get(b.entry.questionId) ?? 0));
-
-				const summaryRows: SummaryEntry[] = validEntries.map((v) => ({
-					questionId: v.entry.questionId,
-					topic: v.question.topic,
-					summary: "",
-					loading: false,
-					error: "",
-					unanswered: false,
-				}));
-
-				if (isPartial) {
-					for (const q of EXPLORE_QUESTIONS) {
-						if (!answeredIds.has(q.id)) {
-							summaryRows.push({
-								questionId: q.id,
-								topic: q.topic,
-								summary: "",
-								loading: false,
-								error: "",
-								unanswered: true,
-							});
-						}
-					}
-				}
-
-				this._cardSummaryEntries.value[cardId] = summaryRows;
-
-				for (const v of validEntries) {
-					promises.push(this.loadSummary(cardId, v.entry.questionId, v.entry.userAnswer));
-				}
-			}
-
-			for (const [cardId, cardData] of Object.entries(exploreData)) {
-				const noteText = cardData.freeformNote;
-				if (noteText === "") continue;
-
-				const freeformEntry: FreeformSummary = { summary: "", loading: false, error: "" };
-				this._cardFreeformSummary.value[cardId] = freeformEntry;
-
-				promises.push(this.loadFreeformSummary(cardId, noteText, freeformEntry));
+				promises.push(this.loadCardSynthesis(cardId, cardData));
 			}
 
 			if (promises.length > 0) {
@@ -196,28 +141,39 @@ export class ExploreViewModel {
 		}
 	}
 
-	private async loadSummary(cardId: string, questionId: string, answer: string): Promise<void> {
-		const entry = this._cardSummaryEntries.value[cardId]?.find((e) => e.questionId === questionId);
-		if (entry === undefined) return;
+	private async loadCardSynthesis(cardId: string, cardData: CardExploreData): Promise<void> {
+		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionsById.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 
-		entry.loading = true;
-		try {
-			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId, answer, questionId });
-		} catch (error) {
-			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
-		} finally {
-			entry.loading = false;
+		if (answered.length === 0) return;
+
+		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
+		const fingerprintParts = answered.map((e) => e.userAnswer);
+		if (cardData.freeformNote !== "") {
+			fingerprintParts.push(cardData.freeformNote);
 		}
-	}
+		const fingerprint = fingerprintParts.join("\x00");
 
-	private async loadFreeformSummary(cardId: string, noteText: string, entry: FreeformSummary): Promise<void> {
-		entry.loading = true;
+		this._cardSynthesis.value[cardId] = { text: "", loading: true, error: "" };
+
+		const cached = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, short: true });
+		if (cached !== null) {
+			this._cardSynthesis.value[cardId] = { text: cached, loading: false, error: "" };
+			return;
+		}
+
 		try {
-			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId, answer: noteText });
+			const result = await fetchSynthesis({
+				cardId,
+				questions,
+				...(cardData.statementSelections.length > 0 ? { selectedStatements: cardData.statementSelections } : {}),
+				...(cardData.freeformNote !== "" ? { freeformNote: cardData.freeformNote } : {}),
+				short: true,
+			});
+			this._cardSynthesis.value[cardId] = { text: result.synthesis, loading: false, error: "" };
+			saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis, short: true });
 		} catch (error) {
-			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
-		} finally {
-			entry.loading = false;
+			this._cardSynthesis.value[cardId] = { text: "", loading: false, error: error instanceof Error ? error.message : "Failed to load synthesis." };
 		}
 	}
 }

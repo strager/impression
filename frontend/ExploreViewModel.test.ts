@@ -7,9 +7,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { ExploreViewModel } from "./ExploreViewModel.ts";
+import { ExploreViewModel, parseBullets } from "./ExploreViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, fetchOrGetCachedSummary, getActiveSessionId, loadExploreData, lookupCachedSummary, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -89,10 +89,10 @@ function makeExploreData(cardIds: string[], answeredCount: number): ExploreData 
 	return data;
 }
 
-function setupDefaultSummarizeHandler(): void {
+function setupDefaultSynthesizeHandler(): void {
 	server.use(
-		http.post("*/api/summarize", () => {
-			return HttpResponse.json({ summary: "A test summary" });
+		http.post("*/api/synthesize", () => {
+			return HttpResponse.json({ synthesis: "A test synthesis" });
 		}),
 	);
 }
@@ -105,7 +105,7 @@ describe("initialize", () => {
 
 	it("returns 'ready' when chosen cards exist", () => {
 		setupChosenCards(3);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
@@ -115,7 +115,7 @@ describe("initialize", () => {
 	it("loads chosen cards in MEANING_CARDS order", () => {
 		const cardIds = [MEANING_CARDS[2].id, MEANING_CARDS[0].id, MEANING_CARDS[1].id];
 		saveChosenCardIds(sid(), cardIds);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -125,7 +125,7 @@ describe("initialize", () => {
 
 	it("creates and saves explore data when none exists", () => {
 		setupChosenCards(3);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -138,7 +138,7 @@ describe("initialize", () => {
 		const cardIds = setupChosenCards(2);
 		const exploreData = makeExploreData(cardIds, EXPLORE_QUESTIONS.length);
 		saveExploreData(sid(), exploreData);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -172,18 +172,32 @@ describe("progress tracking", () => {
 		data[cardIds[0]].entries[1].userAnswer = "answer 2";
 		data[cardIds[1]].entries[0].userAnswer = "answer 3";
 		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		expect(vm.totalAnswered).toBe(3);
 	});
 
+	it("does not count auto-filled pending answers as answered", () => {
+		const cardIds = setupChosenCards(1);
+		const data = makeExploreData(cardIds, 1);
+		// Second entry has text but is auto-filled and unconfirmed
+		data[cardIds[0]].entries[1].userAnswer = "auto-filled answer";
+		data[cardIds[0]].entries[1].autoFilledPending = true;
+		saveExploreData(sid(), data);
+		setupDefaultSynthesizeHandler();
+
+		const vm = new ExploreViewModel(sid());
+		vm.initialize();
+		expect(vm.totalAnswered).toBe(1);
+	});
+
 	it("overallPercent computes correctly", () => {
 		const cardIds = setupChosenCards(1);
 		const data = makeExploreData(cardIds, 2);
 		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -199,7 +213,7 @@ describe("progress tracking", () => {
 	it("allComplete is true when all questions answered", () => {
 		const cardIds = setupChosenCards(2);
 		saveExploreData(sid(), makeExploreData(cardIds, EXPLORE_QUESTIONS.length));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -209,7 +223,7 @@ describe("progress tracking", () => {
 	it("allComplete is false when some unanswered", () => {
 		const cardIds = setupChosenCards(2);
 		saveExploreData(sid(), makeExploreData(cardIds, 1));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -230,7 +244,7 @@ describe("cardStatus", () => {
 	it("returns 'partial' when some but not all answered", () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, 2));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -240,7 +254,7 @@ describe("cardStatus", () => {
 	it("returns 'complete' when all questions answered", () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, EXPLORE_QUESTIONS.length));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -260,7 +274,7 @@ describe("sortedCards", () => {
 		data[cardIds[2]].entries[0].userAnswer = "partial answer";
 		data[cardIds[2]].entries[0].submitted = true;
 		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
@@ -280,50 +294,63 @@ describe("sortedCards", () => {
 	});
 });
 
-describe("summary loading", () => {
-	it("loads summaries from API for answered questions", async () => {
+describe("synthesis loading", () => {
+	it("loads synthesis from API for cards with answered questions", async () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, 2));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		const entries = vm.cardSummaryEntries[cardIds[0]];
-		expect(entries).toBeDefined();
-		const answeredEntries = entries!.filter((e) => !e.unanswered);
-		expect(answeredEntries).toHaveLength(2);
-		for (const entry of answeredEntries) {
-			expect(entry.summary).not.toBe("");
-			expect(entry.loading).toBe(false);
-			expect(entry.error).toBe("");
-		}
+		const synthesis = vm.cardSynthesis[cardIds[0]];
+		expect(synthesis).toBeDefined();
+		expect(synthesis!.text).toBe("A test synthesis");
+		expect(synthesis!.loading).toBe(false);
+		expect(synthesis!.error).toBe("");
 	});
 
-	it("uses cached summaries instead of fetching", async () => {
+	it("sends short: true in the synthesis request", async () => {
+		const cardIds = setupChosenCards(1);
+		saveExploreData(sid(), makeExploreData(cardIds, 1));
+
+		let capturedBody: unknown = null;
+		server.use(
+			http.post("*/api/synthesize", async ({ request }) => {
+				capturedBody = await request.json();
+				return HttpResponse.json({ synthesis: "Short synthesis" });
+			}),
+		);
+
+		const vm = new ExploreViewModel(sid());
+		vm.initialize();
+		await vm.whenReady;
+
+		expect(capturedBody).toEqual(expect.objectContaining({ short: true }));
+	});
+
+	it("uses cached short synthesis instead of fetching", async () => {
 		const cardIds = setupChosenCards(1);
 		const data = makeExploreData(cardIds, 1);
 		saveExploreData(sid(), data);
 
-		const questionId = EXPLORE_QUESTIONS[0].id;
 		const answer = data[cardIds[0]].entries[0].userAnswer;
-		saveCachedSummary({ sessionId: sid(), cardId: cardIds[0], answer, summary: "Cached summary", questionId });
+		saveCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Cached synthesis", short: true });
 
 		// No MSW handler — any fetch would fail with onUnhandledRequest: "error"
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		const entries = vm.cardSummaryEntries[cardIds[0]];
-		expect(entries![0].summary).toBe("Cached summary");
+		expect(vm.cardSynthesis[cardIds[0]]!.text).toBe("Cached synthesis");
 	});
 
 	it("sets error on fetch failure", async () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, 1));
 		server.use(
-			http.post("*/api/summarize", () => {
+			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
@@ -332,184 +359,55 @@ describe("summary loading", () => {
 		vm.initialize();
 		await vm.whenReady;
 
-		const entries = vm.cardSummaryEntries[cardIds[0]];
-		const answeredEntry = entries!.find((e) => !e.unanswered);
-		expect(answeredEntry!.error).not.toBe("");
-		expect(answeredEntry!.loading).toBe(false);
+		const synthesis = vm.cardSynthesis[cardIds[0]];
+		expect(synthesis!.error).not.toBe("");
+		expect(synthesis!.loading).toBe(false);
 	});
 
-	it("marks unanswered questions on partial cards", () => {
-		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 2));
-		setupDefaultSummarizeHandler();
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-
-		const entries = vm.cardSummaryEntries[cardIds[0]];
-		expect(entries).toBeDefined();
-		const answered = entries!.filter((e) => !e.unanswered);
-		const unanswered = entries!.filter((e) => e.unanswered);
-		expect(answered).toHaveLength(2);
-		expect(unanswered).toHaveLength(EXPLORE_QUESTIONS.length - 2);
-	});
-
-	it("unanswered entries follow EXPLORE_QUESTIONS order", () => {
-		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 0);
-		// Answer only the last question
-		data[cardIds[0]].entries[EXPLORE_QUESTIONS.length - 1].userAnswer = "answer";
-		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-
-		const entries = vm.cardSummaryEntries[cardIds[0]];
-		const unanswered = entries!.filter((e) => e.unanswered);
-		const unansweredIds = unanswered.map((e) => e.questionId);
-		const expectedIds = EXPLORE_QUESTIONS.slice(0, -1).map((q) => q.id);
-		expect(unansweredIds).toEqual(expectedIds);
-	});
-
-	it("does not create summary entries for untouched cards", () => {
+	it("does not create synthesis for untouched cards", () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, 0));
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 
-		expect(vm.cardSummaryEntries[cardIds[0]]).toBeUndefined();
+		expect(vm.cardSynthesis[cardIds[0]]).toBeUndefined();
 	});
 
-	it("saves fetched summaries to cache", async () => {
-		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 1));
-		setupDefaultSummarizeHandler();
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-		await vm.whenReady;
-
-		const questionId = EXPLORE_QUESTIONS[0].id;
-		const answer = `Answer for ${questionId}`;
-		const cached = lookupCachedSummary({ sessionId: sid(), cardId: cardIds[0], answer, questionId });
-		expect(cached).not.toBeNull();
-		expect(cached).not.toBe("");
-	});
-});
-
-describe("freeform summary loading", () => {
-	it("loads freeform summary from API", async () => {
+	it("saves fetched synthesis to cache with short: true", async () => {
 		const cardIds = setupChosenCards(1);
 		const data = makeExploreData(cardIds, 1);
-		data[cardIds[0]].freeformNote = "My freeform notes";
 		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		const freeform = vm.cardFreeformSummary[cardIds[0]];
-		expect(freeform).toBeDefined();
-		expect(freeform!.summary).not.toBe("");
-		expect(freeform!.loading).toBe(false);
-		expect(freeform!.error).toBe("");
+		const answer = data[cardIds[0]].entries[0].userAnswer;
+		const cached = lookupCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, short: true });
+		expect(cached).toBe("A test synthesis");
 	});
 
-	it("uses cached freeform summary", async () => {
+	it("does not collide with normal synthesis cache", async () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 0);
-		const noteText = "My freeform notes";
-		data[cardIds[0]].freeformNote = noteText;
+		const data = makeExploreData(cardIds, 1);
 		saveExploreData(sid(), data);
-		saveCachedSummary({ sessionId: sid(), cardId: cardIds[0], answer: noteText, summary: "Cached freeform" });
 
-		// No MSW handler — any fetch would fail
+		const answer = data[cardIds[0]].entries[0].userAnswer;
+		// Save a normal (non-short) synthesis
+		saveCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Normal synthesis" });
+
+		// Short cache should miss
+		setupDefaultSynthesizeHandler();
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.cardFreeformSummary[cardIds[0]]!.summary).toBe("Cached freeform");
-	});
-
-	it("sets error on freeform fetch failure", async () => {
-		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 0);
-		data[cardIds[0]].freeformNote = "My notes";
-		saveExploreData(sid(), data);
-		server.use(
-			http.post("*/api/summarize", () => {
-				return new HttpResponse(null, { status: 500 });
-			}),
-		);
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-		await vm.whenReady;
-
-		expect(vm.cardFreeformSummary[cardIds[0]]!.error).not.toBe("");
-		expect(vm.cardFreeformSummary[cardIds[0]]!.loading).toBe(false);
-	});
-
-	it("does not create freeform entry when no notes exist", () => {
-		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-
-		expect(vm.cardFreeformSummary[cardIds[0]]).toBeUndefined();
-	});
-
-	it("does not create freeform entry for empty string notes", () => {
-		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
-		// freeformNote defaults to "" in makeExploreData, so no change needed
-
-		const vm = new ExploreViewModel(sid());
-		vm.initialize();
-
-		expect(vm.cardFreeformSummary[cardIds[0]]).toBeUndefined();
-	});
-});
-
-describe("fetchOrGetCachedSummary", () => {
-	it("returns cached summary without fetching", async () => {
-		saveCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", summary: "Cached", questionId: "interpretation" });
-
-		// No MSW handler — any fetch would fail with onUnhandledRequest: "error"
-		const result = await fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
-		expect(result).toBe("Cached");
-	});
-
-	it("fetches from API and saves to cache on miss", async () => {
-		setupDefaultSummarizeHandler();
-
-		const result = await fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
-		expect(result).toBe("A test summary");
-
-		const cached = lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" });
-		expect(cached).toBe("A test summary");
-	});
-
-	it("deduplicates concurrent fetches for the same key", async () => {
-		let callCount = 0;
-		server.use(
-			http.post("*/api/summarize", () => {
-				callCount++;
-				return HttpResponse.json({ summary: "Deduped summary" });
-			}),
-		);
-
-		const p1 = fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "Same answer", questionId: "interpretation" });
-		const p2 = fetchOrGetCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "Same answer", questionId: "interpretation" });
-
-		const [r1, r2] = await Promise.all([p1, p2]);
-		expect(r1).toBe("Deduped summary");
-		expect(r2).toBe("Deduped summary");
-		expect(callCount).toBe(1);
+		expect(vm.cardSynthesis[cardIds[0]]!.text).toBe("A test synthesis");
+		// Normal cache should still be intact
+		const normalCached = lookupCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer });
+		expect(normalCached).toBe("Normal synthesis");
 	});
 });
 
@@ -545,5 +443,55 @@ describe("action methods", () => {
 		expect(() => {
 			vm.onOpenReport("test_source");
 		}).not.toThrow();
+	});
+});
+
+describe("parseBullets", () => {
+	it("parses standard bullet lines", () => {
+		expect(parseBullets("- First\n- Second\n- Third")).toEqual(["First", "Second", "Third"]);
+	});
+
+	it("returns null for plain text with no bullets", () => {
+		expect(parseBullets("Just a plain sentence.")).toBeNull();
+	});
+
+	it("returns null for empty string", () => {
+		expect(parseBullets("")).toBeNull();
+	});
+
+	it("ignores blank lines between bullets", () => {
+		expect(parseBullets("- First\n\n- Second")).toEqual(["First", "Second"]);
+	});
+
+	it("handles leading whitespace before dash", () => {
+		expect(parseBullets("  - Indented\n- Normal")).toEqual(["Indented", "Normal"]);
+	});
+
+	it("trims trailing whitespace from bullet text", () => {
+		expect(parseBullets("- Trailing space   \n- Clean")).toEqual(["Trailing space", "Clean"]);
+	});
+
+	it("skips lines that are just a dash with no text", () => {
+		expect(parseBullets("- Real bullet\n- \n- Another")).toEqual(["Real bullet", "Another"]);
+	});
+
+	it("returns null when all bullet lines are empty after trimming", () => {
+		expect(parseBullets("- \n-  ")).toBeNull();
+	});
+
+	it("handles asterisk bullets by returning null", () => {
+		expect(parseBullets("* Not a dash bullet\n* Another")).toBeNull();
+	});
+
+	it("ignores non-bullet lines mixed with bullet lines", () => {
+		expect(parseBullets("Here are my thoughts:\n- First point\n- Second point")).toEqual(["First point", "Second point"]);
+	});
+
+	it("handles single bullet", () => {
+		expect(parseBullets("- Only one")).toEqual(["Only one"]);
+	});
+
+	it("handles LLM adding a trailing newline", () => {
+		expect(parseBullets("- First\n- Second\n")).toEqual(["First", "Second"]);
 	});
 });

@@ -542,20 +542,20 @@ export function saveCachedSummary(options: { sessionId: string; cardId: string; 
 	touchSession(options.sessionId);
 }
 
-export function lookupCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string }): string | null {
+export function lookupCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; short?: boolean }): string | null {
 	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
 	const cache = isSummaryCache(parsed) ? parsed : {};
-	const cacheKey = `${options.cardId}:synthesis`;
+	const cacheKey = options.short === true ? `${options.cardId}:synthesis:short` : `${options.cardId}:synthesis`;
 	if (cacheKey in cache && cache[cacheKey].answer === options.fingerprint) {
 		return cache[cacheKey].summary;
 	}
 	return null;
 }
 
-export function saveCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; synthesis: string }): void {
+export function saveCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; synthesis: string; short?: boolean }): void {
 	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
 	const cache = isSummaryCache(parsed) ? parsed : {};
-	const cacheKey = `${options.cardId}:synthesis`;
+	const cacheKey = options.short === true ? `${options.cardId}:synthesis:short` : `${options.cardId}:synthesis`;
 	cache[cacheKey] = { answer: options.fingerprint, summary: options.synthesis };
 	localStorage.setItem(summariesKey(options.sessionId), JSON.stringify(cache));
 	touchSession(options.sessionId);
