@@ -23,7 +23,7 @@ defineProps<{
 		<section class="summary-section">
 			<h2>What is meaningful to me?</h2>
 			<div v-for="report in reports" :key="report.card.id" class="report-card">
-				<h4>{{ report.card.source }}</h4>
+				<h4 style="--chip-parent-cap: 1cap">{{ report.card.source }} <span class="chip chip-ai">AI-generated</span></h4>
 				<template v-if="report.synthesis">
 					<p v-for="(paragraph, i) in report.synthesis.split('\n\n')" :key="i" class="synthesis-paragraph">{{ paragraph }}</p>
 				</template>

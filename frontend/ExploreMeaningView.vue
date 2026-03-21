@@ -219,11 +219,11 @@ onMounted(() => {
 			>
 			<template v-if="entry.submitted">
 				<template v-if="vm.manualReflectResult.has(entry.questionId)">
-					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail">
-						<em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
+					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail" style="--chip-parent-cap: 1cap">
+						<em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em> <span class="chip chip-ai">AI-generated</span>
 					</p>
-					<p v-else-if="vm.manualReflectResult.get(entry.questionId)!.type === 'thought_bubble'" class="reflection-thought-bubble">
-						<span class="thought-bubble-icon" aria-hidden="true">💭</span> <em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em>
+					<p v-else-if="vm.manualReflectResult.get(entry.questionId)!.type === 'thought_bubble'" class="reflection-thought-bubble" style="--chip-parent-cap: 1cap">
+						<span class="thought-bubble-icon" aria-hidden="true">💭</span> <em>{{ vm.manualReflectResult.get(entry.questionId)!.message }}</em> <span class="chip chip-ai">AI-generated</span>
 					</p>
 					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
 				</template>

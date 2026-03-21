@@ -434,7 +434,7 @@ function handleOpenReport(): void {
 	<main v-if="vm.card">
 		<header>
 			<h1 :class="['cascading', { visible: titleVisible }]">&ldquo;{{ vm.card.description }}&rdquo;</h1>
-			<p :class="['warm-phrase', 'cascading', { visible: warmPhraseVisible }]">{{ vm.warmPhrase }}</p>
+			<p :class="['warm-phrase', 'cascading', { visible: warmPhraseVisible }]" style="--chip-parent-cap: 1cap">{{ vm.warmPhrase }} <span class="chip chip-ai">AI-generated</span></p>
 		</header>
 
 		<div ref="progressSquaresEl" :class="['progress-squares', 'cascading', { visible: progressSquaresVisible }]">

@@ -79,8 +79,8 @@ function handleOpenReport(source: string): void {
 				<div class="card-title">
 					{{ card.description }} <span class="source-label">({{ card.source }})</span>
 				</div>
-				<span v-if="vm.cardStatus(card.id) === 'complete'" class="chip chip-success status-chip">Complete</span>
-				<span v-else-if="vm.cardStatus(card.id) === 'partial'" class="chip chip-warning status-chip">In progress</span>
+				<span v-if="vm.cardStatus(card.id) === 'complete'" class="chip chip-positioned chip-success status-chip">Complete</span>
+				<span v-else-if="vm.cardStatus(card.id) === 'partial'" class="chip chip-positioned chip-warning status-chip">In progress</span>
 				<div v-if="vm.cardAnswerCounts[card.id] && vm.cardStatus(card.id) !== 'complete'" class="card-progress">
 					<div class="progress-bar">
 						<div class="progress-fill" :style="{ width: `${String(Math.round((vm.cardAnswerCounts[card.id] / questionsPerCard) * 100))}%` }" />
@@ -90,9 +90,11 @@ function handleOpenReport(source: string): void {
 				<div v-if="vm.cardSynthesis[card.id]?.loading" class="summary-loading">Generating summary...</div>
 				<template v-else-if="vm.cardSynthesis[card.id]?.text">
 					<ul v-if="parseBullets(vm.cardSynthesis[card.id]!.text)" class="card-synthesis-list">
-						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i">{{ bullet }}</li>
+						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i" :style="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1 ? '--chip-parent-cap: 1cap' : undefined">
+							{{ bullet }}<template v-if="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1">{{ " " }}<span class="chip chip-ai">AI-generated</span></template>
+						</li>
 					</ul>
-					<p v-else class="card-synthesis">{{ vm.cardSynthesis[card.id]!.text }}</p>
+					<p v-else class="card-synthesis" style="--chip-parent-cap: 1cap">{{ vm.cardSynthesis[card.id]!.text }} <span class="chip chip-ai">AI-generated</span></p>
 				</template>
 				<p v-else-if="vm.cardSynthesis[card.id]?.error" class="summary-error">Could not load summary.</p>
 				<AppButton :variant="vm.cardStatus(card.id) !== 'complete' ? 'primary' : 'secondary'" class="explore-btn" @click="handleExploreCard(card.id)">{{ exploreButtonLabel(card.id) }}</AppButton>
