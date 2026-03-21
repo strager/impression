@@ -501,6 +501,8 @@ export class ExploreMeaningViewModel {
 	}
 
 	prefetchSummaries(): void {
+		// Synthesis is intentionally not prefetched here — it is fetched when
+		// the explore-complete page loads.
 		const data = loadExploreData(this.sessionId);
 		if (data === null) return;
 		if (!(this.cardId in data)) return;

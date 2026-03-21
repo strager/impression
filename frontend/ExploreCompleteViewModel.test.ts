@@ -9,7 +9,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, hasVisitedExploreComplete, saveCachedSummary, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureSessionsInitialized, getActiveSessionId, hasVisitedExploreComplete, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -85,10 +85,10 @@ function makeFullExploreData(cardIds: string[], freeformNote = ""): ExploreData 
 	return data;
 }
 
-function setupDefaultSummarizeHandler(): void {
+function setupDefaultSynthesizeHandler(): void {
 	server.use(
-		http.post("*/api/summarize", () => {
-			return HttpResponse.json({ summary: "A test summary" });
+		http.post("*/api/synthesize", () => {
+			return HttpResponse.json({ synthesis: "A test synthesis" });
 		}),
 	);
 }
@@ -147,7 +147,7 @@ describe("initialize", () => {
 	it("returns 'ready' with valid data", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
@@ -156,46 +156,40 @@ describe("initialize", () => {
 	});
 });
 
-describe("summary loading", () => {
-	it("loads summaries from API", async () => {
+describe("synthesis loading", () => {
+	it("loads synthesis from API", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.summaryEntries).toHaveLength(EXPLORE_QUESTIONS.length);
-		for (const entry of vm.summaryEntries) {
-			expect(entry.summary).toBe("A test summary");
-			expect(entry.loading).toBe(false);
-		}
+		expect(vm.synthesis).toBe("A test synthesis");
+		expect(vm.synthesisLoading).toBe(false);
 	});
 
-	it("uses cached summaries", async () => {
+	it("uses cached synthesis", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
 
-		for (const q of EXPLORE_QUESTIONS) {
-			saveCachedSummary({ sessionId: sid(), cardId: TEST_CARD_ID, answer: `Answer for ${q.id}`, summary: `Cached ${q.id}`, questionId: q.id });
-		}
+		const fingerprint = EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
+		saveCachedSynthesis({ sessionId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		// No MSW handler — any fetch would fail
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
-		for (const entry of vm.summaryEntries) {
-			expect(entry.summary).toBe(`Cached ${entry.questionId}`);
-		}
+		expect(vm.synthesis).toBe("Cached synthesis");
 	});
 
 	it("sets error on fetch failure", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
 		server.use(
-			http.post("*/api/summarize", () => {
+			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
@@ -204,34 +198,22 @@ describe("summary loading", () => {
 		vm.initialize();
 		await vm.whenReady;
 
-		for (const entry of vm.summaryEntries) {
-			expect(entry.error).not.toBe("");
-			expect(entry.loading).toBe(false);
-		}
+		expect(vm.synthesisError).not.toBe("");
+		expect(vm.synthesisLoading).toBe(false);
 	});
 
-	it("loads freeform summary when note exists", async () => {
+	it("includes freeform note in synthesis fingerprint", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID], "My notes"));
-		setupDefaultSummarizeHandler();
+
+		const fingerprint = [...EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
+		saveCachedSynthesis({ sessionId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.freeformSummary).not.toBeNull();
-		expect(vm.freeformSummary!.summary).toBe("A test summary");
-	});
-
-	it("does not create freeform summary when note is empty", () => {
-		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
-
-		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
-		vm.initialize();
-
-		expect(vm.freeformSummary).toBeNull();
+		expect(vm.synthesis).toBe("Synthesis with notes");
 	});
 });
 
@@ -259,7 +241,7 @@ describe("progress", () => {
 			statementSelections: [],
 		};
 		saveExploreData(sid(), data);
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), cardIds[0]);
 		vm.initialize();
@@ -273,7 +255,7 @@ describe("progress", () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveChosenCardIds(sid(), cardIds);
 		saveExploreData(sid(), makeFullExploreData(cardIds));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), cardIds[0]);
 		vm.initialize();
@@ -287,7 +269,7 @@ describe("onAnimationComplete", () => {
 	it("marks the card as visited in store", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
@@ -303,7 +285,7 @@ describe("warmPhrase", () => {
 	it("returns a string from the known set", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
@@ -315,7 +297,7 @@ describe("warmPhrase", () => {
 	it("is deterministic for the same inputs", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
-		setupDefaultSummarizeHandler();
+		setupDefaultSynthesizeHandler();
 
 		const vm1 = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm1.initialize();

@@ -182,11 +182,7 @@ The page displays:
 - A warm rotating phrase (e.g. "Your reflections, distilled"), selected
   deterministically from the session and card IDs.
 - Progress squares showing how many sources have been fully explored.
-- AI-generated summaries for each answered question, displayed as topic:summary
-  pairs.
-
-Summaries are pre-fetched during the last question(s) of exploration and cached
-in localStorage, so they typically appear instantly on the complete page.
+- AI-generated summary of the user's answers.
 
 The call-to-action varies based on progress:
 

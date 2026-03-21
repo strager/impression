@@ -3,7 +3,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSummary, markExploreCompleteVisited, renameSession, saveCachedSummary, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSummary, lookupCachedSynthesis, markExploreCompleteVisited, renameSession, saveCachedSummary, saveCachedSynthesis, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
 	return getActiveSessionId();
@@ -478,6 +478,22 @@ describe("lookupCachedSummary/saveCachedSummary", () => {
 	it("round-trips saved summary", () => {
 		saveCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", summary: "My summary", questionId: "interpretation" });
 		expect(lookupCachedSummary({ sessionId: sid(), cardId: "self-knowledge", answer: "My answer", questionId: "interpretation" })).toBe("My summary");
+	});
+});
+
+describe("lookupCachedSynthesis/saveCachedSynthesis", () => {
+	it("returns null when key is absent", () => {
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "some fingerprint" })).toBeNull();
+	});
+
+	it("returns null on fingerprint mismatch", () => {
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fingerprint1", synthesis: "My synthesis" });
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "different" })).toBeNull();
+	});
+
+	it("round-trips saved synthesis", () => {
+		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint", synthesis: "My synthesis" });
+		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint" })).toBe("My synthesis");
 	});
 });
 

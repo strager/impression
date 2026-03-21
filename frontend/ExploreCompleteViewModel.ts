@@ -5,11 +5,10 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { capture } from "./analytics.ts";
 import { hashStrings } from "./deterministic-hash.ts";
-import type { SummaryEntry, FreeformSummary } from "./ExploreViewModel.ts";
-import { fetchOrGetCachedSummary, hasVisitedExploreComplete, isCardFullyExplored, isExplorePhaseComplete, loadChosenCardIds, loadExploreData, markExploreCompleteVisited } from "./store.ts";
+import { fetchSynthesis } from "./api.ts";
+import { hasVisitedExploreComplete, isCardFullyExplored, isExplorePhaseComplete, loadChosenCardIds, loadExploreData, lookupCachedSynthesis, markExploreCompleteVisited, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
 
 const WARM_PHRASES = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your exploration", "A snapshot of your thoughts"];
 
@@ -19,8 +18,9 @@ export class ExploreCompleteViewModel {
 
 	private readonly _card = ref<MeaningCard | undefined>(undefined);
 	private readonly _chosenCardIds = ref<string[]>([]);
-	private readonly _summaryEntries = ref<SummaryEntry[]>([]);
-	private readonly _freeformSummary = ref<FreeformSummary | null>(null);
+	private readonly _synthesis = ref("");
+	private readonly _synthesisLoading = ref(false);
+	private readonly _synthesisError = ref("");
 	private readonly _allComplete = ref(false);
 	private readonly _exploredCount = ref(0);
 	private _loadingPromise: Promise<void> | null = null;
@@ -38,12 +38,16 @@ export class ExploreCompleteViewModel {
 		return this._chosenCardIds.value;
 	}
 
-	get summaryEntries(): SummaryEntry[] {
-		return this._summaryEntries.value;
+	get synthesis(): string {
+		return this._synthesis.value;
 	}
 
-	get freeformSummary(): FreeformSummary | null {
-		return this._freeformSummary.value;
+	get synthesisLoading(): boolean {
+		return this._synthesisLoading.value;
+	}
+
+	get synthesisError(): string {
+		return this._synthesisError.value;
 	}
 
 	get allComplete(): boolean {
@@ -67,7 +71,7 @@ export class ExploreCompleteViewModel {
 	}
 
 	get isLoading(): boolean {
-		return this._summaryEntries.value.some((e) => e.loading) || (this._freeformSummary.value?.loading ?? false);
+		return this._synthesisLoading.value;
 	}
 
 	get whenReady(): Promise<void> {
@@ -114,36 +118,16 @@ export class ExploreCompleteViewModel {
 		this._allComplete.value = isExplorePhaseComplete(this.sessionId);
 
 		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
-		const answered = cardData.entries
-			.filter((e) => e.submitted && e.userAnswer.trim() !== "")
-			.map((e) => ({ entry: e, question: questionsById.get(e.questionId) }))
-			.filter((v): v is { entry: (typeof cardData.entries)[number]; question: (typeof EXPLORE_QUESTIONS)[number] } => v.question !== undefined)
-			.sort((a, b) => (questionOrder.get(a.entry.questionId) ?? 0) - (questionOrder.get(b.entry.questionId) ?? 0));
+		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 
-		const summaryRows: SummaryEntry[] = answered.map((v) => ({
-			questionId: v.entry.questionId,
-			topic: v.question.topic,
-			summary: "",
-			loading: false,
-			error: "",
-			unanswered: false,
-		}));
-		this._summaryEntries.value = summaryRows;
-
-		const promises: Promise<void>[] = [];
-		for (const v of answered) {
-			promises.push(this.loadSummary(v.entry.questionId, v.entry.userAnswer));
-		}
-
+		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
+		const fingerprintParts = answered.map((e) => e.userAnswer);
 		if (cardData.freeformNote !== "") {
-			const freeformEntry: FreeformSummary = { summary: "", loading: false, error: "" };
-			this._freeformSummary.value = freeformEntry;
-			promises.push(this.loadFreeformSummary(cardData.freeformNote, freeformEntry));
+			fingerprintParts.push(cardData.freeformNote);
 		}
+		const fingerprint = fingerprintParts.join("\x00");
 
-		if (promises.length > 0) {
-			this._loadingPromise = Promise.all(promises).then(() => undefined);
-		}
+		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.statementSelections, fingerprint);
 
 		capture("explore_complete_viewed", {
 			session_id: this.sessionId,
@@ -160,28 +144,27 @@ export class ExploreCompleteViewModel {
 		markExploreCompleteVisited(this.sessionId, this.cardId);
 	}
 
-	private async loadSummary(questionId: string, answer: string): Promise<void> {
-		const entry = this._summaryEntries.value.find((e) => e.questionId === questionId);
-		if (entry === undefined) return;
-
-		entry.loading = true;
-		try {
-			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId: this.cardId, answer, questionId });
-		} catch (error) {
-			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
-		} finally {
-			entry.loading = false;
+	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedStatements: string[], fingerprint: string): Promise<void> {
+		const cached = lookupCachedSynthesis({ sessionId: this.sessionId, cardId: this.cardId, fingerprint });
+		if (cached !== null) {
+			this._synthesis.value = cached;
+			return;
 		}
-	}
 
-	private async loadFreeformSummary(noteText: string, entry: FreeformSummary): Promise<void> {
-		entry.loading = true;
+		this._synthesisLoading.value = true;
 		try {
-			entry.summary = await fetchOrGetCachedSummary({ sessionId: this.sessionId, cardId: this.cardId, answer: noteText });
+			const result = await fetchSynthesis({
+				cardId: this.cardId,
+				questions,
+				...(selectedStatements.length > 0 ? { selectedStatements } : {}),
+				...(freeformNote !== "" ? { freeformNote } : {}),
+			});
+			this._synthesis.value = result.synthesis;
+			saveCachedSynthesis({ sessionId: this.sessionId, cardId: this.cardId, fingerprint, synthesis: result.synthesis });
 		} catch (error) {
-			entry.error = error instanceof Error ? error.message : "Failed to load summary.";
+			this._synthesisError.value = error instanceof Error ? error.message : "Failed to load synthesis.";
 		} finally {
-			entry.loading = false;
+			this._synthesisLoading.value = false;
 		}
 	}
 }

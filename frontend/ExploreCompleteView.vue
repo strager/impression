@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
 import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
+import { splitSentences } from "./split-sentences.ts";
 import { hasVisitedExploreComplete } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 
@@ -253,9 +254,7 @@ const warmPhraseVisible = ref(false);
 const progressSquaresVisible = ref(false);
 const animatedExploredCount = ref(0);
 const latestSquareIndex = ref(-1);
-const freeformVisible = ref(false);
-const visibleEntryCount = ref(0);
-const visibleSummaryTextCount = ref(0);
+const synthesisVisible = ref(false);
 const countSwapActive = ref(false);
 const primaryActionVisible = ref(false);
 const secondaryActionVisible = ref(false);
@@ -264,12 +263,49 @@ const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 const visibilityGaps = {
 	initial: prefersReducedMotion.value ? 300 : 500,
 	section: prefersReducedMotion.value ? 1000 : 3000,
+	sentencePerChar: prefersReducedMotion.value ? 0 : 40,
+	sentenceBase: prefersReducedMotion.value ? 0 : 300,
 	progressStart: prefersReducedMotion.value ? 0 : 1500,
-	summary: prefersReducedMotion.value ? 1000 : 2500,
-	summaryText: prefersReducedMotion.value ? 500 : 1500,
 };
 
-const summaryItemEls = ref<HTMLElement[]>([]);
+interface ParagraphData {
+	sentences: string[];
+	startIndex: number;
+}
+
+const synthesisParagraphs = computed((): ParagraphData[] => {
+	const paragraphs = vm.synthesis.split("\n").filter(Boolean);
+	const result: ParagraphData[] = [];
+	let idx = 0;
+	for (const para of paragraphs) {
+		const sentences = splitSentences(para);
+		result.push({ sentences, startIndex: idx });
+		idx += sentences.length;
+	}
+	return result;
+});
+
+const revealedSentenceCount = ref(0);
+
+const totalSentenceCount = computed(() => synthesisParagraphs.value.reduce((sum, p) => sum + p.sentences.length, 0));
+
+const showAllAfterIndex = computed(() => {
+	const total = totalSentenceCount.value;
+	const revealed = revealedSentenceCount.value;
+	if (revealed <= 1 || revealed >= total || total <= 1) return -1;
+	return revealed - 1;
+});
+
+const showAllLinks = ref<HTMLAnchorElement[]>([]);
+
+watch(showAllAfterIndex, (newIndex) => {
+	if (!(document.activeElement instanceof HTMLElement) || !document.activeElement.classList.contains("show-all-btn")) return;
+	if (newIndex === -1) return;
+	void nextTick(() => {
+		showAllLinks.value[newIndex]?.focus();
+	});
+});
+
 const progressSquaresEl = ref<HTMLElement | null>(null);
 const actionsEl = ref<HTMLElement | null>(null);
 
@@ -298,9 +334,8 @@ onMounted(() => {
 	if (skipAnimations) {
 		titleVisible.value = true;
 		warmPhraseVisible.value = true;
-		freeformVisible.value = true;
-		visibleEntryCount.value = vm.summaryEntries.length;
-		visibleSummaryTextCount.value = vm.summaryEntries.length;
+		synthesisVisible.value = true;
+		revealedSentenceCount.value = Infinity;
 		progressSquaresVisible.value = true;
 		animatedExploredCount.value = vm.exploredCount;
 		primaryActionVisible.value = true;
@@ -325,25 +360,6 @@ onMounted(() => {
 		warmPhraseVisible.value = true;
 	});
 
-	if (vm.freeformSummary !== null) {
-		revealAfter(visibilityGaps.section, () => {
-			freeformVisible.value = true;
-		});
-	} else {
-		freeformVisible.value = true;
-	}
-
-	for (let i = 0; i < vm.summaryEntries.length; i++) {
-		const count = i + 1;
-		revealAfter(visibilityGaps.summary, () => {
-			visibleEntryCount.value = count;
-			scrollIntoView(summaryItemEls.value[i]);
-		});
-		revealAfter(visibilityGaps.summaryText, () => {
-			visibleSummaryTextCount.value = count;
-		});
-	}
-
 	revealAfter(visibilityGaps.section, () => {
 		progressSquaresVisible.value = true;
 		scrollIntoView(progressSquaresEl.value);
@@ -358,6 +374,23 @@ onMounted(() => {
 			latestSquareIndex.value = vm.exploredCount - 1;
 			pulseAnimation.play(pulseCanvases.value[latestSquareIndex.value]);
 		});
+	}
+
+	const allSentences = synthesisParagraphs.value.flatMap((p) => p.sentences);
+	const sentenceDurations = allSentences.map((s) => visibilityGaps.sentenceBase + s.trim().length * visibilityGaps.sentencePerChar);
+	revealAfter(visibilityGaps.section, () => {
+		synthesisVisible.value = true;
+		revealedSentenceCount.value = 1;
+	});
+	for (let i = 1; i < allSentences.length; i++) {
+		revealAfter(sentenceDurations[i - 1], () => {
+			revealedSentenceCount.value = i + 1;
+		});
+	}
+	if (allSentences.length === 0) {
+		revealedSentenceCount.value = Infinity;
+	} else {
+		elapsed += sentenceDurations[sentenceDurations.length - 1];
 	}
 
 	revealAfter(visibilityGaps.section, () => {
@@ -379,6 +412,15 @@ onBeforeUnmount(() => {
 	document.documentElement.classList.remove("nav-hidden");
 });
 
+function handleShowAll(): void {
+	for (const t of timers) clearTimeout(t);
+	revealedSentenceCount.value = Infinity;
+	primaryActionVisible.value = true;
+	secondaryActionVisible.value = true;
+	document.documentElement.classList.remove("nav-hidden");
+	vm.onAnimationComplete();
+}
+
 function handleKeepExploring(): void {
 	void router.push({ name: "explore", params: { sessionId } });
 }
@@ -395,20 +437,6 @@ function handleOpenReport(): void {
 			<p :class="['warm-phrase', 'cascading', { visible: warmPhraseVisible }]">{{ vm.warmPhrase }}</p>
 		</header>
 
-		<div v-if="vm.isLoading" :class="['summary-loading', 'cascading', { visible: freeformVisible }]">Generating summary...</div>
-		<template v-else>
-			<p v-if="vm.freeformSummary?.summary" :class="['freeform-summary', 'cascading', { visible: freeformVisible }]">{{ vm.freeformSummary.summary }}</p>
-			<p v-else-if="vm.freeformSummary?.error" :class="['summary-error', 'cascading', { visible: freeformVisible }]">Could not load notes summary.</p>
-			<ul v-if="vm.summaryEntries.length > 0" class="summary-block">
-				<li v-for="(entry, index) in vm.summaryEntries" ref="summaryItemEls" :key="entry.questionId" class="summary-item">
-					<span v-if="entry.error" :class="['summary-error', 'cascading', { visible: index < visibleEntryCount }]">Could not load summary.</span>
-					<span v-else-if="entry.summary"
-						><strong :class="['cascading', { visible: index < visibleEntryCount }]">{{ entry.topic }}:</strong>&nbsp;<span :class="['cascading', { visible: index < visibleSummaryTextCount }]">{{ entry.summary }}</span></span
-					>
-				</li>
-			</ul>
-		</template>
-
 		<div ref="progressSquaresEl" :class="['progress-squares', 'cascading', { visible: progressSquaresVisible }]">
 			<span v-for="(id, index) in vm.chosenCardIds" :key="id" :class="['square', { filled: index < animatedExploredCount, latest: index === latestSquareIndex }]">
 				<canvas ref="pulseCanvases" class="pulse-canvas"></canvas>
@@ -421,6 +449,21 @@ function handleOpenReport(): void {
 				of {{ vm.totalCount }} explored</span
 			>
 		</div>
+
+		<div v-if="vm.isLoading" :class="['summary-loading', 'cascading', { visible: synthesisVisible }]">Generating summary...</div>
+		<template v-else>
+			<div v-if="synthesisParagraphs.length > 0" class="synthesis-summary">
+				<template v-for="(para, pIdx) in synthesisParagraphs" :key="pIdx">
+					<p>
+						<template v-for="(sentence, sIdx) in para.sentences" :key="sIdx"
+							><span :class="['cascading', { visible: para.startIndex + sIdx < revealedSentenceCount }]">{{ sentence }}</span
+							><span v-if="para.startIndex + sIdx < totalSentenceCount - 1" class="show-all-anchor">&nbsp;<a ref="showAllLinks" :class="['show-all-btn', { visible: showAllAfterIndex === para.startIndex + sIdx }]" :tabindex="showAllAfterIndex === para.startIndex + sIdx ? 0 : -1" role="button" @click="handleShowAll" @keydown.enter="handleShowAll">Show all</a></span></template
+						>
+					</p>
+				</template>
+			</div>
+			<p v-if="vm.synthesisError" :class="['summary-error', 'cascading', { visible: synthesisVisible }]">Could not load summary.</p>
+		</template>
 
 		<div ref="actionsEl" class="actions">
 			<template v-if="vm.allComplete">
@@ -481,7 +524,7 @@ h1 {
 	display: flex;
 	align-items: center;
 	gap: var(--space-2);
-	margin-bottom: var(--space-12);
+	margin-bottom: var(--space-8);
 }
 
 .square {
@@ -580,11 +623,42 @@ h1 {
 	margin-bottom: var(--space-8);
 }
 
-.freeform-summary {
-	margin: 0 0 var(--space-4);
+.synthesis-summary p {
+	margin: 0 0 var(--space-2);
 	font-size: var(--text-base);
 	color: var(--color-gray-800);
 	line-height: var(--leading-normal);
+}
+
+.show-all-anchor {
+	display: inline-block;
+	width: 0;
+	height: 0;
+	position: relative;
+	overflow: visible;
+	vertical-align: baseline;
+}
+
+.show-all-btn {
+	white-space: nowrap;
+	opacity: 0;
+	transition: opacity 0.5s ease;
+	pointer-events: none;
+	color: var(--color-gray-400);
+	font-size: var(--text-sm);
+	font-style: italic;
+	cursor: pointer;
+	line-height: inherit;
+}
+
+.show-all-btn.visible {
+	opacity: 1;
+	transition: opacity 1.5s ease;
+	pointer-events: auto;
+}
+
+.show-all-btn:hover {
+	color: var(--color-green-600);
 }
 
 .summary-error {
@@ -592,25 +666,10 @@ h1 {
 	color: var(--color-error);
 }
 
-.summary-block {
-	list-style: none;
-	margin: 0 0 var(--space-8);
-	padding: 0;
-	font-size: var(--text-base);
-	line-height: var(--leading-normal);
-	color: var(--color-gray-800);
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-2);
-}
-
-.summary-item {
-	margin: var(--space-1) 0;
-}
-
 .actions {
 	display: flex;
 	flex-direction: column;
+	margin-top: var(--space-8);
 	gap: var(--space-3);
 }
 
