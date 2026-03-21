@@ -100,6 +100,7 @@
 
 	/* --- Borders --- */
 	--border-thin: 1px solid var(--color-gray-200);
+	--input-border-width: 1px;
 
 	/* --- Transitions --- */
 	--transition: 0.15s ease;
@@ -313,6 +314,7 @@ button:disabled {
 	font-size: var(--text-xs);
 	font-weight: 600;
 	font-style: normal;
+	line-height: var(--leading-relaxed);
 	/* Vertically align the chip with the parent. If --chip-parent-cap is unset
 	 * (0px), this rule has no effect. */
 	transform: translateY(calc((1cap - var(--chip-parent-cap)) / 2 * var(--assert-chip-parent-cap-is-set)));
@@ -370,7 +372,7 @@ textarea {
 	padding: var(--space-2) var(--space-3);
 	background: var(--color-gray-50);
 	border: none;
-	border-bottom: 1px solid var(--color-gray-400);
+	border-bottom: var(--input-border-width) solid var(--color-gray-400);
 	box-shadow: inset 1px 0 0 0 transparent;
 	outline: none;
 	transition:

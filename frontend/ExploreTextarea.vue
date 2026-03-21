@@ -54,6 +54,7 @@ defineExpose({ focus, focusAtEnd });
 <style scoped>
 .textarea-wrapper {
 	position: relative;
+	line-height: 1; /* Position the chip properly. */
 }
 
 textarea.autofilled {
@@ -63,7 +64,7 @@ textarea.autofilled {
 
 .autofill-chip {
 	position: absolute;
-	bottom: var(--space-2);
+	bottom: var(--input-border-width); /* Match <textarea>. */
 	right: 0;
 }
 </style>
