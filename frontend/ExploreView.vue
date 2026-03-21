@@ -90,8 +90,10 @@ function handleOpenReport(source: string): void {
 				<div v-if="vm.cardSynthesis[card.id]?.loading" class="summary-loading">Generating summary...</div>
 				<template v-else-if="vm.cardSynthesis[card.id]?.text">
 					<ul v-if="parseBullets(vm.cardSynthesis[card.id]!.text)" class="card-synthesis-list">
-						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i" :style="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1 ? '--chip-parent-cap: 1cap' : undefined">
-							{{ bullet }}<template v-if="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1">{{ " " }}<span class="chip chip-ai">AI-generated</span></template>
+						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i">
+							<span style="--chip-parent-cap: 1cap"
+								>{{ bullet }}<template v-if="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1">{{ " " }}<span class="chip chip-ai">AI-generated</span></template></span
+							>
 						</li>
 					</ul>
 					<p v-else class="card-synthesis" style="--chip-parent-cap: 1cap">{{ vm.cardSynthesis[card.id]!.text }} <span class="chip chip-ai">AI-generated</span></p>
@@ -196,8 +198,13 @@ h1 {
 	gap: var(--space-2);
 }
 
+.card-synthesis-list li {
+	display: flex;
+}
+
 .card-synthesis-list li::before {
-	padding-right: var(--space-2);
+	flex-shrink: 0;
+	margin-right: var(--space-2);
 	content: "\2713";
 }
 
