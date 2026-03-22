@@ -296,6 +296,7 @@ const showAllAfterIndex = computed(() => {
 	return revealed - 1;
 });
 
+const sentenceSpans = ref<HTMLSpanElement[]>([]);
 const showAllLinks = ref<HTMLAnchorElement[]>([]);
 
 watch(showAllAfterIndex, (newIndex) => {
@@ -381,10 +382,12 @@ onMounted(() => {
 	revealAfter(visibilityGaps.section, () => {
 		synthesisVisible.value = true;
 		revealedSentenceCount.value = 1;
+		scrollIntoView(sentenceSpans.value[0]);
 	});
 	for (let i = 1; i < allSentences.length; i++) {
 		revealAfter(sentenceDurations[i - 1], () => {
 			revealedSentenceCount.value = i + 1;
+			scrollIntoView(sentenceSpans.value[i]);
 		});
 	}
 	if (allSentences.length === 0) {
@@ -457,7 +460,7 @@ function handleOpenReport(): void {
 				<template v-for="(para, pIdx) in synthesisParagraphs" :key="pIdx">
 					<p>
 						<template v-for="(sentence, sIdx) in para.sentences" :key="sIdx"
-							><span :class="['cascading', { visible: para.startIndex + sIdx < revealedSentenceCount }]">{{ sentence }}</span
+							><span ref="sentenceSpans" :class="['cascading', { visible: para.startIndex + sIdx < revealedSentenceCount }]">{{ sentence }}</span
 							><span v-if="para.startIndex + sIdx < totalSentenceCount - 1" class="show-all-anchor">&nbsp;<a ref="showAllLinks" :class="['show-all-btn', { visible: showAllAfterIndex === para.startIndex + sIdx }]" :tabindex="showAllAfterIndex === para.startIndex + sIdx ? 0 : -1" role="button" @click="handleShowAll" @keydown.enter="handleShowAll">Show all</a></span></template
 						>
 					</p>
