@@ -357,10 +357,6 @@ onMounted(() => {
 	});
 
 	revealAfter(visibilityGaps.section, () => {
-		warmPhraseVisible.value = true;
-	});
-
-	revealAfter(visibilityGaps.section, () => {
 		progressSquaresVisible.value = true;
 		scrollIntoView(progressSquaresEl.value);
 	});
@@ -375,6 +371,10 @@ onMounted(() => {
 			pulseAnimation.play(pulseCanvases.value[latestSquareIndex.value]);
 		});
 	}
+
+	revealAfter(visibilityGaps.section, () => {
+		warmPhraseVisible.value = true;
+	});
 
 	const allSentences = synthesisParagraphs.value.flatMap((p) => p.sentences);
 	const sentenceDurations = allSentences.map((s) => visibilityGaps.sentenceBase + s.trim().length * visibilityGaps.sentencePerChar);
@@ -434,7 +434,6 @@ function handleOpenReport(): void {
 	<main v-if="vm.card">
 		<header>
 			<h1 :class="['cascading', { visible: titleVisible }]">&ldquo;{{ vm.card.description }}&rdquo;</h1>
-			<p :class="['warm-phrase', 'cascading', { visible: warmPhraseVisible }]" style="--chip-parent-cap: 1cap">{{ vm.warmPhrase }} <span class="chip chip-ai">AI-generated</span></p>
 		</header>
 
 		<div ref="progressSquaresEl" :class="['progress-squares', 'cascading', { visible: progressSquaresVisible }]">
@@ -449,6 +448,8 @@ function handleOpenReport(): void {
 				of {{ vm.totalCount }} explored</span
 			>
 		</div>
+
+		<h2 :class="['warm-phrase', 'cascading', { visible: warmPhraseVisible }]" style="--chip-parent-cap: 1cap">{{ vm.warmPhrase }} <span class="chip chip-ai">AI-generated</span></h2>
 
 		<div v-if="vm.isLoading" :class="['summary-loading', 'cascading', { visible: synthesisVisible }]">Generating summary...</div>
 		<template v-else>
@@ -507,7 +508,7 @@ main {
 }
 
 header {
-	margin-bottom: var(--space-6);
+	margin-bottom: var(--space-4);
 }
 
 h1 {
@@ -516,15 +517,14 @@ h1 {
 
 .warm-phrase {
 	font-size: var(--text-lg);
-	color: var(--color-gray-600);
-	margin: 0;
+	margin: var(--space-4) 0;
 }
 
 .progress-squares {
 	display: flex;
 	align-items: center;
 	gap: var(--space-2);
-	margin-bottom: var(--space-8);
+	margin: var(--space-6) 0;
 }
 
 .square {
