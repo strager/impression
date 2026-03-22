@@ -340,6 +340,11 @@ button:disabled {
 	background: var(--color-gray-200);
 }
 
+.chip-neutral {
+	color: var(--color-gray-600);
+	background: var(--color-gray-200);
+}
+
 /* ============================================================
    FORM INPUTS
    ============================================================ */

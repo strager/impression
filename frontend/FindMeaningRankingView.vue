@@ -438,14 +438,14 @@ function handleFinish(): void {
 						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" @pointerdown="handleCardPointerDown($event, idx)">
 							<div class="ranking-slot-shell" :class="{ animated: dragState !== null && dragState.draggedIndex !== idx }" :style="getCardShellStyle(idx)" @transitionrun="handleAnimatedTransformStart(`card-${String(idx)}`, $event)" @transitionend="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)" @transitioncancel="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)">
 								<div class="ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
-									<div class="card-content">
-										<div class="card-title">{{ vm.currentTask[idx].source }}</div>
-										<div class="card-body">{{ vm.currentTask[idx].description }}</div>
-									</div>
+									<div class="card-title">{{ vm.currentTask[idx].source }}</div>
+									<div class="card-body">{{ vm.currentTask[idx].description }}</div>
+									<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === idx ? 1 : 0 }">Most important</span>
 									<div class="card-buttons">
-										<ToggleButton variant="primary" :active="previewSelection.mostIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleMost(idx)">Most meaningful</ToggleButton>
-										<ToggleButton variant="neutral" :active="previewSelection.leastIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleLeast(idx)">Least meaningful</ToggleButton>
+										<ToggleButton variant="primary" :active="previewSelection.mostIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleMost(idx)">↑</ToggleButton>
+										<ToggleButton variant="neutral" :active="previewSelection.leastIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleLeast(idx)">↓</ToggleButton>
 									</div>
+									<span class="chip chip-positioned chip-neutral ranking-chip ranking-chip-bottom" :style="{ opacity: previewSelection.leastIndex === idx ? 1 : 0 }">Least important</span>
 								</div>
 							</div>
 						</div>
@@ -454,14 +454,14 @@ function handleFinish(): void {
 					<div v-if="draggedCard !== null" class="drag-overlay">
 						<div class="drag-overlay-card" :class="{ settling: isSettling }" :style="dragOverlayStyle" @transitionrun="handleAnimatedTransformStart('overlay', $event)" @transitionend="handleAnimatedTransformFinish('overlay', $event)" @transitioncancel="handleAnimatedTransformFinish('overlay', $event)">
 							<div class="ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
-								<div class="card-content">
-									<div class="card-title">{{ draggedCard.source }}</div>
-									<div class="card-body">{{ draggedCard.description }}</div>
-								</div>
+								<div class="card-title">{{ draggedCard.source }}</div>
+								<div class="card-body">{{ draggedCard.description }}</div>
+								<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === dragState?.draggedIndex ? 1 : 0 }">Most important</span>
 								<div class="card-buttons">
-									<ToggleButton variant="primary" :active="previewSelection.mostIndex === dragState?.draggedIndex" disabled>Most meaningful</ToggleButton>
-									<ToggleButton variant="neutral" :active="previewSelection.leastIndex === dragState?.draggedIndex" disabled>Least meaningful</ToggleButton>
+									<ToggleButton variant="primary" :active="previewSelection.mostIndex === dragState?.draggedIndex" disabled>↑</ToggleButton>
+									<ToggleButton variant="neutral" :active="previewSelection.leastIndex === dragState?.draggedIndex" disabled>↓</ToggleButton>
 								</div>
+								<span class="chip chip-positioned chip-neutral ranking-chip ranking-chip-bottom" :style="{ opacity: previewSelection.leastIndex === dragState?.draggedIndex ? 1 : 0 }">Least important</span>
 							</div>
 						</div>
 					</div>
@@ -573,8 +573,15 @@ h1 {
 	padding: var(--space-5);
 	text-align: left;
 	display: grid;
-	grid-template-columns: 1fr auto;
-	gap: var(--space-4);
+	grid-template-columns: 1fr auto auto;
+	grid-template-rows: auto auto 1fr auto;
+	grid-template-areas:
+		"title chip-top chip-top"
+		"title .        buttons"
+		"body  body     buttons"
+		".     chip-btm chip-btm";
+	column-gap: var(--space-4);
+	row-gap: var(--space-2);
 	touch-action: none;
 	user-select: none;
 }
@@ -647,18 +654,43 @@ h1 {
 	touch-action: manipulation;
 }
 
-.card-content {
+.card-title {
+	grid-area: title;
 	min-width: 0;
+	margin-bottom: 0;
 }
 
-.card-content :deep(.card-body) {
+.card-body {
+	grid-area: body;
+	min-width: 0;
 	min-height: calc(2 * var(--text-base) * var(--leading-relaxed));
 }
 
+.ranking-chip {
+	justify-self: end;
+	/* Negate .ranking-card padding to make chips flush with card edges. */
+	margin-right: calc(-1 * var(--space-5));
+}
+
+.ranking-chip-top {
+	grid-area: chip-top;
+	align-self: start;
+	/* Negate .ranking-card padding to make chips flush with card edges. */
+	margin-top: calc(-1 * var(--space-5));
+}
+
+.ranking-chip-bottom {
+	grid-area: chip-btm;
+	align-self: end;
+	/* Negate .ranking-card padding to make chips flush with card edges. */
+	margin-bottom: calc(-1 * var(--space-5));
+}
+
 .card-buttons {
+	grid-area: buttons;
 	display: flex;
 	flex-direction: column;
-	justify-content: space-between;
+	justify-content: center;
 	gap: var(--space-2);
 }
 
@@ -699,6 +731,10 @@ h1 {
 	}
 
 	.ranking-card.dragging::after {
+		transition: none;
+	}
+
+	.ranking-chip {
 		transition: none;
 	}
 }
