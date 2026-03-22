@@ -437,7 +437,7 @@ function handleFinish(): void {
 					<component :is="cardListComponent" v-bind="cardListProps" class="card-triad">
 						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" @pointerdown="handleCardPointerDown($event, idx)">
 							<div class="ranking-slot-shell" :class="{ animated: dragState !== null && dragState.draggedIndex !== idx }" :style="getCardShellStyle(idx)" @transitionrun="handleAnimatedTransformStart(`card-${String(idx)}`, $event)" @transitionend="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)" @transitioncancel="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)">
-								<div class="ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
+								<div class="card-hrule ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
 									<div class="card-title">{{ vm.currentTask[idx].source }}</div>
 									<div class="card-body">{{ vm.currentTask[idx].description }}</div>
 									<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === idx ? 1 : 0 }">Most important</span>
@@ -453,7 +453,7 @@ function handleFinish(): void {
 					<div v-if="dropTargetStyle !== null" class="drop-target-indicator" :style="dropTargetStyle" />
 					<div v-if="draggedCard !== null" class="drag-overlay">
 						<div class="drag-overlay-card" :class="{ settling: isSettling }" :style="dragOverlayStyle" @transitionrun="handleAnimatedTransformStart('overlay', $event)" @transitionend="handleAnimatedTransformFinish('overlay', $event)" @transitioncancel="handleAnimatedTransformFinish('overlay', $event)">
-							<div class="ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
+							<div class="card-hrule ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
 								<div class="card-title">{{ draggedCard.source }}</div>
 								<div class="card-body">{{ draggedCard.description }}</div>
 								<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === dragState?.draggedIndex ? 1 : 0 }">Most important</span>
@@ -468,9 +468,9 @@ function handleFinish(): void {
 				</div>
 			</div>
 			<div v-else key="blank" class="card-triad">
-				<div class="ranking-card blank" aria-hidden="true" />
-				<div class="ranking-card blank" aria-hidden="true" />
-				<div class="ranking-card blank" aria-hidden="true" />
+				<div class="card-hrule ranking-card blank" aria-hidden="true" />
+				<div class="card-hrule ranking-card blank" aria-hidden="true" />
+				<div class="card-hrule ranking-card blank" aria-hidden="true" />
 			</div>
 
 			<div class="button-row">
@@ -489,6 +489,8 @@ function handleFinish(): void {
 
 <style scoped>
 main {
+	--card-bleed-left: var(--space-2);
+	--card-bleed-right: 0px;
 	max-width: 36rem;
 	margin: var(--space-8) auto;
 	padding: 0 var(--space-6);
@@ -549,8 +551,8 @@ h1 {
 
 .drop-target-indicator {
 	position: absolute;
-	left: 0;
-	right: 0;
+	left: calc(-1 * var(--card-bleed-left));
+	right: calc(-1 * var(--card-bleed-right));
 	box-sizing: border-box;
 	background: var(--color-gray-50);
 	border: 1px dashed var(--color-gray-200);
@@ -562,16 +564,23 @@ h1 {
 	transition: none;
 }
 
+.ranking-slot {
+	border-top: var(--border-thin);
+	border-bottom: var(--border-thin);
+}
+
 .ranking-slot + .ranking-slot {
 	margin-top: -1px;
 }
 
 .ranking-card {
-	background: var(--color-white);
-	border-top: var(--border-thin);
-	border-bottom: var(--border-thin);
-	padding: var(--space-5);
-	text-align: left;
+	/* Extend cards into the page's horizontal padding. */
+	margin-left: calc(-1 * var(--card-bleed-left));
+	margin-right: calc(-1 * var(--card-bleed-right));
+	padding-left: var(--card-bleed-left);
+	padding-right: var(--card-bleed-right);
+	border-top: none;
+	border-bottom: none;
 	display: grid;
 	grid-template-columns: 1fr auto auto;
 	grid-template-rows: auto auto 1fr auto;
@@ -668,21 +677,19 @@ h1 {
 
 .ranking-chip {
 	justify-self: end;
-	/* Negate .ranking-card padding to make chips flush with card edges. */
-	margin-right: calc(-1 * var(--space-5));
 }
 
 .ranking-chip-top {
 	grid-area: chip-top;
 	align-self: start;
-	/* Negate .ranking-card padding to make chips flush with card edges. */
+	/* Negate .card-hrule vertical padding to make chip flush with top edge. */
 	margin-top: calc(-1 * var(--space-5));
 }
 
 .ranking-chip-bottom {
 	grid-area: chip-btm;
 	align-self: end;
-	/* Negate .ranking-card padding to make chips flush with card edges. */
+	/* Negate .card-hrule vertical padding to make chip flush with bottom edge. */
 	margin-bottom: calc(-1 * var(--space-5));
 }
 
@@ -692,6 +699,7 @@ h1 {
 	flex-direction: column;
 	justify-content: center;
 	gap: var(--space-2);
+	padding-right: var(--space-2);
 }
 
 .button-row {
