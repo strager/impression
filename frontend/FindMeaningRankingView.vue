@@ -226,7 +226,7 @@ function isDraggedCard(index: number): boolean {
 
 const dropTargetStyle = computed(() => {
 	const activeDrag = dragState.value;
-	if (activeDrag === null || activeDrag.hoveredSlot === activeDrag.originSlot) {
+	if (activeDrag === null) {
 		return null;
 	}
 	const targetOrder = moveCardToSlot(displayOrder.value, activeDrag.draggedIndex, activeDrag.hoveredSlot);
