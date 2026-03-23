@@ -158,7 +158,7 @@ export class FindMeaningRankingViewModel {
 			session_id: this.sessionId,
 			time_on_pair_ms: timeOnTaskMs,
 			comparisons_so_far: this._ranking.value.round,
-			estimated_remaining: est !== null ? Math.ceil(est.mid) : -1,
+			estimated_remaining: est !== null ? Math.ceil(est) : -1,
 		});
 	}
 

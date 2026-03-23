@@ -57,10 +57,7 @@ async function main(): Promise<void> {
 
 		const est = ranking.estimateRemaining();
 		if (est !== null) {
-			const lo = Math.ceil(est.low);
-			const mid = Math.ceil(est.mid);
-			const hi = Math.ceil(est.high);
-			console.log(`  Estimated remaining: ~${String(mid)} (${String(lo)}-${String(hi)})`);
+			console.log(`  Estimated remaining: ~${String(Math.ceil(est))}`);
 		}
 
 		if (stopReason !== null) {

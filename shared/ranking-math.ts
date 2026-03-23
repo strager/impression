@@ -16,7 +16,7 @@ export interface MaxDiffObservation {
 	worst: number;
 }
 
-export type RemainingEstimate = { low: number; mid: number; high: number } | null;
+export type RemainingEstimate = number | null;
 
 export interface XorshiftRng {
 	/** Return next value in (0, 1). */
@@ -615,7 +615,7 @@ export function pairBalancedShuffle(triplets: number[][], n: number, rng: Xorshi
  */
 export function estimateRemainingFisher(mu: Float64Array, sigma: Float64Array, k: number, m: number, delta: number, maxTasks: number, totalTasks: number): RemainingEstimate {
 	const n = mu.length;
-	if (k >= n || k <= 0) return { low: 0, mid: 0, high: 0 };
+	if (k >= n || k <= 0) return 0;
 
 	const ranking = argsortDescending(mu);
 	const iStar = ranking[k - 1];
@@ -626,7 +626,7 @@ export function estimateRemainingFisher(mu: Float64Array, sigma: Float64Array, k
 	const varDiff = sigma[iStar * n + iStar] + sigma[jStar * n + jStar] - 2 * sigma[iStar * n + jStar];
 	const currentZ = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
 	const targetZ = -inverseNormalCdf(delta);
-	if (currentZ >= targetZ) return { low: 0, mid: 0, high: 0 };
+	if (currentZ >= targetZ) return 0;
 
 	// Don't show until the boundary gap has meaningful signal.
 	if (currentZ < 0.5) return null;
@@ -634,7 +634,7 @@ export function estimateRemainingFisher(mu: Float64Array, sigma: Float64Array, k
 	// Target variance for the boundary contrast: varDiff_target = (meanDiff / targetZ)^2
 	const targetVarDiff = (meanDiff / targetZ) ** 2;
 	const varToReduce = varDiff - targetVarDiff;
-	if (varToReduce <= 0) return { low: 0, mid: 0, high: 0 };
+	if (varToReduce <= 0) return 0;
 
 	// If the correction factor is too large, the estimate is too speculative.
 	if (varDiff / targetVarDiff > 10) return null;
@@ -701,50 +701,7 @@ export function estimateRemainingFisher(mu: Float64Array, sigma: Float64Array, k
 	// as dv/dt = -r*(v/v0)^2, which gives: T = varToReduce * varDiff / (r * targetVarDiff).
 	// The correction factor varDiff/targetVarDiff accounts for diminishing returns.
 	const mid = Math.min(Math.ceil((varToReduce * varDiff) / (avgReduction * targetVarDiff)), maxTasks - totalTasks);
-	return { low: Math.max(0, mid), mid: Math.max(0, mid), high: Math.max(0, mid) };
-}
-
-/**
- * Estimate remaining tasks until convergence.
- */
-export function estimateRemainingTasks(mu: Float64Array, sigma: Float64Array, k: number, delta: number, totalTasks: number, maxTasks: number): RemainingEstimate {
-	const n = mu.length;
-	if (k >= n || k <= 0) return { low: 0, mid: 0, high: 0 };
-
-	const ranking = argsortDescending(mu);
-
-	// Gap between boundary items
-	const iStar = ranking[k - 1];
-	const jStar = ranking[k];
-	const meanDiff = mu[iStar] - mu[jStar];
-	const varDiff = sigma[iStar * n + iStar] + sigma[jStar * n + jStar] - 2 * sigma[iStar * n + jStar];
-
-	if (meanDiff <= 0) return null;
-
-	// Current z-score
-	const currentZ = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
-	// Target z-score for 1-delta confidence
-	const targetZ = -inverseNormalCdf(delta);
-
-	if (currentZ >= targetZ) {
-		return { low: 0, mid: 0, high: 0 };
-	}
-
-	// Don't trust the estimate until we've covered enough of the
-	// z-score distance — below this the extrapolation is too speculative.
-	const zProgress = currentZ > 0 ? currentZ / targetZ : 0;
-	if (zProgress < 0.7) return null;
-
-	// Rough heuristic: variance decreases roughly as 1/t
-	// So t_needed / t_current ~ (currentZ / targetZ)^(-2) ... roughly
-	// More practically: each task reduces variance by a factor
-	// We estimate: remaining ~ totalTasks * ((targetZ/currentZ)^2 - 1)
-	const ratio = (targetZ / currentZ) ** 2;
-	const mid = Math.min(Math.ceil(Math.max(1, totalTasks * (ratio - 1))), maxTasks - totalTasks);
-	const low = Math.min(Math.floor(mid * 0.7), maxTasks - totalTasks);
-	const high = Math.min(Math.ceil(mid * 1.3), maxTasks - totalTasks);
-
-	return { low: Math.max(0, low), mid: Math.max(0, mid), high: Math.max(0, high) };
+	return Math.max(0, mid);
 }
 
 function inverseNormalCdf(p: number): number {

@@ -90,7 +90,7 @@ function runTest(req: WorkerRequest): RunResult {
 		const { items: task } = ranking.selectTask();
 		const { best, worst } = oracle(task, req.trueStrength, ranking.round);
 		ranking.recordTask(best, worst);
-		estimatedMidPerRound.push(ranking.estimateRemaining()?.mid ?? null);
+		estimatedMidPerRound.push(ranking.estimateRemaining());
 	}
 	const topK = new Set(ranking.topK);
 	const eK = ranking.effectiveK;

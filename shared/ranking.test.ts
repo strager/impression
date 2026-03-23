@@ -1011,7 +1011,7 @@ describe("estimateRemaining integration", () => {
 		const ranking = new Ranking(items, { k: 2, m: 3, seed: 42 });
 		expect(ranking.stopped).toBe(true);
 		const est = ranking.estimateRemaining();
-		expect(est).toEqual({ low: 0, mid: 0, high: 0 });
+		expect(est).toBe(0);
 	});
 
 	it("never exceeds budget", () => {
@@ -1029,7 +1029,7 @@ describe("estimateRemaining integration", () => {
 			const est = ranking.estimateRemaining();
 			if (est !== null) {
 				const budget = 15 - ranking.round;
-				expect(est.mid).toBeLessThanOrEqual(budget);
+				expect(est).toBeLessThanOrEqual(budget);
 			}
 		}
 	});
