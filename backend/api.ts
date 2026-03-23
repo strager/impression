@@ -321,14 +321,11 @@ api.register({
 		const userMessage = JSON.stringify({ answeredQuestions, unansweredQuestions });
 
 		try {
-			const content = await createChatCompletion({
-				apiKey: appConfig.xaiApiKey,
-				model: "grok-4-fast-non-reasoning",
+			const content = await createAnthropicCompletion({
+				apiKey: appConfig.anthropicApiKey,
+				model: "claude-haiku-4-5-20251001",
+				system: "You are a reflective coach helping someone explore their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + 'The user will provide a JSON object with two arrays: "answeredQuestions" (questions the user has already answered) and "unansweredQuestions" (questions that have not been answered yet). ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include unanswered questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
 				messages: [
-					{
-						role: "system",
-						content: "You are a reflective coach helping someone explore their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + 'The user will provide a JSON object with two arrays: "answeredQuestions" (questions the user has already answered) and "unansweredQuestions" (questions that have not been answered yet). ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include unanswered questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
-					},
 					{
 						role: "user",
 						content: userMessage,
