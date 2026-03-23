@@ -305,16 +305,20 @@ api.register({
 			}
 		}
 
-		const answeredById = new Map(questions.map((q) => [q.questionId, q.answer]));
+		const answeredById = new Map(questions.filter((q) => q.answer !== "").map((q) => [q.questionId, q.answer]));
 
-		const promptQuestions = EXPLORE_QUESTIONS.map((q) => ({
-			questionId: q.id,
-			topic: q.topic,
-			text: q.text,
-			answer: answeredById.get(q.id) ?? "",
-		}));
+		const answeredQuestions: { questionId: string; topic: string; text: string; answer: string }[] = [];
+		const unansweredQuestions: { questionId: string; topic: string; text: string }[] = [];
+		for (const q of EXPLORE_QUESTIONS) {
+			const answer = answeredById.get(q.id);
+			if (answer !== undefined) {
+				answeredQuestions.push({ questionId: q.id, topic: q.topic, text: q.text, answer });
+			} else {
+				unansweredQuestions.push({ questionId: q.id, topic: q.topic, text: q.text });
+			}
+		}
 
-		const userMessage = JSON.stringify(promptQuestions);
+		const userMessage = JSON.stringify({ answeredQuestions, unansweredQuestions });
 
 		try {
 			const content = await createChatCompletion({
@@ -323,7 +327,7 @@ api.register({
 				messages: [
 					{
 						role: "system",
-						content: "You are a reflective coach helping someone explore their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + "The user will provide a JSON array of question objects about this topic. " + 'Questions with a non-empty "answer" have been answered by the user. ' + 'Questions with an empty "answer" are unanswered. ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
+						content: "You are a reflective coach helping someone explore their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + 'The user will provide a JSON object with two arrays: "answeredQuestions" (questions the user has already answered) and "unansweredQuestions" (questions that have not been answered yet). ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include unanswered questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
 					},
 					{
 						role: "user",
@@ -336,18 +340,23 @@ api.register({
 			});
 
 			try {
-				const parsed: unknown = JSON.parse(content);
+				const jsonContent = content.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+				const parsed: unknown = JSON.parse(jsonContent);
 				if (!Array.isArray(parsed)) {
 					return { statusCode: 200, body: { inferredAnswers: [] } };
 				}
 				const items: unknown[] = parsed;
-				const inferredAnswers: { questionId: string; answer: string }[] = [];
+				const inferredById = new Map<string, string>();
 				for (const item of items) {
 					if (typeof item === "object" && item !== null && "questionId" in item && typeof item.questionId === "string" && "answer" in item && typeof item.answer === "string") {
-						inferredAnswers.push({
-							questionId: item.questionId,
-							answer: item.answer,
-						});
+						inferredById.set(item.questionId, item.answer);
+					}
+				}
+				const inferredAnswers: { questionId: string; answer: string }[] = [];
+				for (const q of EXPLORE_QUESTIONS) {
+					const answer = inferredById.get(q.id);
+					if (answer !== undefined) {
+						inferredAnswers.push({ questionId: q.id, answer });
 					}
 				}
 				return { statusCode: 200, body: { inferredAnswers } };
