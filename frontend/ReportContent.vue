@@ -27,6 +27,10 @@ defineProps<{
 				<template v-if="report.synthesis">
 					<p v-for="(paragraph, i) in report.synthesis.split('\n\n')" :key="i" class="synthesis-paragraph">{{ paragraph }}</p>
 				</template>
+				<template v-else-if="report.synthesisError">
+					<div class="alert alert-error">Could not load summary.</div>
+					<slot name="card-synthesis-error" :report="report" />
+				</template>
 				<p v-else class="qa-unanswered">No self reflections</p>
 			</div>
 		</section>

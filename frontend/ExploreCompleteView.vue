@@ -466,7 +466,7 @@ function handleOpenReport(): void {
 					</p>
 				</template>
 			</div>
-			<p v-if="vm.synthesisError" :class="['summary-error', 'cascading', { visible: synthesisVisible }]">Could not load summary.</p>
+			<div v-if="vm.synthesisError" :class="['alert', 'alert-error', 'cascading', { visible: synthesisVisible }]">Could not load summary. <a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis()" @keydown.enter="vm.retrySynthesis()">Retry</a></div>
 		</template>
 
 		<div ref="actionsEl" class="actions">
@@ -662,11 +662,6 @@ h1 {
 
 .show-all-btn:hover {
 	color: var(--color-green-600);
-}
-
-.summary-error {
-	font-size: var(--text-sm);
-	color: var(--color-error);
 }
 
 .actions {

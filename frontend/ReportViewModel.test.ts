@@ -154,7 +154,7 @@ describe("synthesis loading", () => {
 		expect(vm.reports[0].synthesis).toBe("Cached synthesis");
 	});
 
-	it("handles fetch failure gracefully with empty synthesis", async () => {
+	it("handles fetch failure gracefully with empty synthesis and error flag", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
 		server.use(
@@ -168,6 +168,7 @@ describe("synthesis loading", () => {
 		await vm.whenReady;
 
 		expect(vm.reports[0].synthesis).toBe("");
+		expect(vm.reports[0].synthesisError).toBe(true);
 		expect(vm.loading).toBe(false);
 	});
 
@@ -183,6 +184,34 @@ describe("synthesis loading", () => {
 		await vm.whenReady;
 
 		expect(vm.reports[0].synthesis).toBe("Synthesis with notes");
+	});
+
+	it("retrySynthesis retries and populates synthesis after failure", async () => {
+		saveChosenCardIds(sid(), [TEST_CARD_ID]);
+		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return new HttpResponse(null, { status: 500 });
+			}),
+		);
+
+		const vm = new ReportViewModel(sid());
+		vm.initialize();
+		await vm.whenReady;
+
+		expect(vm.reports[0].synthesisError).toBe(true);
+
+		// Swap to a working handler and retry
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return HttpResponse.json({ synthesis: "Retried synthesis" });
+			}),
+		);
+
+		await vm.retrySynthesis(TEST_CARD_ID);
+
+		expect(vm.reports[0].synthesis).toBe("Retried synthesis");
+		expect(vm.reports[0].synthesisError).toBe(false);
 	});
 
 	it("batches all synthesis fetches before populating reports", async () => {

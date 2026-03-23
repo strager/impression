@@ -411,6 +411,40 @@ describe("synthesis loading", () => {
 	});
 });
 
+describe("retrySynthesis", () => {
+	it("retries after initial failure and loads synthesis", async () => {
+		const cardIds = setupChosenCards(1);
+		saveExploreData(sid(), makeExploreData(cardIds, 1));
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return new HttpResponse(null, { status: 500 });
+			}),
+		);
+
+		const vm = new ExploreViewModel(sid());
+		vm.initialize();
+		await vm.whenReady;
+
+		expect(vm.cardSynthesis[cardIds[0]]!.error).not.toBe("");
+
+		// Swap to a working handler and retry
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return HttpResponse.json({ synthesis: "Retried synthesis" });
+			}),
+		);
+
+		vm.retrySynthesis(cardIds[0]);
+		expect(vm.cardSynthesis[cardIds[0]]!.loading).toBe(true);
+
+		await vm.whenReady;
+
+		expect(vm.cardSynthesis[cardIds[0]]!.text).toBe("Retried synthesis");
+		expect(vm.cardSynthesis[cardIds[0]]!.error).toBe("");
+		expect(vm.cardSynthesis[cardIds[0]]!.loading).toBe(false);
+	});
+});
+
 describe("action methods", () => {
 	it("onExploreCard does not throw", () => {
 		const cardIds = setupChosenCards(1);

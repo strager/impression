@@ -470,6 +470,29 @@ textarea:disabled {
 	color: var(--color-error);
 }
 
+.retry-link {
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	text-decoration-thickness: 1px;
+	color: inherit;
+}
+
+.retry-link:hover {
+	color: inherit;
+	opacity: 0.8;
+}
+
+@media print {
+	.retry-link {
+		display: none;
+	}
+}
+
 /* ============================================================
    TABLES
    ============================================================ */

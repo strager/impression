@@ -371,9 +371,11 @@ import AppButton from "./AppButton.vue";
 			<!-- Alerts -->
 			<div class="sg-subsection">
 				<div class="sg-subsection-title">Feedback &amp; alerts</div>
+				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Use <code style="font-size: var(--text-sm); background: var(--color-gray-50); padding: 2px 4px">alert alert-error</code> for non-field errors (failed loads, network issues). When the error is retryable, include a <code style="font-size: var(--text-sm); background: var(--color-gray-50); padding: 2px 4px">retry-link</code> button inside the alert.</p>
 				<div class="alert alert-success">Your changes have been saved successfully.</div>
 				<div class="alert alert-warning">Your session will expire in 5 minutes.</div>
 				<div class="alert alert-error">Unable to process your request. Please try again.</div>
+				<div class="alert alert-error">Could not load summary. <a class="retry-link" role="button" tabindex="0">Retry</a></div>
 			</div>
 
 			<!-- Chips -->

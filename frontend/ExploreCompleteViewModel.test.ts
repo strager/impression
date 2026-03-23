@@ -217,6 +217,41 @@ describe("synthesis loading", () => {
 	});
 });
 
+describe("retrySynthesis", () => {
+	it("retries after initial failure and loads synthesis", async () => {
+		saveChosenCardIds(sid(), [TEST_CARD_ID]);
+		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return new HttpResponse(null, { status: 500 });
+			}),
+		);
+
+		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		await vm.whenReady;
+
+		expect(vm.synthesisError).not.toBe("");
+		expect(vm.synthesisLoading).toBe(false);
+
+		// Swap to a working handler and retry
+		server.use(
+			http.post("*/api/synthesize", () => {
+				return HttpResponse.json({ synthesis: "Retried synthesis" });
+			}),
+		);
+
+		vm.retrySynthesis();
+		expect(vm.synthesisError).toBe("");
+		expect(vm.synthesisLoading).toBe(true);
+
+		await vm.whenReady;
+
+		expect(vm.synthesis).toBe("Retried synthesis");
+		expect(vm.synthesisLoading).toBe(false);
+	});
+});
+
 describe("progress", () => {
 	it("counts explored cards correctly", () => {
 		const cardIds = MEANING_CARDS.slice(0, 3).map((c) => c.id);

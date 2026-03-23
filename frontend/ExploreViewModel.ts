@@ -141,6 +141,12 @@ export class ExploreViewModel {
 		}
 	}
 
+	retrySynthesis(cardId: string): void {
+		const exploreData = loadExploreData(this.sessionId);
+		if (exploreData === null || !(cardId in exploreData)) return;
+		this._loadingPromise = this.loadCardSynthesis(cardId, exploreData[cardId]);
+	}
+
 	private async loadCardSynthesis(cardId: string, cardData: CardExploreData): Promise<void> {
 		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionsById.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));

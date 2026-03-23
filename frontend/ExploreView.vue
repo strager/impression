@@ -98,7 +98,7 @@ function handleOpenReport(source: string): void {
 					</ul>
 					<p v-else class="card-synthesis" style="--chip-parent-cap: 1cap">{{ vm.cardSynthesis[card.id]!.text }} <span class="chip chip-ai">AI-generated</span></p>
 				</template>
-				<p v-else-if="vm.cardSynthesis[card.id]?.error" class="summary-error">Could not load summary.</p>
+				<div v-else-if="vm.cardSynthesis[card.id]?.error" class="alert alert-error">Could not load summary. <a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis(card.id)" @keydown.enter="vm.retrySynthesis(card.id)">Retry</a></div>
 				<AppButton :variant="vm.cardStatus(card.id) !== 'complete' ? 'primary' : 'secondary'" class="explore-btn" @click="handleExploreCard(card.id)">{{ exploreButtonLabel(card.id) }}</AppButton>
 			</div>
 		</div>
@@ -213,12 +213,6 @@ h1 {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
 	font-style: italic;
-}
-
-.summary-error {
-	margin-top: var(--space-3);
-	font-size: var(--text-sm);
-	color: var(--color-error);
 }
 
 .top-actions {

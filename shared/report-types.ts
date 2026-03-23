@@ -15,4 +15,5 @@ export interface CardReport {
 	selectedStatements: string[];
 	freeformNote: string;
 	synthesis: string;
+	synthesisError?: boolean;
 }

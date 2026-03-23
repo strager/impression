@@ -140,6 +140,24 @@ export class ExploreCompleteViewModel {
 		return "ready";
 	}
 
+	retrySynthesis(): void {
+		const exploreData = loadExploreData(this.sessionId);
+		if (exploreData === null || !(this.cardId in exploreData)) return;
+		const cardData = exploreData[this.cardId];
+
+		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
+		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
+		const fingerprintParts = answered.map((e) => e.userAnswer);
+		if (cardData.freeformNote !== "") {
+			fingerprintParts.push(cardData.freeformNote);
+		}
+		const fingerprint = fingerprintParts.join("\x00");
+
+		this._synthesisError.value = "";
+		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.statementSelections, fingerprint);
+	}
+
 	onAnimationComplete(): void {
 		markExploreCompleteVisited(this.sessionId, this.cardId);
 	}

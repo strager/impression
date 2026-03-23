@@ -35,6 +35,45 @@ export class ReportViewModel {
 		return this._loadingPromise ?? Promise.resolve();
 	}
 
+	async retrySynthesis(cardId: string): Promise<void> {
+		const report = this._reports.value.find((r) => r.card.id === cardId);
+		if (report === undefined) return;
+
+		const exploreData = loadExploreData(this.sessionId) ?? {};
+		if (!(cardId in exploreData)) return;
+
+		const entries = exploreData[cardId].entries;
+		const freeformNote = exploreData[cardId].freeformNote;
+		const selectedIds = exploreData[cardId].statementSelections;
+
+		const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
+		if (answered.length === 0) return;
+
+		const questionsForApi = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
+		const fingerprintParts = answered.map((e) => e.userAnswer);
+		if (freeformNote !== "") {
+			fingerprintParts.push(freeformNote);
+		}
+		const fingerprint = fingerprintParts.join("\x00");
+
+		report.synthesisError = false;
+		this._reports.value = [...this._reports.value];
+
+		try {
+			const result = await fetchSynthesis({
+				cardId,
+				questions: questionsForApi,
+				...(selectedIds.length > 0 ? { selectedStatements: selectedIds } : {}),
+				...(freeformNote !== "" ? { freeformNote } : {}),
+			});
+			report.synthesis = result.synthesis;
+			saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis });
+		} catch {
+			report.synthesisError = true;
+		}
+		this._reports.value = [...this._reports.value];
+	}
+
 	initialize(): "ready" | "no-data" {
 		const cardIds = loadChosenCardIds(this.sessionId);
 		if (cardIds === null) {
@@ -98,7 +137,7 @@ export class ReportViewModel {
 							saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis });
 						})
 						.catch(() => {
-							// Leave synthesis empty on failure
+							report.synthesisError = true;
 						}),
 				);
 			}

@@ -175,6 +175,9 @@ onBeforeUnmount(() => {
 			<p v-else-if="!dailyLimitReached && pdfDownloadsRemaining !== null" class="download-limit-note">{{ pdfDownloadsRemaining.toString() }} of 3 PDF downloads remaining today.</p>
 			<p v-else-if="!dailyLimitReached" class="download-limit-note">PDF downloads are limited to 3 per day.</p>
 		</template>
+		<template #card-synthesis-error="{ report }">
+			<a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis(report.card.id)" @keydown.enter="vm.retrySynthesis(report.card.id)">Retry</a>
+		</template>
 	</ReportContent>
 </template>
 
