@@ -11,6 +11,7 @@ export interface RunResult {
 	correctness: "perfect" | "good-enough" | "incorrect";
 	delta: number;
 	maxTasks: number;
+	estimatedMidPerRound: (number | null)[];
 }
 
 export interface WorkerRequest {

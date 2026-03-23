@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef } from "vue";
 
 import type { StopMode } from "../shared/ranking.ts";
+import RemainingEstimatePlot from "./RemainingEstimatePlot.vue";
 import ViolinPlot from "./ViolinPlot.vue";
 import type { OracleSpec, RunResult, WorkerRequest, WorkerResponse } from "./ranking-convergence-protocol.ts";
 import ConvergenceWorker from "./ranking-convergence.worker.ts?worker";
@@ -449,6 +450,7 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 						<th>Max</th>
 						<th colspan="3">Rounds</th>
 						<th>Distribution</th>
+						<th><span class="hint-label" title="X: actual remaining (high to low, left to right = time). Y: predicted remaining (mid estimate). Dots above the dashed line = overestimates, below = underestimates.">Est. Remaining</span></th>
 						<th colspan="3">eK</th>
 						<th class="c-perfect" title="Perfect">P</th>
 						<th class="c-good-enough" title="Good enough">G</th>
@@ -467,6 +469,9 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 							<td>
 								<ViolinPlot :values="violinValues(getResult(scenario, testName)?.runs ?? [])" :max-value="maxRoundsForScenario(scenario)" />
 							</td>
+							<td>
+								<RemainingEstimatePlot v-if="(getResult(scenario, testName)?.runs.length ?? 0) > 0" :runs="getResult(scenario, testName)?.runs ?? []" />
+							</td>
 							<td class="mono num"><span class="stat-label">min</span>{{ getResult(scenario, testName)?.eKMin }}</td>
 							<td class="mono num">
 								<template v-if="getResult(scenario, testName)?.eKMin === getResult(scenario, testName)?.eKMax"></template><template v-else><span class="stat-label">avg</span>{{ getResult(scenario, testName)?.eKMedian }}</template>
@@ -479,13 +484,13 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 							<td class="mono num" :class="{ 'c-incorrect': (getResult(scenario, testName)?.incorrectCount ?? 0) > 0 }">{{ getResult(scenario, testName)?.incorrectCount }}</td>
 						</template>
 						<template v-else>
-							<td colspan="12"></td>
+							<td colspan="13"></td>
 						</template>
 					</tr>
 				</tbody>
 				<tfoot v-if="results.get(scenario)">
 					<tr>
-						<td colspan="10"><strong>Total</strong></td>
+						<td colspan="11"><strong>Total</strong></td>
 						<td class="mono num" :class="{ 'c-perfect': scenarioTotals(scenario).totalPerfect > 0 }">
 							<strong>{{ scenarioTotals(scenario).totalPerfect }}</strong>
 						</td>
@@ -597,6 +602,12 @@ th {
 	color: #999;
 	font-size: 0.75em;
 	margin-right: 0.15em;
+}
+
+.hint-label {
+	text-decoration: underline dotted;
+	text-underline-offset: 2px;
+	cursor: help;
 }
 
 .c-perfect {

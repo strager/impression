@@ -85,10 +85,12 @@ function runTest(req: WorkerRequest): RunResult {
 	const items = range(req.n);
 	const oracle = buildOracle(req.oracleSpec);
 	const ranking = new Ranking(items, { ...req.config, ...(req.maxTasks !== undefined ? { maxTasks: req.maxTasks } : {}), ...(req.delta !== undefined ? { delta: req.delta } : {}), ...(req.stopMode !== undefined ? { stopMode: req.stopMode } : {}), seed: req.seed });
+	const estimatedMidPerRound: (number | null)[] = [];
 	while (!ranking.stopped) {
 		const { items: task } = ranking.selectTask();
 		const { best, worst } = oracle(task, req.trueStrength, ranking.round);
 		ranking.recordTask(best, worst);
+		estimatedMidPerRound.push(ranking.estimateRemaining()?.mid ?? null);
 	}
 	const topK = new Set(ranking.topK);
 	const eK = ranking.effectiveK;
@@ -97,7 +99,7 @@ function runTest(req: WorkerRequest): RunResult {
 	const goodEnoughExpected = req.expectedTopK.slice(0, Math.min(eK, req.expectedTopK.length));
 	const goodEnoughCorrect = goodEnoughExpected.every((x) => topK.has(x));
 	const correctness = perfectCorrect ? "perfect" : goodEnoughCorrect ? "good-enough" : "incorrect";
-	return { round: ranking.round, stop: ranking.stopReason ?? "?", eK, correctness, delta: ranking.delta, maxTasks: ranking.maxTasks };
+	return { round: ranking.round, stop: ranking.stopReason ?? "?", eK, correctness, delta: ranking.delta, maxTasks: ranking.maxTasks, estimatedMidPerRound };
 }
 
 // ---------------------------------------------------------------------------
