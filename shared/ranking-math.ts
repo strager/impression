@@ -607,6 +607,104 @@ export function pairBalancedShuffle(triplets: number[][], n: number, rng: Xorshi
 }
 
 /**
+ * Estimate remaining tasks using Fisher information budget.
+ *
+ * Computes how much variance reduction the boundary contrast needs,
+ * estimates the average per-task contribution by evaluating the Fisher
+ * information of each possible task in the schedule, and divides.
+ */
+export function estimateRemainingFisher(mu: Float64Array, sigma: Float64Array, k: number, m: number, delta: number, maxTasks: number, totalTasks: number): RemainingEstimate {
+	const n = mu.length;
+	if (k >= n || k <= 0) return { low: 0, mid: 0, high: 0 };
+
+	const ranking = argsortDescending(mu);
+	const iStar = ranking[k - 1];
+	const jStar = ranking[k];
+	const meanDiff = mu[iStar] - mu[jStar];
+	if (meanDiff <= 0) return null;
+
+	const varDiff = sigma[iStar * n + iStar] + sigma[jStar * n + jStar] - 2 * sigma[iStar * n + jStar];
+	const currentZ = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
+	const targetZ = -inverseNormalCdf(delta);
+	if (currentZ >= targetZ) return { low: 0, mid: 0, high: 0 };
+
+	// Don't show until the boundary gap has meaningful signal.
+	if (currentZ < 0.5) return null;
+
+	// Target variance for the boundary contrast: varDiff_target = (meanDiff / targetZ)^2
+	const targetVarDiff = (meanDiff / targetZ) ** 2;
+	const varToReduce = varDiff - targetVarDiff;
+	if (varToReduce <= 0) return { low: 0, mid: 0, high: 0 };
+
+	// If the correction factor is too large, the estimate is too speculative.
+	if (varDiff / targetVarDiff > 10) return null;
+
+	// Contrast vector: e[iStar]=1, e[jStar]=-1, rest 0.
+	// Sigma * e column:
+	const sigmaE = new Float64Array(n);
+	for (let i = 0; i < n; i++) {
+		sigmaE[i] = sigma[i * n + iStar] - sigma[i * n + jStar];
+	}
+
+	// Enumerate all C(n, m) tasks and compute average variance reduction.
+	// For one observation with Hessian contribution H_obs, the first-order
+	// variance reduction on the contrast is: e^T Sigma H_obs Sigma e.
+	const combos = enumerateCombinations(n, m);
+	let totalReduction = 0;
+	const negU = new Float64Array(n);
+	for (let i = 0; i < n; i++) negU[i] = -mu[i];
+
+	for (const set of combos) {
+		// Best-choice contribution: diag(p) - p*p^T over the set
+		const probs = softmaxProbs(set, mu);
+
+		// Compute (diag(p) - p*p^T) * sigmaE restricted to set indices,
+		// then dot with sigmaE to get e^T Sigma H_best Sigma e.
+		// H_best_sigmaE[i] = sum_j H_best[set[i], set[j]] * sigmaE[set[j]]
+		//                   = p[i]*sigmaE[set[i]] - p[i] * sum_j(p[j]*sigmaE[set[j]])
+		let pDotSigmaE = 0;
+		for (let si = 0; si < set.length; si++) {
+			pDotSigmaE += probs[si] * sigmaE[set[si]];
+		}
+		let bestReduction = 0;
+		for (let si = 0; si < set.length; si++) {
+			const hSigmaE_i = probs[si] * sigmaE[set[si]] - probs[si] * pDotSigmaE;
+			bestReduction += sigmaE[set[si]] * hSigmaE_i;
+		}
+
+		// Worst-choice contribution: diag(q) - q*q^T over set\{best} with -u
+		// The noise-free best is the item in set with highest mu.
+		let bestIdx = set[0];
+		for (const j of set) {
+			if (mu[j] > mu[bestIdx]) bestIdx = j;
+		}
+		const setMinusBest = set.filter((j) => j !== bestIdx);
+		const qProbs = softmaxProbs(setMinusBest, negU);
+
+		let qDotSigmaE = 0;
+		for (let si = 0; si < setMinusBest.length; si++) {
+			qDotSigmaE += qProbs[si] * sigmaE[setMinusBest[si]];
+		}
+		let worstReduction = 0;
+		for (let si = 0; si < setMinusBest.length; si++) {
+			const hSigmaE_i = qProbs[si] * sigmaE[setMinusBest[si]] - qProbs[si] * qDotSigmaE;
+			worstReduction += sigmaE[setMinusBest[si]] * hSigmaE_i;
+		}
+
+		totalReduction += bestReduction + worstReduction;
+	}
+
+	const avgReduction = totalReduction / combos.length;
+	if (avgReduction <= 0) return null;
+
+	// The per-task reduction rate shrinks as Sigma shrinks. Model the decay
+	// as dv/dt = -r*(v/v0)^2, which gives: T = varToReduce * varDiff / (r * targetVarDiff).
+	// The correction factor varDiff/targetVarDiff accounts for diminishing returns.
+	const mid = Math.min(Math.ceil((varToReduce * varDiff) / (avgReduction * targetVarDiff)), maxTasks - totalTasks);
+	return { low: Math.max(0, mid), mid: Math.max(0, mid), high: Math.max(0, mid) };
+}
+
+/**
  * Estimate remaining tasks until convergence.
  */
 export function estimateRemainingTasks(mu: Float64Array, sigma: Float64Array, k: number, delta: number, totalTasks: number, maxTasks: number): RemainingEstimate {
@@ -621,10 +719,7 @@ export function estimateRemainingTasks(mu: Float64Array, sigma: Float64Array, k:
 	const meanDiff = mu[iStar] - mu[jStar];
 	const varDiff = sigma[iStar * n + iStar] + sigma[jStar * n + jStar] - 2 * sigma[iStar * n + jStar];
 
-	if (meanDiff <= 0) {
-		const remaining = maxTasks - totalTasks;
-		return { low: remaining, mid: remaining, high: remaining };
-	}
+	if (meanDiff <= 0) return null;
 
 	// Current z-score
 	const currentZ = meanDiff / Math.sqrt(Math.max(varDiff, 1e-12));
@@ -635,11 +730,16 @@ export function estimateRemainingTasks(mu: Float64Array, sigma: Float64Array, k:
 		return { low: 0, mid: 0, high: 0 };
 	}
 
+	// Don't trust the estimate until we've covered enough of the
+	// z-score distance — below this the extrapolation is too speculative.
+	const zProgress = currentZ > 0 ? currentZ / targetZ : 0;
+	if (zProgress < 0.7) return null;
+
 	// Rough heuristic: variance decreases roughly as 1/t
 	// So t_needed / t_current ~ (currentZ / targetZ)^(-2) ... roughly
 	// More practically: each task reduces variance by a factor
 	// We estimate: remaining ~ totalTasks * ((targetZ/currentZ)^2 - 1)
-	const ratio = currentZ > 0 ? (targetZ / currentZ) ** 2 : 10;
+	const ratio = (targetZ / currentZ) ** 2;
 	const mid = Math.min(Math.ceil(Math.max(1, totalTasks * (ratio - 1))), maxTasks - totalTasks);
 	const low = Math.min(Math.floor(mid * 0.7), maxTasks - totalTasks);
 	const high = Math.min(Math.ceil(mid * 1.3), maxTasks - totalTasks);

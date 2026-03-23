@@ -9,7 +9,7 @@
 // ============================================================
 
 import type { MaxDiffObservation, RemainingEstimate, XorshiftRng } from "./ranking-math.ts";
-import { argsortDescending, bayesianTopKProbability, confidentTopK, enumerateCombinations, estimateRemainingTasks, fitSequentialLogitMLE, makeXorshift, pairBalancedShuffle } from "./ranking-math.ts";
+import { argsortDescending, bayesianTopKProbability, confidentTopK, enumerateCombinations, estimateRemainingFisher, fitSequentialLogitMLE, makeXorshift, pairBalancedShuffle } from "./ranking-math.ts";
 
 export { argsortDescending, makeXorshift } from "./ranking-math.ts";
 export type { MaxDiffObservation, RemainingEstimate, XorshiftRng } from "./ranking-math.ts";
@@ -100,6 +100,11 @@ export class Ranking<T> {
 	private readonly _seed: number;
 	private _rng: XorshiftRng;
 
+	// Hysteresis for estimate visibility
+	private _lastEstimateMid: number | null;
+	private _consecutiveNulls: number;
+	private _estimateShown: boolean;
+
 	// Stopping
 	private _stopped: boolean;
 	private _stopReason: StopReason | null;
@@ -136,6 +141,9 @@ export class Ranking<T> {
 		this._taskRecords = [];
 		this._pendingTask = null;
 		this._totalTasks = 0;
+		this._lastEstimateMid = null;
+		this._consecutiveNulls = 0;
+		this._estimateShown = false;
 		this._stopped = false;
 		this._stopReason = null;
 		this._effectiveK = this._config.k;
@@ -261,6 +269,9 @@ export class Ranking<T> {
 		this._taskRecords = [];
 		this._pendingTask = null;
 		this._totalTasks = 0;
+		this._lastEstimateMid = null;
+		this._consecutiveNulls = 0;
+		this._estimateShown = false;
 		this._stopped = false;
 		this._stopReason = null;
 		this._effectiveK = this._config.k;
@@ -386,7 +397,21 @@ export class Ranking<T> {
 
 	estimateRemaining(): RemainingEstimate {
 		if (this._stopped) return { low: 0, mid: 0, high: 0 };
-		return estimateRemainingTasks(this._mu, this._sigma, this._config.k, this._config.delta, this._totalTasks, this._config.maxTasks);
+		const est = estimateRemainingFisher(this._mu, this._sigma, this._config.k, this._config.m, this._config.delta, this._config.maxTasks, this._totalTasks);
+		if (est !== null) {
+			this._lastEstimateMid = est.mid;
+			this._consecutiveNulls = 0;
+			this._estimateShown = true;
+			return est;
+		}
+		// Gate wants to hide. If already showing, tolerate a few null rounds.
+		this._consecutiveNulls++;
+		if (this._estimateShown && this._consecutiveNulls <= 2 && this._lastEstimateMid !== null) {
+			const held = Math.max(0, this._lastEstimateMid - this._consecutiveNulls);
+			return { low: held, mid: held, high: held };
+		}
+		this._estimateShown = false;
+		return null;
 	}
 
 	debugState(): {
