@@ -124,9 +124,6 @@ describe("initialize", () => {
 		expect(vm.entries).toHaveLength(1);
 		expect(vm.entries[0].submitted).toBe(false);
 		expect(vm.entries[0].userAnswer).toBe("");
-
-		const saved = loadExploreData(sid());
-		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
 	});
 
 	it("assigns first question when entries are empty", () => {
@@ -137,9 +134,21 @@ describe("initialize", () => {
 		expect(vm.entries).toHaveLength(1);
 		expect(vm.entries[0].submitted).toBe(false);
 		expect(vm.entries[0].userAnswer).toBe("");
+	});
 
-		const saved = loadExploreData(sid());
-		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
+	it("discards submitted entry with empty answer and restarts from first question", () => {
+		setupDefaultHandlers();
+		const entry1 = makeEntry(EXPLORE_QUESTIONS[0].id, "", true);
+		entry1.guardrailText = "Could you share more?";
+		entry1.submittedAfterGuardrail = true;
+		const entry2 = makeEntry(EXPLORE_QUESTIONS[1].id, "", false);
+		setupExploreData(TEST_CARD_ID, [entry1, entry2]);
+
+		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		expect(vm.entries).toHaveLength(1);
+		expect(vm.entries[0].questionId).toBe(EXPLORE_QUESTIONS[0].id);
+		expect(vm.entries[0].submitted).toBe(false);
 	});
 
 	it("returns 'ready' and loads entries on normal load", () => {
@@ -1213,9 +1222,7 @@ describe("initial question assignment", () => {
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		const data = loadExploreData(sid());
-		const questionId = data![TEST_CARD_ID].entries[0].questionId;
 
-		expect(questionId).toBe(EXPLORE_QUESTIONS[0].id);
+		expect(vm.entries[0].questionId).toBe(EXPLORE_QUESTIONS[0].id);
 	});
 });

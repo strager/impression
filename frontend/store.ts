@@ -472,7 +472,7 @@ export function loadExploreData(sessionId: string): ExploreData | null {
 		}
 		const nonBlank = validEntries.filter((e) => e.userAnswer.trim() !== "");
 		result[cardId] = {
-			entries: nonBlank.length > 0 ? nonBlank : validEntries.slice(0, 1),
+			entries: nonBlank,
 			freeformNote: freeformNotes[cardId] ?? "",
 			statementSelections: statementSelections[cardId] ?? [],
 		};
