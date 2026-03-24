@@ -9,6 +9,7 @@ import { renderToString } from "vue/server-renderer";
 import ReportContent from "./ReportContent.vue";
 import type { CardReport } from "../shared/report-types.ts";
 import globalCss from "./global.css?inline";
+import reportPageCss from "./report-page.css?inline";
 
 function pagedMediaCss(paperSize: string): string {
 	const size = paperSize === "letter" ? "letter" : "A4";
@@ -40,6 +41,9 @@ ${componentCss}
 </style>
 <style>
 ${pagedMediaCss(paperSize)}
+</style>
+<style>
+${reportPageCss}
 </style>
 </head>
 <body>

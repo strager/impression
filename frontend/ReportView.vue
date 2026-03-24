@@ -10,6 +10,7 @@ import { useStringParam } from "./route-utils.ts";
 import { exportSessionData, loadPaperSize, savePaperSize } from "./store.ts";
 import type { PaperSize } from "./store.ts";
 import { ReportViewModel } from "./ReportViewModel.ts";
+import reportPageCss from "./report-page.css?inline";
 
 const router = useRouter();
 const sessionId = useStringParam("sessionId");
@@ -174,6 +175,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+	<Teleport to="head">
+		<component :is="'style'">{{ reportPageCss }}</component>
+	</Teleport>
 	<ReportContent :reports="vm.reports">
 		<template #header-actions>
 			<div class="download-controls">
