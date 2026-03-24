@@ -102,6 +102,9 @@
 	--border-thin: 1px solid var(--color-gray-200);
 	--input-border-width: 1px;
 
+	/* --- Icons --- */
+	--icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23737373' d='M1.4 0L6 4.6 10.6 0 12 1.4l-6 6-6-6z'/%3E%3C/svg%3E");
+
 	/* --- Transitions --- */
 	--transition: 0.15s ease;
 }
@@ -375,7 +378,8 @@ label {
 }
 
 input:not([type="checkbox"]):not([type="radio"]),
-textarea {
+textarea,
+select {
 	width: 100%;
 	font-family: var(--font-body);
 	font-size: var(--text-base);
@@ -392,7 +396,8 @@ textarea {
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not(.no-focus-ring):focus,
-textarea:not(.no-focus-ring):focus {
+textarea:not(.no-focus-ring):focus,
+select:not(.no-focus-ring):focus {
 	border-bottom-color: var(--color-green-600);
 	box-shadow: inset 1px 0 0 0 var(--color-green-600);
 }
@@ -420,7 +425,8 @@ textarea {
 }
 
 input:not([type="checkbox"]):not([type="radio"]):disabled,
-textarea:disabled {
+textarea:disabled,
+select:disabled {
 	color: var(--color-gray-400);
 	cursor: not-allowed;
 	background: repeating-linear-gradient(-45deg, var(--color-gray-50), var(--color-gray-50) 4px, var(--color-gray-200) 4px, var(--color-gray-200) 5px);
@@ -431,6 +437,27 @@ textarea:disabled {
 	font-size: var(--text-xs);
 	color: var(--color-gray-400);
 	margin-top: var(--space-1);
+}
+
+select {
+	padding-right: var(--space-8);
+	cursor: pointer;
+	appearance: none;
+	background-image: var(--icon-chevron-down);
+	background-repeat: no-repeat;
+	background-position: right var(--space-3) center;
+}
+
+select.input-error {
+	background:
+		var(--icon-chevron-down) no-repeat right var(--space-3) center,
+		var(--color-error-bg);
+}
+
+select:disabled {
+	background:
+		var(--icon-chevron-down) no-repeat right var(--space-3) center,
+		repeating-linear-gradient(-45deg, var(--color-gray-50), var(--color-gray-50) 4px, var(--color-gray-200) 4px, var(--color-gray-200) 5px);
 }
 
 .input-error-msg {

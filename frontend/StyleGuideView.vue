@@ -368,6 +368,43 @@ import AppButton from "./AppButton.vue";
 				</div>
 			</div>
 
+			<!-- Drop-downs -->
+			<div class="sg-subsection">
+				<div class="sg-subsection-title">Drop-down inputs</div>
+				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Same underline + gray fill treatment as text inputs. A custom chevron replaces the native browser arrow. On focus, the green underline and left accent appear, matching text inputs exactly.</p>
+
+				<h4 class="sg-group-label">Default</h4>
+				<div class="form-group">
+					<label>Country</label>
+					<select>
+						<option value="" disabled selected>Select a country</option>
+						<option>Canada</option>
+						<option>United Kingdom</option>
+						<option>United States</option>
+					</select>
+				</div>
+
+				<h4 class="sg-group-label">Error state</h4>
+				<div class="form-group">
+					<label>Country</label>
+					<select class="input-error">
+						<option value="" disabled selected>Select a country</option>
+						<option>Canada</option>
+						<option>United Kingdom</option>
+						<option>United States</option>
+					</select>
+					<div class="input-error-msg">Please select a country.</div>
+				</div>
+
+				<h4 class="sg-group-label">Disabled state</h4>
+				<div class="form-group">
+					<label>Region</label>
+					<select disabled>
+						<option>North America</option>
+					</select>
+				</div>
+			</div>
+
 			<!-- Alerts -->
 			<div class="sg-subsection">
 				<div class="sg-subsection-title">Feedback &amp; alerts</div>
