@@ -84,7 +84,10 @@ function continueToNextPhase(): void {
 				<div class="progress-bar">
 					<div class="progress-fill" :style="{ width: `${String(vm.progressPercent)}%` }" />
 				</div>
-				<span class="progress-text"> {{ vm.progressPercent }}% ({{ vm.currentIndex }}/{{ vm.totalCards }}) </span>
+				<div class="progress-row">
+					<span class="progress-text"> {{ vm.progressPercent }}% ({{ vm.currentIndex }}/{{ vm.totalCards }}) </span>
+					<AppButton v-if="!vm.isComplete" variant="secondary" emphasis="muted" :class="['undo-button', { 'undo-hidden': !vm.canUndo }]" @click="handleUndo">Undo</AppButton>
+				</div>
 			</div>
 		</header>
 
@@ -102,10 +105,6 @@ function continueToNextPhase(): void {
 			<AppButton variant="primary" emphasis="muted" @click="handleButtonSwipe('disagree')">Disagree ✕</AppButton>
 			<AppButton variant="secondary" emphasis="muted" @click="handleButtonSwipe('unsure')">Unsure ？</AppButton>
 			<AppButton variant="primary" @click="handleButtonSwipe('agree')">Agree ✓</AppButton>
-		</div>
-
-		<div v-if="!vm.isComplete" class="undo-area">
-			<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Undo</AppButton>
 		</div>
 	</main>
 </template>
@@ -145,9 +144,25 @@ h1 {
 	transition: width 0.3s ease;
 }
 
+.progress-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
 .progress-text {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
+}
+
+.undo-button {
+	font-size: var(--text-sm);
+	transition: opacity 0.3s ease;
+}
+
+.undo-hidden {
+	opacity: 0;
+	pointer-events: none;
 }
 
 .card-area {
@@ -174,10 +189,5 @@ h1 {
 	display: flex;
 	justify-content: center;
 	gap: var(--space-3);
-	margin-bottom: var(--space-4);
-}
-
-.undo-area {
-	text-align: center;
 }
 </style>
