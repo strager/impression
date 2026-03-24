@@ -404,7 +404,7 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 <template>
 	<!-- eslint-disable vue/no-restricted-html-elements -->
 	<div class="rc-container">
-		<h1>Ranking Convergence</h1>
+		<h1>Ranking convergence</h1>
 
 		<div class="controls">
 			<label>

@@ -1,4 +1,4 @@
-# ViewModel Pattern
+# ViewModel pattern
 
 Frontend views use a ViewModel pattern (MVVM) to separate workflow logic from UI rendering. Each page's logic lives in a ViewModel class in a `.ts` file; the `.vue` file is a thin shell that renders the template and delegates actions to the ViewModel.
 

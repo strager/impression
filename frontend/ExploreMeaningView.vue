@@ -199,7 +199,7 @@ onMounted(() => {
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: !vm.allAnswered && vm.submittedCount === 0 }]">Reflect on what this source of meaning means to you. Answer each question thoughtfully.</p>
 				<p :class="['instruction', { active: !vm.allAnswered && vm.submittedCount > 0 }]">Question {{ vm.submittedCount + 1 }} of {{ EXPLORE_QUESTIONS.length }} — keep reflecting on this source of meaning.</p>
-				<p :class="['instruction', { active: vm.allAnswered }]">You've answered all questions. Add any additional notes, or finish exploring this card.</p>
+				<p :class="['instruction', { active: vm.allAnswered }]">You've answered all questions. Add any additional notes, or finish exploring this source of meaning.</p>
 			</div>
 		</header>
 

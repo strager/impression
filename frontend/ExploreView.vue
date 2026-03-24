@@ -22,12 +22,12 @@ onMounted(() => {
 
 const instructionText = computed(() => {
 	if (vm.totalAnswered === 0) {
-		return "Tap a card below to begin exploring what it means to you.";
+		return "Tap a source of meaning below to begin exploring what it means to you.";
 	}
 	if (vm.totalAnswered >= vm.totalQuestions) {
-		return "You've explored all your cards! Review your reflections or download your report.";
+		return "You've explored all your sources of meaning! Review your reflections or download your report.";
 	}
-	return `You've answered ${String(vm.totalAnswered)} of ${String(vm.totalQuestions)} questions across your cards. Tap a card to continue.`;
+	return `You've answered ${String(vm.totalAnswered)} of ${String(vm.totalQuestions)} questions across your sources of meaning. Tap one to continue.`;
 });
 
 function exploreButtonLabel(cardId: string): string {

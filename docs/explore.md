@@ -1,15 +1,15 @@
-# Explore Flow — User Story
+# Explore flow — user story
 
 ## Entering the explore page
 
 After choosing their sources of meaning on the Find Meaning page, the user lands
-on the Explore overview. Each card has an **Explore** button. Clicking it takes
-the user to `/explore/:meaningId`, where they begin a guided reflection on that
-card.
+on the Explore overview. Each source of meaning has an **Explore** button.
+Clicking it takes the user to `/explore/:meaningId`, where they begin a guided
+reflection on that source of meaning.
 
 ## Answering the first question
 
-The explore page shows the card's description at the top, followed by a single
+The explore page shows the source of meaning's description at the top, followed by a single
 question drawn from one of five exploration topics: Interpretation, Significance,
 Importance, Threat, and Change. The question is randomly assigned when the user
 first visits the Explore page.
@@ -20,7 +20,7 @@ clicks **Next** (or presses Shift+Enter) to submit their answer.
 ## LLM inference after each answer
 
 Once the user submits an answer, the app sends all answers given so far to the
-backend. The LLM reads the card context and every answered question, then checks
+backend. The LLM reads the source of meaning context and every answered question, then checks
 whether the user's responses already address any of the remaining unanswered
 questions. If so, it drafts short answers in the user's own style.
 
@@ -49,7 +49,7 @@ refreshes.
 
 If the user presses **Clear** and then refreshes the page before typing a new
 answer, `loadExploreData` discards the blank active entry (since at least one
-non-blank answer exists for the card). On the next `initialize()`, the app
+non-blank answer exists for the source of meaning). On the next `initialize()`, the app
 regenerates the active question through the normal infer flow.
 
 ## Answering all five questions
@@ -156,7 +156,7 @@ submit-flow reflection is visible, to avoid duplication.
 Once all five questions have been answered, a free-form textarea labelled
 "Additional notes about this source of meaning" is displayed. This is not a
 structured question — there is no answer reflection. The user can type any extra
-thoughts they want to capture about the card. The note is saved to localStorage
+thoughts they want to capture about the source of meaning. The note is saved to localStorage
 and included in the downloadable report above the five Q&A blocks.
 
 The user can leave the field empty and click **Finish exploring** to return to
@@ -180,7 +180,7 @@ The page displays:
 
 - The source of meaning's description as a heading.
 - A warm rotating phrase (e.g. "Your reflections, distilled"), selected
-  deterministically from the session and card IDs.
+  deterministically from the session and source of meaning IDs.
 - Progress squares showing how many sources have been fully explored.
 - AI-generated summary of the user's answers.
 
@@ -193,6 +193,6 @@ The call-to-action varies based on progress:
 The page is purely presentational — no user input is collected. If accessed
 directly without data (e.g. via URL), it redirects to the explore list.
 
-On the first visit for a given card, elements cascade in with timed fade-in
+On the first visit for a given source of meaning, elements cascade in with timed fade-in
 animations. On revisit, all animations (including the fade-out transition from
 the explore page) are skipped and content appears immediately.

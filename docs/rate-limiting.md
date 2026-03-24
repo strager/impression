@@ -1,4 +1,4 @@
-# Anonymous Session and Proof-of-Work Design
+# Anonymous session and proof-of-work design
 
 This document defines Impression's anonymous session system using proof-of-work (PoW) challenges and server-side budget credits.
 
@@ -10,7 +10,7 @@ The same mechanism applies to:
 - `POST /api/infer-answers`
 - other API endpoints that declare a non-zero budget cost
 
-## Design Decisions
+## Design decisions
 
 - Use an anonymous bearer token session (`Authorization: Bearer ...`), not cookies, for CSRF prevention.
 - Enforce same-origin checks for all API endpoints.
@@ -34,7 +34,7 @@ The same mechanism applies to:
 - Perfect bot prevention.
 - Network-level throttling controls.
 
-## Threat Model
+## Threat model
 
 - Automated high-volume calls to expensive APIs.
 - Sybil behavior (many anonymous sessions).
@@ -48,7 +48,7 @@ The same mechanism applies to:
 - Challenge-required response: `429` with a challenge payload the client can solve.
 - PoW: Proof of Work, per ALTCHA protocol (altcha-lib library).
 
-## API Surface
+## API surface
 
 ### Session endpoint
 
@@ -75,7 +75,7 @@ The same mechanism applies to:
 
 Business endpoints can return `429` with challenge payloads when proof is required.
 
-## 429 Challenge Flow
+## 429 challenge flow
 
 For a budgeted API call:
 
@@ -94,7 +94,7 @@ For a budgeted API call:
 
 This is the same flow regardless of whether the client already had a session token.
 
-## Session Model (Bearer Token, Not Cookie)
+## Session model (bearer token, not cookie)
 
 - Token format: opaque random string (at least 128 bits entropy, ASCII lowercase
   letters only).
@@ -112,7 +112,7 @@ CSRF posture:
 - Bearer tokens are not sent automatically by browsers.
 - Same-origin checks are still enforced for all API endpoints.
 
-## Budget Model
+## Budget model
 
 - Every budgeted endpoint declares `costUnits` in the codebase (defined in .yml or .ts).
 - Budget check + deduction is atomic.
@@ -125,7 +125,7 @@ When budget is insufficient:
 - return `429` with challenge payload and machine-readable code `challenge_required`.
 - client solves PoW, verifies, and retries.
 
-## Challenge Model
+## Challenge model
 
 - Use `altcha-lib >= 1.4.1`.
 - Issue short-lived challenges (e.g. 120 seconds) inside 429 responses.
@@ -139,7 +139,7 @@ Challenge scope:
   - bootstrap credits when creating a session
   - refresh credits when topping up an existing session
 
-## Report Page Behavior
+## Report page behavior
 
 1. Show informational text: "PDF downloads are limited to 3 per day." After a download, show "N of 3 PDF downloads remaining today."
 2. User clicks download.
@@ -148,7 +148,7 @@ Challenge scope:
 5. On success, the `X-Impression-PDF-Downloads-Remaining` header indicates remaining downloads.
 6. Do not display numeric budget values.
 
-## PDF Daily Limit
+## PDF daily limit
 
 PDF downloads are limited to 3 per rolling 24-hour window per session.
 
@@ -158,7 +158,7 @@ PDF downloads are limited to 3 per rolling 24-hour window per session.
 - **Headers:** `X-Impression-PDF-Downloads-Remaining` is included on 200, 429 (daily limit), 500, and 502 responses from `/api/report-pdf`. `Retry-After` is included on `daily_limit_exceeded` 429 responses.
 - **Circumvention:** Creating a new session resets the daily limit. This is acceptable — the limit prevents casual misuse, not denial-of-service attacks. PoW challenges still provide the DoS protection layer.
 
-## SQLite Schema (Proposed)
+## SQLite schema (proposed)
 
 ```sql
 CREATE TABLE session_tokens (
@@ -190,7 +190,7 @@ Retention:
 - purge expired challenge and session rows periodically per inline expiration
   columns
 
-## Request Pipeline
+## Request pipeline
 
 For protected `/api/*` endpoints (excludes `/api/a/*`):
 
@@ -211,7 +211,7 @@ For protected `/api/*` endpoints (excludes `/api/a/*`):
 - atomically deduct `costUnits`
 - execute handler
 
-## Error Contract
+## Error contract
 
 Use `application/problem+json` consistently.
 
@@ -233,7 +233,7 @@ Suggested machine-readable codes:
 - `/api/report-pdf`: -100 credits (max 3 downloads per rolling 24 hours)
 - `/api/summarize`, `/api/reflect-on-answer`, `/api/infer-answers`: -5 credits
 
-## Risks and Tradeoffs
+## Risks and tradeoffs
 
 - PoW-only control is weaker than adding IP/global/concurrency limits.
 - Distributed attackers can still scale by spending more compute.

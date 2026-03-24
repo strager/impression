@@ -21,7 +21,7 @@ const sessionName = computed(() => {
 const phaseLabel = computed(() => {
 	switch (route.name) {
 		case "findMeaning":
-			return "Find Meaning";
+			return "Find meaning";
 		case "findMeaningPrioritize":
 			return "Prioritize";
 		case "findMeaningManual":
@@ -33,16 +33,16 @@ const phaseLabel = computed(() => {
 		case "report":
 			return "Report";
 		case "llmTest":
-			return "LLM Test";
+			return "LLM test";
 		case "styleGuide":
-			return "Style Guide";
+			return "Style guide";
 		default:
 			return null;
 	}
 });
 
 const meaningCardName = computed(() => {
-	if (route.name === "findMeaningManual") return "Edit Selection";
+	if (route.name === "findMeaningManual") return "Edit selection";
 	if (route.name !== "exploreMeaning") return null;
 	const meaningId = route.params.meaningId;
 	if (typeof meaningId !== "string") return null;

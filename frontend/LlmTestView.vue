@@ -157,7 +157,7 @@ async function synthesize() {
 <template>
 	<!-- eslint-disable vue/no-restricted-html-elements -->
 	<div class="llm-test">
-		<h1>LLM Test</h1>
+		<h1>LLM test</h1>
 
 		<label>
 			Card
@@ -212,7 +212,7 @@ async function synthesize() {
 		<div class="global-actions">
 			<button @click="addRow">+ Add question</button>
 			<button :disabled="inferLoading" @click="inferAnswers">
-				{{ inferLoading ? "Inferring..." : "Infer Answers" }}
+				{{ inferLoading ? "Inferring..." : "Infer answers" }}
 			</button>
 			<label class="synthesis-length-label">
 				Length
@@ -227,7 +227,7 @@ async function synthesize() {
 		</div>
 
 		<div v-if="inferLoading || inferResult || inferError" class="result-section">
-			<h2>Infer Answers</h2>
+			<h2>Infer answers</h2>
 			<p v-if="inferLoading">Loading...</p>
 			<pre v-if="inferResult">{{ inferResult }}</pre>
 			<p v-if="inferError" class="error">{{ inferError }}</p>
@@ -267,7 +267,6 @@ textarea {
 
 .statements-section {
 	border: 1px solid #ccc;
-	border-radius: 4px;
 	padding: 0.75rem;
 	display: flex;
 	flex-direction: column;
@@ -283,7 +282,6 @@ textarea {
 
 .question-row {
 	border: 1px solid #ccc;
-	border-radius: 4px;
 	padding: 0.75rem;
 	display: flex;
 	flex-direction: column;

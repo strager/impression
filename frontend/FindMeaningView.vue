@@ -20,11 +20,11 @@ const nextPhaseLabel = computed(() => {
 	switch (detectSessionPhase(sessionId)) {
 		case "explore":
 		case "prioritize-complete":
-			return "Explore Meaning";
+			return "Explore meaning";
 		case "prioritize":
-			return "Prioritize Meaning";
+			return "Prioritize meaning";
 		default:
-			return "Continue to Next Phase";
+			return "Continue to next phase";
 	}
 });
 
@@ -75,9 +75,9 @@ function continueToNextPhase(): void {
 <template>
 	<main>
 		<header>
-			<h1>Find Meaning</h1>
+			<h1>Find meaning</h1>
 			<div v-if="!vm.isComplete" class="instruction-stack">
-				<p :class="['instruction', { active: vm.currentIndex === 0 }]">Read each card and decide if this source of meaning resonates with you.</p>
+				<p :class="['instruction', { active: vm.currentIndex === 0 }]">Read each source of meaning and decide if it resonates with you.</p>
 				<p :class="['instruction', { active: vm.currentIndex > 0 }]">Keep going — decide if each source of meaning resonates with you.</p>
 			</div>
 			<div class="progress">
@@ -93,7 +93,7 @@ function continueToNextPhase(): void {
 		</div>
 
 		<div v-else class="end-state">
-			<h2>All cards reviewed!</h2>
+			<h2>All reviewed!</h2>
 			<p>You have reviewed all {{ vm.totalCards }} sources of meaning.</p>
 			<AppButton variant="primary" @click="continueToNextPhase">{{ nextPhaseLabel }}</AppButton>
 		</div>

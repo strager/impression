@@ -274,14 +274,6 @@ import AppButton from "./AppButton.vue";
 
 				<h4 class="sg-group-label">Inline links</h4>
 				<p style="margin-bottom: var(--space-6)">Used within body text. Always underlined so they're identifiable in running prose: <a href="#">View full report</a> &middot; <a href="#">Account settings</a> &middot; <a href="#">Contact support</a></p>
-
-				<h4 class="sg-group-label">Navigation links</h4>
-				<p style="margin-bottom: var(--space-4)">Used in navigation bars, sidebars, and menus. Wrap navigation links in a <code style="font-size: var(--text-sm); background: var(--color-gray-50); padding: 2px 4px">&lt;nav&gt;</code> element — this triggers the no-underline override. Mark the current page with <code style="font-size: var(--text-sm); background: var(--color-gray-50); padding: 2px 4px">aria-current="page"</code> instead of a CSS class. Underline appears on hover. The active page is shown in black and bold with no hover effect.</p>
-				<nav class="sg-mockup-nav-links" style="max-width: 500px; border: var(--border-thin); padding: var(--space-3) var(--space-6); font-family: var(--font-body); margin-bottom: var(--space-4)">
-					<a href="#">Dashboard</a>
-					<a href="#" aria-current="page">Reports</a>
-					<a href="#">Settings</a>
-				</nav>
 			</div>
 
 			<!-- Buttons -->
@@ -348,24 +340,6 @@ import AppButton from "./AppButton.vue";
 					<textarea class="input-error">Too short.</textarea>
 					<div class="input-error-msg">Description must be at least 50 characters.</div>
 				</div>
-
-				<h4 class="sg-group-label">Success state</h4>
-				<div class="form-group">
-					<label>Email address</label>
-					<input type="email" value="jane@example.com" />
-					<div class="input-success-msg">Email address is valid.</div>
-				</div>
-
-				<h4 class="sg-group-label">Disabled state</h4>
-				<div class="form-group">
-					<label>Account ID</label>
-					<input type="text" value="Read only value" disabled />
-				</div>
-
-				<div class="form-group">
-					<label>System notes</label>
-					<textarea disabled>This field is not editable.</textarea>
-				</div>
 			</div>
 
 			<!-- Drop-downs -->
@@ -381,26 +355,6 @@ import AppButton from "./AppButton.vue";
 						<option>Canada</option>
 						<option>United Kingdom</option>
 						<option>United States</option>
-					</select>
-				</div>
-
-				<h4 class="sg-group-label">Error state</h4>
-				<div class="form-group">
-					<label>Country</label>
-					<select class="input-error">
-						<option value="" disabled selected>Select a country</option>
-						<option>Canada</option>
-						<option>United Kingdom</option>
-						<option>United States</option>
-					</select>
-					<div class="input-error-msg">Please select a country.</div>
-				</div>
-
-				<h4 class="sg-group-label">Disabled state</h4>
-				<div class="form-group">
-					<label>Region</label>
-					<select disabled>
-						<option>North America</option>
 					</select>
 				</div>
 			</div>
@@ -481,7 +435,7 @@ import AppButton from "./AppButton.vue";
 			<!-- Lists -->
 			<div class="sg-subsection">
 				<div class="sg-subsection-title">Lists</div>
-				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Lists inherit body text styling. Default browser markers (disc for unordered, decimal for ordered) maintain the print-inspired feel. Spacing follows the 4px grid.</p>
+				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Lists inherit body text styling. Default browser markers (disc for unordered) maintain the print-inspired feel. Spacing follows the 4px grid.</p>
 
 				<h4 class="sg-group-label">Unordered list</h4>
 				<ul style="max-width: 600px; margin-bottom: var(--space-6)">
@@ -489,44 +443,6 @@ import AppButton from "./AppButton.vue";
 					<li>Northeast region led growth at 18%</li>
 					<li>Fourteen new enterprise accounts were opened</li>
 				</ul>
-
-				<h4 class="sg-group-label">Ordered list</h4>
-				<ol style="max-width: 600px; margin-bottom: var(--space-6)">
-					<li>Review the quarterly performance data</li>
-					<li>Verify all transactions against original records</li>
-					<li>Submit final report to compliance</li>
-				</ol>
-
-				<h4 class="sg-group-label">Nested list</h4>
-				<ul style="max-width: 600px; margin-bottom: var(--space-6)">
-					<li>
-						Revenue breakdown
-						<ul>
-							<li>Northeast: $482,300 (+18%)</li>
-							<li>Southeast: $314,100 (+7%)</li>
-							<li>West: $271,500 (+9%)</li>
-						</ul>
-					</li>
-					<li>New accounts: 14 opened</li>
-					<li>Compliance: audit completed</li>
-				</ul>
-			</div>
-
-			<!-- Blockquotes -->
-			<div class="sg-subsection">
-				<div class="sg-subsection-title">Blockquotes</div>
-				<p style="font-size: var(--text-base); color: var(--color-gray-600); margin-bottom: var(--space-4)">Blockquotes use a 3px green left border consistent with card-left and alerts. No background fill keeps them print-clean. Text is gray-600 to visually separate from surrounding prose. Use <code style="font-size: var(--text-sm); background: var(--color-gray-50); padding: 2px 4px">&lt;cite&gt;</code> for attributions.</p>
-
-				<h4 class="sg-group-label">With attribution</h4>
-				<blockquote style="max-width: 600px; margin-bottom: var(--space-6)">
-					<p>The purpose of life is not to be happy. It is to be useful, to be honorable, to be compassionate, to have it make some difference that you have lived and lived well.</p>
-					<cite>Ralph Waldo Emerson</cite>
-				</blockquote>
-
-				<h4 class="sg-group-label">Without attribution</h4>
-				<blockquote style="max-width: 600px; margin-bottom: var(--space-6)">
-					<p>All transactions for this period have been reconciled and verified against the original records. Overall revenue grew 12% compared to the prior quarter.</p>
-				</blockquote>
 			</div>
 
 			<!-- Cards -->
@@ -633,15 +549,6 @@ import AppButton from "./AppButton.vue";
 			</div>
 
 			<div class="sg-subsection">
-				<div class="sg-subsection-title">Required fields</div>
-				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Mark required fields with the word "(required)" in muted text after the label. Do not use an asterisk or other symbols — the meaning should be immediately clear without a legend or footnote.</p>
-				<div style="max-width: 400px; margin-bottom: var(--space-4)">
-					<label>Full name <span class="required">(required)</span></label>
-					<input type="text" placeholder="Jane Doe" />
-				</div>
-			</div>
-
-			<div class="sg-subsection">
 				<div class="sg-subsection-title">Text alignment</div>
 				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">All text is left-aligned by default. This includes headings, body text, labels, card content, and table cells. Left alignment creates a strong vertical anchor that the eye follows down the page, which is easier to read and scan than centered text.</p>
 				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Centered text may be used sparingly for standalone elements that are visually separate from the page flow, such as an empty state message in the middle of a blank area, or a single-line status label inside a visual widget. It should never be used for headings, paragraphs, labels, or any text that participates in a reading flow.</p>
@@ -659,14 +566,6 @@ import AppButton from "./AppButton.vue";
 			<p class="sg-section-desc">A realistic mock page using all design tokens together.</p>
 
 			<div class="sg-mockup">
-				<div class="sg-mockup-nav">
-					<div class="sg-mockup-logo" style="font-family: var(--font-heading)">Acme Solutions</div>
-					<nav class="sg-mockup-nav-links" style="font-family: var(--font-body)">
-						<a href="#">Dashboard</a>
-						<a href="#" aria-current="page">Reports</a>
-						<a href="#">Settings</a>
-					</nav>
-				</div>
 				<div class="sg-mockup-body">
 					<h2>Quarterly performance report</h2>
 					<div class="subtitle">January – March 2026</div>
@@ -902,27 +801,6 @@ import AppButton from "./AppButton.vue";
 	background: var(--color-white);
 	border: var(--border-thin);
 	margin-top: var(--space-6);
-}
-
-.sg-mockup-nav {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: var(--space-3) var(--space-6);
-	border-bottom: var(--border-thin);
-}
-
-.sg-mockup-logo {
-	font-family: var(--font-heading);
-	font-size: var(--text-lg);
-	font-weight: 600;
-	color: var(--color-black);
-}
-
-.sg-mockup-nav-links {
-	display: flex;
-	gap: var(--space-6);
-	font-size: var(--text-sm);
 }
 
 .sg-mockup-body {

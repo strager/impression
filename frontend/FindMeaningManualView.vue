@@ -99,14 +99,14 @@ onMounted(() => {
 <template>
 	<main>
 		<header>
-			<h1>Find Meaning — Manual</h1>
+			<h1>Find meaning — manual</h1>
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to explore.</p>
 				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to explore (aim for 3–5).</p>
 				<p :class="['instruction', { active: selectedCount >= 3 && selectedCount <= 5 }]">Good selection! Tap Done when you're ready.</p>
 				<p :class="['instruction', { active: selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused exploration.</p>
 			</div>
-			<p class="count">{{ selectedCount }} card{{ selectedCount === 1 ? "" : "s" }} selected</p>
+			<p class="count">{{ selectedCount }} source{{ selectedCount === 1 ? "" : "s" }} of meaning selected</p>
 		</header>
 
 		<div class="card-list">
@@ -119,7 +119,7 @@ onMounted(() => {
 				<span v-if="isExplored(card.id)" class="chip chip-success explored-chip">Explored</span>
 
 				<div v-if="confirmingRemove === card.id" class="confirm-overlay" @click.stop>
-					<p>This card has exploration answers. Remove it?</p>
+					<p>This source of meaning has exploration answers. Remove it?</p>
 					<!-- eslint-disable vue/no-restricted-html-elements -->
 					<div class="confirm-actions">
 						<button class="confirm-remove" @click="removeCard(card.id, true)">Remove</button>
