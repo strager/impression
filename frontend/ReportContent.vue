@@ -31,6 +31,7 @@ defineProps<{
 					<div class="alert alert-error">Could not load summary.</div>
 					<slot name="card-synthesis-error" :report="report" />
 				</template>
+				<p v-else-if="report.synthesisLoading" class="summary-loading">Generating summary...</p>
 				<p v-else class="qa-unanswered">No self reflections</p>
 			</div>
 		</section>
@@ -132,6 +133,13 @@ h4 {
 	font-size: 16px;
 	line-height: 1.5;
 	white-space: pre-wrap;
+}
+
+.summary-loading {
+	margin: 4px 0 0;
+	font-size: 13px;
+	font-style: italic;
+	color: #737373;
 }
 
 .qa-unanswered {

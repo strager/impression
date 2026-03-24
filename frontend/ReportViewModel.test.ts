@@ -254,20 +254,27 @@ describe("synthesis loading", () => {
 		const vm = new ReportViewModel(sid());
 		vm.initialize();
 
-		// Reports are empty until all fetches complete
-		expect(vm.reports).toHaveLength(0);
+		// Reports are populated immediately with local data, syntheses loading
+		expect(vm.reports).toHaveLength(2);
+		expect(vm.reports[0].synthesisLoading).toBe(true);
+		expect(vm.reports[1].synthesisLoading).toBe(true);
+		expect(vm.reports[0].synthesis).toBe("");
+		expect(vm.reports[1].synthesis).toBe("");
 		expect(vm.loading).toBe(true);
 
 		await firstHandlerCalled;
 		resolveFirst();
 		// Wait a tick — still waiting for second
 		await secondHandlerCalled;
-		expect(vm.reports).toHaveLength(0);
+		// Syntheses still not populated (batched)
+		expect(vm.reports[0].synthesis).toBe("");
 
 		resolveSecond();
 		await vm.whenReady;
 
 		expect(vm.reports).toHaveLength(2);
+		expect(vm.reports[0].synthesisLoading).toBeFalsy();
+		expect(vm.reports[1].synthesisLoading).toBeFalsy();
 		expect(vm.loading).toBe(false);
 	});
 });

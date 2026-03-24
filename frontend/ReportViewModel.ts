@@ -119,11 +119,12 @@ export class ReportViewModel {
 
 			const cachedSynthesis = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint });
 
-			const report: CardReport = { card, questions, selectedStatements, freeformNote, synthesis: cachedSynthesis ?? "" };
+			const needsFetch = cachedSynthesis === null && answered.length > 0;
+			const report: CardReport = { card, questions, selectedStatements, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
 			reports.push(report);
 
 			// If no cached synthesis and there are answered questions, fetch from API
-			if (cachedSynthesis === null && answered.length > 0) {
+			if (needsFetch) {
 				const questionsForApi = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
 				fetchTasks.push(
 					fetchSynthesis({
@@ -143,13 +144,17 @@ export class ReportViewModel {
 			}
 		}
 
+		this._reports.value = reports;
+
 		if (fetchTasks.length > 0) {
 			this._loadingPromise = Promise.allSettled(fetchTasks).then(() => {
-				this._reports.value = reports;
+				for (const r of reports) {
+					r.synthesisLoading = false;
+				}
+				this._reports.value = [...reports];
 				this._loading.value = false;
 			});
 		} else {
-			this._reports.value = reports;
 			this._loading.value = false;
 		}
 
