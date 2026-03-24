@@ -206,6 +206,12 @@ nav a[aria-current="page"]:hover {
 	text-decoration: none;
 }
 
+@media print {
+	a {
+		color: inherit;
+	}
+}
+
 /* ============================================================
    BUTTONS
    ============================================================ */
