@@ -177,16 +177,16 @@ onBeforeUnmount(() => {
 	<ReportContent :reports="vm.reports">
 		<template #header-actions>
 			<div class="download-controls">
-				<AppButton variant="primary" class="download-btn" :disabled="downloading || dailyLimitReached" @click="downloadPdf">
-					{{ downloading ? "Generating…" : "Download PDF" }}
-				</AppButton>
-				<label class="paper-size-label">
-					Paper size
-					<select class="paper-size-select" :value="paperSize" @change="onPaperSizeChange">
+				<div class="paper-size-group">
+					<label for="paper-size">Paper size</label>
+					<select id="paper-size" :value="paperSize" @change="onPaperSizeChange">
 						<option value="letter">US Letter</option>
 						<option value="a4">A4</option>
 					</select>
-				</label>
+				</div>
+				<AppButton variant="primary" class="download-btn" :disabled="downloading || dailyLimitReached" @click="downloadPdf">
+					{{ downloading ? "Generating…" : "Download PDF" }}
+				</AppButton>
 			</div>
 			<!-- For development only: -->
 			<AppButton v-if="false" variant="secondary" class="download-btn" :disabled="downloading" @click="downloadHtml">Download HTML</AppButton>
@@ -204,18 +204,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .download-controls {
 	display: flex;
-	align-items: center;
+	align-items: flex-end;
 	gap: var(--space-4);
 	flex-wrap: wrap;
 }
 
-.paper-size-label {
-	font-size: var(--text-sm);
-	color: var(--color-muted);
-}
-
-.paper-size-select {
-	margin-left: var(--space-1);
+.paper-size-group select {
+	width: auto;
 }
 
 .download-error {
