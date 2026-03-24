@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
@@ -20,6 +20,7 @@ const leastIndex = interaction.leastIndex;
 const displayOrder = interaction.displayOrder;
 const cardStageRef = ref<HTMLElement | null>(null);
 const slotRefs = ref<(HTMLElement | null)[]>([]);
+const buttonRowRef = ref<HTMLElement | null>(null);
 const pointerCaptureElement = ref<HTMLElement | null>(null);
 const DRAG_LIFT_X_PX = -6;
 const DRAG_LIFT_Y_PX = 6;
@@ -81,7 +82,17 @@ const previewSelection = computed(() => {
 		mostIndex: outcome.mostIndex,
 	};
 });
+const canSubmit = computed(() => mostIndex.value !== null && leastIndex.value !== null);
 const canSubmitPreview = computed(() => previewSelection.value.mostIndex !== null && previewSelection.value.leastIndex !== null);
+
+watch([mostIndex, leastIndex], () => {
+	if (canSubmit.value) {
+		buttonRowRef.value?.scrollIntoView({
+			behavior: prefersReducedMotion.value ? "auto" : "smooth",
+			block: "nearest",
+		});
+	}
+});
 
 onMounted(() => {
 	const result = vm.initialize();
@@ -473,7 +484,7 @@ function handleFinish(): void {
 				<div class="card-hrule ranking-card blank" aria-hidden="true" />
 			</div>
 
-			<div class="button-row">
+			<div ref="buttonRowRef" class="button-row">
 				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Back</AppButton>
 				<AppButton variant="primary" :disabled="!canSubmitPreview" @click="handleNext">Next</AppButton>
 			</div>
