@@ -18,7 +18,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
 
 interface PdfEntryModule {
-	renderPdfHtml: (fontCss: string, componentCss: string, reports: CardReport[]) => Promise<string>;
+	renderPdfHtml: (fontCss: string, componentCss: string, reports: CardReport[], paperSize: string) => Promise<string>;
 }
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -242,11 +242,11 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 	return reports;
 }
 
-export async function renderReportHtml(vite: unknown, sessionExportJson: string): Promise<string> {
+export async function renderReportHtml(vite: unknown, sessionExportJson: string, paperSize = "a4"): Promise<string> {
 	const reports = assembleReportData(sessionExportJson);
 	const { module: ssrModule, componentCss } = await loadSsrModule(vite);
 	const fontCss = await loadFontCss();
-	return ssrModule.renderPdfHtml(fontCss, componentCss, reports);
+	return ssrModule.renderPdfHtml(fontCss, componentCss, reports, paperSize);
 }
 
 export async function callDocRaptor(html: string, apiKey: string, testMode: boolean): Promise<Buffer> {

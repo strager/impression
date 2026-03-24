@@ -7,6 +7,7 @@ const ACTIVE_SESSION_KEY = "somecam-active-session";
 const LLM_TEST_KEY = "somecam-llm-test";
 const PERSIST_REQUESTED_KEY = "somecam-persist-requested";
 const RATE_LIMIT_SESSION_KEY = "somecam-api-session-id";
+const PAPER_SIZE_KEY = "somecam-paper-size";
 
 const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"] as const;
 
@@ -782,6 +783,31 @@ export function requestStoragePersistence(sessionId: string): void {
 			},
 		);
 	}
+}
+
+// --- Paper size preference ---
+
+export type PaperSize = "a4" | "letter";
+
+const LETTER_REGIONS = new Set(["US", "CA", "MX", "CO", "CL", "PH", "GT", "CR", "PA", "SV", "HN", "NI", "DO", "VE", "BZ"]);
+
+function detectDefaultPaperSize(): PaperSize {
+	const lang = navigator.language;
+	const parts = lang.split("-");
+	const region = parts.length >= 2 ? parts[parts.length - 1].toUpperCase() : "";
+	return LETTER_REGIONS.has(region) ? "letter" : "a4";
+}
+
+export function loadPaperSize(): PaperSize {
+	const stored = localStorage.getItem(PAPER_SIZE_KEY);
+	if (stored === "a4" || stored === "letter") {
+		return stored;
+	}
+	return detectDefaultPaperSize();
+}
+
+export function savePaperSize(size: PaperSize): void {
+	localStorage.setItem(PAPER_SIZE_KEY, size);
 }
 
 // --- Rate limit session token ---

@@ -153,6 +153,13 @@ paths:
       operationId: postReportHtml
       x-impression-budget-cost: 5
       summary: Generate an HTML report
+      parameters:
+        - name: paperSize
+          in: query
+          schema:
+            type: string
+            enum: [a4, letter]
+            default: a4
       requestBody:
         required: true
         content:
@@ -182,6 +189,13 @@ paths:
       operationId: postReportPdf
       x-impression-budget-cost: 100
       summary: Generate a PDF report
+      parameters:
+        - name: paperSize
+          in: query
+          schema:
+            type: string
+            enum: [a4, letter]
+            default: a4
       requestBody:
         required: true
         content:

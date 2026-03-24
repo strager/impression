@@ -7,13 +7,15 @@ import ReportContent from "./ReportContent.vue";
 import { budgetedFetch } from "./api.ts";
 import { capture } from "./analytics.ts";
 import { useStringParam } from "./route-utils.ts";
-import { exportSessionData } from "./store.ts";
+import { exportSessionData, loadPaperSize, savePaperSize } from "./store.ts";
+import type { PaperSize } from "./store.ts";
 import { ReportViewModel } from "./ReportViewModel.ts";
 
 const router = useRouter();
 const sessionId = useStringParam("sessionId");
 const vm = new ReportViewModel(sessionId);
 
+const paperSize = ref<PaperSize>(loadPaperSize());
 const downloading = ref(false);
 const downloadError = ref("");
 const pdfDownloadsRemaining = ref<number | null>(null);
@@ -141,9 +143,18 @@ async function downloadReport(endpoint: string, filename: string): Promise<void>
 	}
 }
 
+function onPaperSizeChange(event: Event): void {
+	if (!(event.target instanceof HTMLSelectElement)) return;
+	const value = event.target.value;
+	if (value !== "a4" && value !== "letter") return;
+	paperSize.value = value;
+	savePaperSize(value);
+}
+
 async function downloadPdf(): Promise<void> {
 	capture("pdf_download_initiated", { session_id: sessionId });
-	await downloadReport("/api/report-pdf", "impression-report.pdf");
+	const params = new URLSearchParams({ paperSize: paperSize.value });
+	await downloadReport(`/api/report-pdf?${params.toString()}`, "impression-report.pdf");
 }
 
 async function downloadHtml(): Promise<void> {
@@ -165,9 +176,18 @@ onBeforeUnmount(() => {
 <template>
 	<ReportContent :reports="vm.reports">
 		<template #header-actions>
-			<AppButton variant="primary" class="download-btn" :disabled="downloading || dailyLimitReached" @click="downloadPdf">
-				{{ downloading ? "Generating…" : "Download PDF" }}
-			</AppButton>
+			<div class="download-controls">
+				<AppButton variant="primary" class="download-btn" :disabled="downloading || dailyLimitReached" @click="downloadPdf">
+					{{ downloading ? "Generating…" : "Download PDF" }}
+				</AppButton>
+				<label class="paper-size-label">
+					Paper size
+					<select class="paper-size-select" :value="paperSize" @change="onPaperSizeChange">
+						<option value="letter">US Letter</option>
+						<option value="a4">A4</option>
+					</select>
+				</label>
+			</div>
 			<!-- For development only: -->
 			<AppButton v-if="false" variant="secondary" class="download-btn" :disabled="downloading" @click="downloadHtml">Download HTML</AppButton>
 			<p v-if="downloadError !== ''" class="download-error">{{ downloadError }}</p>
@@ -182,6 +202,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.download-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--space-4);
+	flex-wrap: wrap;
+}
+
+.paper-size-label {
+	font-size: var(--text-sm);
+	color: var(--color-muted);
+}
+
+.paper-size-select {
+	margin-left: var(--space-1);
+}
+
 .download-error {
 	margin-top: var(--space-2);
 	font-size: var(--text-sm);
@@ -199,7 +235,7 @@ onBeforeUnmount(() => {
 }
 
 @media print {
-	.download-btn,
+	.download-controls,
 	.download-error,
 	.download-limit-note {
 		display: none;

@@ -10,14 +10,17 @@ import ReportContent from "./ReportContent.vue";
 import type { CardReport } from "../shared/report-types.ts";
 import globalCss from "./global.css?inline";
 
-const pagedMediaCss = `
+function pagedMediaCss(paperSize: string): string {
+	const size = paperSize === "letter" ? "letter" : "A4";
+	return `
 @page {
-	size: A4;
+	size: ${size};
 	margin: 20mm 18mm 25mm 18mm;
 }
 `;
+}
 
-export async function renderPdfHtml(fontCss: string, componentCss: string, reports: CardReport[]): Promise<string> {
+export async function renderPdfHtml(fontCss: string, componentCss: string, reports: CardReport[], paperSize: string): Promise<string> {
 	const app = createSSRApp(ReportContent, { reports });
 	const html = await renderToString(app);
 
@@ -36,7 +39,7 @@ ${fontCss}
 ${componentCss}
 </style>
 <style>
-${pagedMediaCss}
+${pagedMediaCss(paperSize)}
 </style>
 </head>
 <body>

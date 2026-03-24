@@ -627,9 +627,11 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			return;
 		}
 
+		const paperSize = req.query.paperSize === "letter" ? "letter" : "a4";
+
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, sessionExport);
+			html = await renderReportHtml(req.app.locals.vite, sessionExport, paperSize);
 		} catch {
 			res
 				.status(400)
@@ -700,9 +702,11 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			return;
 		}
 
+		const paperSize = req.query.paperSize === "letter" ? "letter" : "a4";
+
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, sessionExport);
+			html = await renderReportHtml(req.app.locals.vite, sessionExport, paperSize);
 		} catch {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
