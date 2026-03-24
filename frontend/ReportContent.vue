@@ -85,6 +85,13 @@ header h2 {
 	margin: 0 0 16px;
 }
 
+h1,
+h2,
+h3,
+h4 {
+	break-after: avoid;
+}
+
 .intro {
 	font-size: 16px;
 	line-height: 1.7;

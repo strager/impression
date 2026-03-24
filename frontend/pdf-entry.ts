@@ -15,15 +15,6 @@ const pagedMediaCss = `
 	size: A4;
 	margin: 20mm 18mm 25mm 18mm;
 }
-h2, h3, h4 {
-	break-after: avoid;
-}
-.report-card {
-	break-inside: avoid;
-}
-.qa-block {
-	break-inside: avoid;
-}
 `;
 
 export async function renderPdfHtml(fontCss: string, componentCss: string, reports: CardReport[]): Promise<string> {
