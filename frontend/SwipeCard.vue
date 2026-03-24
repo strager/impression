@@ -270,12 +270,12 @@ defineExpose({ flyAway });
 }
 
 .direction-label.agree {
-	right: 1rem;
+	left: 1rem;
 	color: var(--color-green-600);
 }
 
 .direction-label.disagree {
-	left: 1rem;
+	right: 1rem;
 	color: var(--color-gray-600);
 }
 
