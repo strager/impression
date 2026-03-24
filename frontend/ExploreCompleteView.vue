@@ -310,12 +310,34 @@ watch(showAllAfterIndex, (newIndex) => {
 const progressSquaresEl = ref<HTMLElement | null>(null);
 const actionsEl = ref<HTMLElement | null>(null);
 
-const timers: ReturnType<typeof setTimeout>[] = [];
+let cascadeAbort: AbortController | null = null;
 const pulseCanvases = ref<HTMLCanvasElement[]>([]);
 const pulseAnimation = new PulseAnimation();
 
-function schedule(fn: () => void, delay: number): void {
-	timers.push(setTimeout(fn, delay));
+function abortReason(signal: AbortSignal): DOMException {
+	return signal.reason instanceof DOMException ? signal.reason : new DOMException("Aborted", "AbortError");
+}
+
+function animationDelay(ms: number, signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		if (signal.aborted) {
+			reject(abortReason(signal));
+			return;
+		}
+		const timer = setTimeout(() => {
+			signal.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+		function onAbort(): void {
+			clearTimeout(timer);
+			reject(abortReason(signal));
+		}
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
+function checkAborted(signal: AbortSignal): void {
+	if (signal.aborted) throw abortReason(signal);
 }
 
 function scrollIntoView(el: HTMLElement | null | undefined): void {
@@ -323,6 +345,71 @@ function scrollIntoView(el: HTMLElement | null | undefined): void {
 	void nextTick(() => {
 		el.scrollIntoView({ behavior: "smooth", block: "nearest" });
 	});
+}
+
+async function runCascade(signal: AbortSignal): Promise<void> {
+	try {
+		document.documentElement.classList.add("nav-hidden");
+		animatedExploredCount.value = Math.max(0, vm.exploredCount - 1);
+
+		await animationDelay(visibilityGaps.initial, signal);
+		titleVisible.value = true;
+
+		await animationDelay(visibilityGaps.section, signal);
+		progressSquaresVisible.value = true;
+		scrollIntoView(progressSquaresEl.value);
+
+		if (vm.exploredCount > 0) {
+			await animationDelay(visibilityGaps.progressStart, signal);
+			countSwapActive.value = true;
+			animatedExploredCount.value = vm.exploredCount;
+			if (!prefersReducedMotion.value) {
+				latestSquareIndex.value = vm.exploredCount - 1;
+				pulseAnimation.play(pulseCanvases.value[latestSquareIndex.value]);
+			}
+		}
+
+		await animationDelay(visibilityGaps.section, signal);
+		warmPhraseVisible.value = true;
+
+		await animationDelay(visibilityGaps.section, signal);
+		synthesisVisible.value = true;
+
+		await vm.whenReady;
+		checkAborted(signal);
+		await nextTick();
+		checkAborted(signal);
+
+		const allSentences = synthesisParagraphs.value.flatMap((p) => p.sentences);
+		const sentenceDurations = allSentences.map((s) => visibilityGaps.sentenceBase + s.trim().length * visibilityGaps.sentencePerChar);
+
+		if (allSentences.length > 0) {
+			revealedSentenceCount.value = 1;
+			scrollIntoView(sentenceSpans.value[0]);
+
+			for (let i = 1; i < allSentences.length; i++) {
+				await animationDelay(sentenceDurations[i - 1], signal);
+				revealedSentenceCount.value = i + 1;
+				scrollIntoView(sentenceSpans.value[i]);
+			}
+			await animationDelay(sentenceDurations[sentenceDurations.length - 1], signal);
+		} else {
+			revealedSentenceCount.value = Infinity;
+		}
+
+		await animationDelay(visibilityGaps.section, signal);
+		primaryActionVisible.value = true;
+		scrollIntoView(actionsEl.value);
+
+		await animationDelay(visibilityGaps.section, signal);
+		secondaryActionVisible.value = true;
+		scrollIntoView(actionsEl.value);
+		document.documentElement.classList.remove("nav-hidden");
+		vm.onAnimationComplete();
+	} catch (error: unknown) {
+		if (error instanceof DOMException && error.name === "AbortError") return;
+		throw error;
+	}
 }
 
 onMounted(() => {
@@ -344,79 +431,18 @@ onMounted(() => {
 		return;
 	}
 
-	document.documentElement.classList.add("nav-hidden");
-	animatedExploredCount.value = Math.max(0, vm.exploredCount - 1);
-
-	let elapsed = 0;
-	const revealAfter = (delay: number, fn: () => void): void => {
-		elapsed += delay;
-		schedule(fn, elapsed);
-	};
-
-	revealAfter(visibilityGaps.initial, () => {
-		titleVisible.value = true;
-	});
-
-	revealAfter(visibilityGaps.section, () => {
-		progressSquaresVisible.value = true;
-		scrollIntoView(progressSquaresEl.value);
-	});
-
-	if (vm.exploredCount > 0) {
-		revealAfter(visibilityGaps.progressStart, () => {
-			countSwapActive.value = true;
-			animatedExploredCount.value = vm.exploredCount;
-			if (prefersReducedMotion.value) return;
-
-			latestSquareIndex.value = vm.exploredCount - 1;
-			pulseAnimation.play(pulseCanvases.value[latestSquareIndex.value]);
-		});
-	}
-
-	revealAfter(visibilityGaps.section, () => {
-		warmPhraseVisible.value = true;
-	});
-
-	const allSentences = synthesisParagraphs.value.flatMap((p) => p.sentences);
-	const sentenceDurations = allSentences.map((s) => visibilityGaps.sentenceBase + s.trim().length * visibilityGaps.sentencePerChar);
-	revealAfter(visibilityGaps.section, () => {
-		synthesisVisible.value = true;
-		revealedSentenceCount.value = 1;
-		scrollIntoView(sentenceSpans.value[0]);
-	});
-	for (let i = 1; i < allSentences.length; i++) {
-		revealAfter(sentenceDurations[i - 1], () => {
-			revealedSentenceCount.value = i + 1;
-			scrollIntoView(sentenceSpans.value[i]);
-		});
-	}
-	if (allSentences.length === 0) {
-		revealedSentenceCount.value = Infinity;
-	} else {
-		elapsed += sentenceDurations[sentenceDurations.length - 1];
-	}
-
-	revealAfter(visibilityGaps.section, () => {
-		primaryActionVisible.value = true;
-		scrollIntoView(actionsEl.value);
-	});
-
-	revealAfter(visibilityGaps.section, () => {
-		secondaryActionVisible.value = true;
-		scrollIntoView(actionsEl.value);
-		document.documentElement.classList.remove("nav-hidden");
-		vm.onAnimationComplete();
-	});
+	cascadeAbort = new AbortController();
+	void runCascade(cascadeAbort.signal);
 });
 
 onBeforeUnmount(() => {
-	for (const t of timers) clearTimeout(t);
+	cascadeAbort?.abort();
 	pulseAnimation.stop();
 	document.documentElement.classList.remove("nav-hidden");
 });
 
 function handleShowAll(): void {
-	for (const t of timers) clearTimeout(t);
+	cascadeAbort?.abort();
 	revealedSentenceCount.value = Infinity;
 	primaryActionVisible.value = true;
 	secondaryActionVisible.value = true;
