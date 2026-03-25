@@ -57,6 +57,16 @@ export class FindMeaningViewModel {
 		return this._swipeHistory.value.length > 0;
 	}
 
+	get agreedCards(): MeaningCard[] {
+		const ids = new Set(this._swipeHistory.value.filter((r) => r.direction === "agree").map((r) => r.cardId));
+		return MEANING_CARDS.filter((c) => ids.has(c.id));
+	}
+
+	get unsureCards(): MeaningCard[] {
+		const ids = new Set(this._swipeHistory.value.filter((r) => r.direction === "unsure").map((r) => r.cardId));
+		return MEANING_CARDS.filter((c) => ids.has(c.id));
+	}
+
 	get requiresPrioritization(): boolean {
 		return needsPrioritization(this.sessionId);
 	}

@@ -211,6 +211,71 @@ describe("derived properties", () => {
 	});
 });
 
+describe("agreed and unsure cards", () => {
+	it("returns only agreed cards", () => {
+		const cardIds = MEANING_CARDS.slice(0, 4).map((c) => c.id);
+		const history = [
+			{ cardId: cardIds[0], direction: "agree" as const },
+			{ cardId: cardIds[1], direction: "disagree" as const },
+			{ cardId: cardIds[2], direction: "unsure" as const },
+			{ cardId: cardIds[3], direction: "agree" as const },
+		];
+		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
+
+		const vm = new FindMeaningViewModel(sid());
+		vm.initialize();
+		expect(vm.agreedCards.map((c) => c.id)).toEqual([cardIds[0], cardIds[3]]);
+	});
+
+	it("returns only unsure cards", () => {
+		const cardIds = MEANING_CARDS.slice(0, 4).map((c) => c.id);
+		const history = [
+			{ cardId: cardIds[0], direction: "agree" as const },
+			{ cardId: cardIds[1], direction: "unsure" as const },
+			{ cardId: cardIds[2], direction: "disagree" as const },
+			{ cardId: cardIds[3], direction: "unsure" as const },
+		];
+		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
+
+		const vm = new FindMeaningViewModel(sid());
+		vm.initialize();
+		expect(vm.unsureCards.map((c) => c.id)).toEqual([cardIds[1], cardIds[3]]);
+	});
+
+	it("returns cards in MEANING_CARDS order, not swipe order", () => {
+		const cardIds = [MEANING_CARDS[4].id, MEANING_CARDS[2].id, MEANING_CARDS[0].id];
+		const history = cardIds.map((id) => ({ cardId: id, direction: "agree" as const }));
+		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
+
+		const vm = new FindMeaningViewModel(sid());
+		vm.initialize();
+		expect(vm.agreedCards.map((c) => c.id)).toEqual([MEANING_CARDS[0].id, MEANING_CARDS[2].id, MEANING_CARDS[4].id]);
+	});
+
+	it("returns empty lists when everything is disagreed", () => {
+		const cardIds = MEANING_CARDS.slice(0, 3).map((c) => c.id);
+		const history = cardIds.map((id) => ({ cardId: id, direction: "disagree" as const }));
+		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
+
+		const vm = new FindMeaningViewModel(sid());
+		vm.initialize();
+		expect(vm.agreedCards).toEqual([]);
+		expect(vm.unsureCards).toEqual([]);
+	});
+
+	it("updates after undo", () => {
+		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
+		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: [] });
+
+		const vm = new FindMeaningViewModel(sid());
+		vm.initialize();
+		vm.swipe("agree", "drag");
+		expect(vm.agreedCards).toHaveLength(1);
+		vm.undo();
+		expect(vm.agreedCards).toHaveLength(0);
+	});
+});
+
 describe("finalize", () => {
 	it("saves chosen card IDs when 5 or fewer agreed", () => {
 		const cardIds = MEANING_CARDS.slice(0, 5).map((c) => c.id);

@@ -186,28 +186,6 @@ h1 {
 	line-height: var(--leading-normal);
 }
 
-.card-synthesis-list {
-	list-style: none;
-	margin-top: var(--space-3);
-	padding: 0;
-	font-size: var(--text-base);
-	line-height: var(--leading-normal);
-	color: var(--color-gray-800);
-	display: flex;
-	flex-direction: column;
-	gap: var(--space-2);
-}
-
-.card-synthesis-list li {
-	display: flex;
-}
-
-.card-synthesis-list li::before {
-	flex-shrink: 0;
-	margin-right: var(--space-2);
-	content: "\2713";
-}
-
 .summary-loading {
 	margin-top: var(--space-3);
 	font-size: var(--text-sm);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
@@ -14,19 +14,8 @@ const sessionId = useStringParam("sessionId");
 const vm = new FindMeaningViewModel(sessionId);
 
 const swipeCardRef = ref<InstanceType<typeof SwipeCard> | null>(null);
+const endStateRef = ref<HTMLElement | null>(null);
 const pendingSwipeMethod = ref<"drag" | "button">("drag");
-
-const nextPhaseLabel = computed(() => {
-	switch (detectSessionPhase(sessionId)) {
-		case "explore":
-		case "prioritize-complete":
-			return "Explore meaning";
-		case "prioritize":
-			return "Prioritize meaning";
-		default:
-			return "Continue to next phase";
-	}
-});
 
 onMounted(() => {
 	vm.initialize();
@@ -35,6 +24,11 @@ onMounted(() => {
 function handleSwipe(direction: SwipeDirection): void {
 	vm.swipe(direction, pendingSwipeMethod.value);
 	pendingSwipeMethod.value = "drag";
+	if (vm.isComplete) {
+		void nextTick(() => {
+			endStateRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
+	}
 }
 
 function handleButtonSwipe(direction: SwipeDirection): void {
@@ -76,9 +70,10 @@ function continueToNextPhase(): void {
 	<main>
 		<header>
 			<h1>Find meaning</h1>
-			<div v-if="!vm.isComplete" class="instruction-stack">
-				<p :class="['instruction', { active: vm.currentIndex === 0 }]">Read each source of meaning and decide if it resonates with you.</p>
-				<p :class="['instruction', { active: vm.currentIndex > 0 }]">Keep going — decide if each source of meaning resonates with you.</p>
+			<div class="instruction-stack">
+				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex === 0 }]">Read each source of meaning and decide if it resonates with you.</p>
+				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex > 0 }]">Keep going — decide if each source of meaning resonates with you.</p>
+				<p :class="['instruction', { active: vm.isComplete }]">You've reviewed all {{ vm.totalCards }} sources of meaning. Let's review.</p>
 			</div>
 			<div class="progress">
 				<div class="progress-bar">
@@ -86,7 +81,7 @@ function continueToNextPhase(): void {
 				</div>
 				<div class="progress-row">
 					<span class="progress-text"> {{ vm.progressPercent }}% ({{ vm.currentIndex }}/{{ vm.totalCards }}) </span>
-					<AppButton v-if="!vm.isComplete" variant="secondary" emphasis="muted" :class="['undo-button', { 'undo-hidden': !vm.canUndo }]" @click="handleUndo">Undo</AppButton>
+					<AppButton variant="secondary" emphasis="muted" :class="['undo-button', { 'undo-hidden': !vm.canUndo }]" @click="handleUndo">Undo</AppButton>
 				</div>
 			</div>
 		</header>
@@ -94,11 +89,30 @@ function continueToNextPhase(): void {
 		<div v-if="!vm.isComplete" class="card-area">
 			<SwipeCard ref="swipeCardRef" :key="vm.currentIndex" :card="vm.currentCard!" :next-card="vm.nextCard" @swiped="handleSwipe" />
 		</div>
+		<div v-else ref="endStateRef" class="end-state">
+			<p style="margin-bottom: var(--space-4)">Here are the sources of meaning that you selected:</p>
 
-		<div v-else class="end-state">
-			<h2>All reviewed!</h2>
-			<p>You have reviewed all {{ vm.totalCards }} sources of meaning.</p>
-			<AppButton variant="primary" @click="continueToNextPhase">{{ nextPhaseLabel }}</AppButton>
+			<div v-if="vm.agreedCards.length > 0" class="selection-group">
+				<h3>Resonates with you</h3>
+				<ul class="card-synthesis-list selection-columns">
+					<li v-for="card in vm.agreedCards" :key="card.id">{{ card.description }}</li>
+				</ul>
+			</div>
+
+			<div v-if="vm.unsureCards.length > 0" class="selection-group">
+				<h3>Not sure yet</h3>
+				<ul class="selection-columns">
+					<li v-for="card in vm.unsureCards" :key="card.id">{{ card.description }}</li>
+				</ul>
+			</div>
+
+			<p v-if="vm.requiresPrioritization" class="next-step-hint">Next, you'll narrow these down to the ones that matter most.</p>
+			<p v-else class="next-step-hint">Next, you'll explore what each one means to you. You will also be able to change your selections.</p>
+
+			<AppButton variant="primary" @click="continueToNextPhase">
+				<template v-if="vm.requiresPrioritization">Prioritize meaning</template>
+				<template v-else>Explore meaning</template>
+			</AppButton>
 		</div>
 
 		<div v-if="!vm.isComplete" class="controls">
@@ -171,18 +185,26 @@ h1 {
 	margin-bottom: var(--space-6);
 }
 
-.end-state {
-	padding: var(--space-8) 0;
+.selection-group {
+	margin-bottom: var(--space-6);
 }
 
-.end-state h2 {
-	margin: 0 0 var(--space-2);
+.selection-columns {
+	display: block;
+	columns: 2;
 }
 
-.end-state p {
-	color: var(--color-gray-600);
-	margin: 0 0 var(--space-6);
+.selection-columns li {
+	break-inside: avoid;
+}
+
+.next-step-hint {
+	margin: 0 0 var(--space-4);
 	line-height: 1.5;
+}
+
+.next-step-hint:last-of-type {
+	margin-bottom: var(--space-6);
 }
 
 .controls {
