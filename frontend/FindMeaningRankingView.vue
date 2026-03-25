@@ -445,7 +445,9 @@ function handleFinish(): void {
 	<main>
 		<header>
 			<h1>Find meaning — rank</h1>
-			<p v-if="!vm.isComplete" class="instruction">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
+			<div v-if="!vm.isComplete" class="instruction-stack">
+				<p class="instruction active">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
+			</div>
 			<p v-if="vm.estimatedRemaining !== null && vm.estimatedRemaining !== 0" class="remaining-text">Estimated {{ String(Math.ceil(vm.estimatedRemaining)) }} {{ Math.ceil(vm.estimatedRemaining) === 1 ? "task" : "tasks" }} remaining.</p>
 		</header>
 
@@ -529,11 +531,6 @@ header {
 
 h1 {
 	margin: 0 0 var(--space-1);
-}
-
-.instruction {
-	color: var(--color-gray-400);
-	margin: 0 0 var(--space-2);
 }
 
 .next-step-hint {
