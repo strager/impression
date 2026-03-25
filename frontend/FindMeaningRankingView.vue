@@ -21,6 +21,7 @@ const displayOrder = interaction.displayOrder;
 const cardStageRef = ref<HTMLElement | null>(null);
 const slotRefs = ref<(HTMLElement | null)[]>([]);
 const buttonRowRef = ref<HTMLElement | null>(null);
+const endStateRef = ref<HTMLElement | null>(null);
 const pointerCaptureElement = ref<HTMLElement | null>(null);
 const DRAG_LIFT_X_PX = -6;
 const DRAG_LIFT_Y_PX = 6;
@@ -416,9 +417,15 @@ function handleNext(): void {
 	vm.choose(best, worst);
 	interaction.reset();
 	clearDragState();
-	const redo = vm.pendingRedo;
-	if (redo !== null && vm.currentTask !== null) {
-		interaction.restoreSelection(vm.currentTask, redo.bestId, redo.worstId);
+	if (vm.isComplete) {
+		void nextTick(() => {
+			endStateRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
+	} else {
+		const redo = vm.pendingRedo;
+		if (redo !== null && vm.currentTask !== null) {
+			interaction.restoreSelection(vm.currentTask, redo.bestId, redo.worstId);
+		}
 	}
 }
 
@@ -438,8 +445,8 @@ function handleFinish(): void {
 	<main>
 		<header>
 			<h1>Find meaning — rank</h1>
-			<p class="instruction">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
-			<p class="remaining-text" :class="{ hidden: vm.estimatedRemaining === null || vm.estimatedRemaining === 0 }">{{ vm.estimatedRemaining !== null ? `Estimated ${String(Math.ceil(vm.estimatedRemaining))} ${Math.ceil(vm.estimatedRemaining) === 1 ? "task" : "tasks"} remaining.` : "&nbsp;" }}</p>
+			<p v-if="!vm.isComplete" class="instruction">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
+			<p v-if="vm.estimatedRemaining !== null && vm.estimatedRemaining !== 0" class="remaining-text">Estimated {{ String(Math.ceil(vm.estimatedRemaining)) }} {{ Math.ceil(vm.estimatedRemaining) === 1 ? "task" : "tasks" }} remaining.</p>
 		</header>
 
 		<div v-if="!vm.isComplete" class="ranking-area">
@@ -490,10 +497,18 @@ function handleFinish(): void {
 			</div>
 		</div>
 
-		<div v-else class="end-state">
-			<h2>You're done!</h2>
-			<p>Your top sources of meaning have been identified.</p>
-			<AppButton variant="primary" @click="handleFinish">Explore meaning</AppButton>
+		<div v-else ref="endStateRef" class="end-state">
+			<p style="margin-bottom: var(--space-4)">You're done! Here are your top sources of meaning:</p>
+			<ul class="checkmark-list">
+				<li v-for="card in vm.topKDisplayOrder" :key="card.id">
+					<strong>{{ card.source }}</strong> — {{ card.description }}
+				</li>
+			</ul>
+			<p class="next-step-hint">Next, you'll explore what each one means to you.</p>
+			<div class="button-row">
+				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Back</AppButton>
+				<AppButton variant="primary" @click="handleFinish">Explore meaning</AppButton>
+			</div>
 		</div>
 	</main>
 </template>
@@ -521,14 +536,19 @@ h1 {
 	margin: 0 0 var(--space-2);
 }
 
+.next-step-hint {
+	margin: 0 0 var(--space-4);
+	line-height: 1.5;
+}
+
+.next-step-hint:last-of-type {
+	margin-bottom: var(--space-6);
+}
+
 .remaining-text {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
 	margin: 0;
-}
-
-.remaining-text.hidden {
-	visibility: hidden;
 }
 
 .card-triad {
@@ -717,19 +737,6 @@ h1 {
 	display: flex;
 	justify-content: center;
 	gap: var(--space-4);
-}
-
-.end-state {
-	text-align: center;
-}
-
-.end-state h2 {
-	margin: 0 0 var(--space-2);
-}
-
-.end-state p {
-	margin: 0 0 var(--space-6);
-	color: var(--color-gray-400);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -34,6 +34,11 @@ export class FindMeaningRankingViewModel {
 		return this._ranking.value.topK.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
 	}
 
+	get topKDisplayOrder(): readonly MeaningCard[] {
+		const ids = new Set(this.topK.map((c) => c.id));
+		return MEANING_CARDS.filter((c) => ids.has(c.id));
+	}
+
 	get currentTask(): MeaningCard[] | null {
 		return this._currentTask.value;
 	}
