@@ -630,20 +630,7 @@ ol ul {
 }
 
 .card-synthesis-list {
-	list-style: none;
-	padding: 0;
-	display: flex;
-	flex-direction: column;
-}
-
-.card-synthesis-list li {
-	display: flex;
-}
-
-.card-synthesis-list li::before {
-	flex-shrink: 0;
-	margin-right: var(--space-2);
-	content: "\2713";
+	list-style-type: "\2713  ";
 }
 
 /* ============================================================
