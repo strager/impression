@@ -89,7 +89,7 @@ function handleOpenReport(source: string): void {
 				</div>
 				<div v-if="vm.cardSynthesis[card.id]?.loading" class="summary-loading">Generating summary...</div>
 				<template v-else-if="vm.cardSynthesis[card.id]?.text">
-					<ul v-if="parseBullets(vm.cardSynthesis[card.id]!.text)" class="card-synthesis-list">
+					<ul v-if="parseBullets(vm.cardSynthesis[card.id]!.text)" class="checkmark-list">
 						<li v-for="(bullet, i) in parseBullets(vm.cardSynthesis[card.id]!.text)" :key="i">
 							<span style="--chip-parent-cap: 1cap"
 								>{{ bullet }}<template v-if="i === parseBullets(vm.cardSynthesis[card.id]!.text)!.length - 1">{{ " " }}<span class="chip chip-ai">AI-generated</span></template></span

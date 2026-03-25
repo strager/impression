@@ -455,14 +455,14 @@ import AppButton from "./AppButton.vue";
 				</ul>
 
 				<h4 class="sg-group-label">Checkmark list</h4>
-				<ul class="card-synthesis-list" style="max-width: 600px; margin-bottom: var(--space-6)">
+				<ul class="checkmark-list" style="max-width: 600px; margin-bottom: var(--space-6)">
 					<li>Total revenue reached $1.27M this quarter</li>
 					<li>Northeast region led growth at 18%</li>
 					<li>Fourteen new enterprise accounts were opened</li>
 				</ul>
 
 				<h4 class="sg-group-label">Checkmark list (two-column)</h4>
-				<ul class="card-synthesis-list selection-columns" style="max-width: 600px; margin-bottom: var(--space-6)">
+				<ul class="checkmark-list selection-columns" style="max-width: 600px; margin-bottom: var(--space-6)">
 					<li>Total revenue reached $1.27M this quarter</li>
 					<li>Northeast region led growth at 18%</li>
 					<li>Fourteen new enterprise accounts were opened</li>

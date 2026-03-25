@@ -94,7 +94,7 @@ function continueToNextPhase(): void {
 
 			<div v-if="vm.agreedCards.length > 0" class="selection-group">
 				<h3>Resonates with you</h3>
-				<ul class="card-synthesis-list selection-columns">
+				<ul class="checkmark-list selection-columns">
 					<li v-for="card in vm.agreedCards" :key="card.id">{{ card.description }}</li>
 				</ul>
 			</div>
