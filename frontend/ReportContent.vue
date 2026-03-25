@@ -45,10 +45,10 @@ defineProps<{
 				</div>
 				<div class="qa-block">
 					<h4 class="qa-topic">Statements that resonate</h4>
-					<ul v-if="report.selectedStatements.length > 0" class="statement-list">
+					<ul v-if="report.selectedStatements.length > 0">
 						<li v-for="s in report.selectedStatements" :key="s">{{ s }}</li>
 					</ul>
-					<ul v-else class="statement-list">
+					<ul v-else>
 						<li>{{ report.card.description }}</li>
 					</ul>
 				</div>
@@ -147,18 +147,6 @@ h4 {
 	font-size: 13px;
 	font-style: italic;
 	color: #737373;
-}
-
-.statement-list {
-	margin: 4px 0 0;
-	padding-left: 20px;
-}
-
-.statement-list li {
-	margin: 4px 0;
-	font-size: 16px;
-	line-height: 1.5;
-	color: #333333;
 }
 
 .summary-section .report-card {

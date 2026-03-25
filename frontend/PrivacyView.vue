@@ -91,13 +91,4 @@ section p {
 	margin: 0 0 var(--space-3);
 }
 
-section ul {
-	line-height: var(--leading-relaxed);
-	margin: var(--space-2) 0 0;
-	padding-left: var(--space-6);
-}
-
-section li {
-	margin-bottom: var(--space-1);
-}
 </style>

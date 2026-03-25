@@ -444,11 +444,31 @@ import AppButton from "./AppButton.vue";
 					<li>Fourteen new enterprise accounts were opened</li>
 				</ul>
 
+				<h4 class="sg-group-label">Unordered list (two-column)</h4>
+				<ul class="selection-columns" style="max-width: 600px; margin-bottom: var(--space-6)">
+					<li>Total revenue reached $1.27M this quarter</li>
+					<li>Northeast region led growth at 18%</li>
+					<li>Fourteen new enterprise accounts were opened</li>
+					<li>Customer retention improved to 94%</li>
+					<li>Support ticket volume dropped 12%</li>
+					<li>Three new product lines were launched</li>
+				</ul>
+
 				<h4 class="sg-group-label">Checkmark list</h4>
 				<ul class="card-synthesis-list" style="max-width: 600px; margin-bottom: var(--space-6)">
 					<li>Total revenue reached $1.27M this quarter</li>
 					<li>Northeast region led growth at 18%</li>
 					<li>Fourteen new enterprise accounts were opened</li>
+				</ul>
+
+				<h4 class="sg-group-label">Checkmark list (two-column)</h4>
+				<ul class="card-synthesis-list selection-columns" style="max-width: 600px; margin-bottom: var(--space-6)">
+					<li>Total revenue reached $1.27M this quarter</li>
+					<li>Northeast region led growth at 18%</li>
+					<li>Fourteen new enterprise accounts were opened</li>
+					<li>Customer retention improved to 94%</li>
+					<li>Support ticket volume dropped 12%</li>
+					<li>Three new product lines were launched</li>
 				</ul>
 			</div>
 
@@ -845,5 +865,14 @@ import AppButton from "./AppButton.vue";
 	white-space: pre;
 	margin-top: var(--space-4);
 	margin-bottom: var(--space-6);
+}
+
+.selection-columns {
+	display: block;
+	columns: 2;
+}
+
+.selection-columns li {
+	break-inside: avoid;
 }
 </style>
