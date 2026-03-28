@@ -1,96 +1,24 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
-import { capture } from "./analytics.ts";
+import { ReconsiderViewModel } from "./ReconsiderViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
-import { loadChosenCardIds, loadExamineData, saveChosenCardIds } from "./store.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
-const chosenIds = ref<Set<string>>(new Set());
-const examinedIds = ref<Set<string>>(new Set());
-const confirmingRemove = ref<string | null>(null);
+const vm = new ReconsiderViewModel(profileId);
 
-const selectedCount = computed(() => chosenIds.value.size);
-
-function saveChosenIds(): void {
-	const ordered = MEANING_CARDS.filter((c) => chosenIds.value.has(c.id)).map((c) => c.id);
-	saveChosenCardIds(profileId, ordered);
-}
-
-function isExamined(cardId: string): boolean {
-	return examinedIds.value.has(cardId);
-}
-
-function toggleCard(cardId: string): void {
-	if (chosenIds.value.has(cardId)) {
-		if (isExamined(cardId)) {
-			confirmingRemove.value = cardId;
-			return;
-		}
-		removeCard(cardId, false);
-	} else {
-		addCard(cardId);
-	}
-}
-
-function addCard(cardId: string): void {
-	chosenIds.value.add(cardId);
-	chosenIds.value = new Set(chosenIds.value);
-	saveChosenIds();
-	capture("card_toggled", { session_id: profileId });
-}
-
-function removeCard(cardId: string, hadData: boolean): void {
-	chosenIds.value.delete(cardId);
-	chosenIds.value = new Set(chosenIds.value);
-	confirmingRemove.value = null;
-	saveChosenIds();
-	capture("card_toggled", { session_id: profileId });
-	if (hadData) {
-		capture("card_with_data_removed", { session_id: profileId });
-	}
-}
-
-function cancelRemove(): void {
-	if (confirmingRemove.value !== null) {
-		capture("reconsider_remove_cancelled", {
-			session_id: profileId,
-		});
-	}
-	confirmingRemove.value = null;
-}
-
-function onDone(): void {
-	capture("reconsider_completed", {
-		session_id: profileId,
-		card_count: selectedCount.value,
-	});
+function handleDone(): void {
+	vm.onDone();
 	void router.push({ name: "examine", params: { profileId } });
 }
 
 onMounted(() => {
-	try {
-		const cardIds = loadChosenCardIds(profileId);
-		if (cardIds === null) {
-			void router.replace({ name: "identify", params: { profileId } });
-			return;
-		}
-		chosenIds.value = new Set(cardIds);
-
-		const examineData = loadExamineData(profileId);
-		if (examineData !== null) {
-			for (const [cardId, cardData] of Object.entries(examineData)) {
-				if (cardData.entries.some((e) => e.userAnswer !== "")) {
-					examinedIds.value.add(cardId);
-				}
-			}
-		}
-		capture("reconsider_visited", { session_id: profileId });
-	} catch {
+	const status = vm.initialize();
+	if (status === "no-data") {
 		void router.replace({ name: "identify", params: { profileId } });
 	}
 });
@@ -101,36 +29,36 @@ onMounted(() => {
 		<header>
 			<h1>Reconsider</h1>
 			<div class="instruction-stack">
-				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
-				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>
-				<p :class="['instruction', { active: selectedCount >= 3 && selectedCount <= 5 }]">Good choices! Tap Done when you're ready.</p>
-				<p :class="['instruction', { active: selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused examination.</p>
+				<p :class="['instruction', { active: vm.selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
+				<p :class="['instruction', { active: vm.selectedCount >= 1 && vm.selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>
+				<p :class="['instruction', { active: vm.selectedCount >= 3 && vm.selectedCount <= 5 }]">Good choices! Tap Done when you're ready.</p>
+				<p :class="['instruction', { active: vm.selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused examination.</p>
 			</div>
-			<p class="count">{{ selectedCount }} source{{ selectedCount === 1 ? "" : "s" }} of meaning selected</p>
+			<p class="count">{{ vm.selectedCount }} source{{ vm.selectedCount === 1 ? "" : "s" }} of meaning selected</p>
 		</header>
 
 		<div class="card-list">
-			<label v-for="card in MEANING_CARDS" :key="card.id" :class="['card-row', { selected: chosenIds.has(card.id), unselected: !chosenIds.has(card.id) }]">
-				<input type="checkbox" :checked="chosenIds.has(card.id)" class="card-checkbox" @change="toggleCard(card.id)" />
+			<label v-for="card in MEANING_CARDS" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
+				<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 				<div class="card-content">
 					<span class="card-source">{{ card.source }}</span>
 					<span class="card-desc">{{ card.description }}</span>
 				</div>
-				<span v-if="isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
+				<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
-				<div v-if="confirmingRemove === card.id" class="confirm-overlay" @click.stop>
+				<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 					<p>This source of meaning has examination answers. Remove it?</p>
 					<!-- eslint-disable vue/no-restricted-html-elements -->
 					<div class="confirm-actions">
-						<button class="confirm-remove" @click="removeCard(card.id, true)">Remove</button>
-						<button class="btn-secondary confirm-cancel" @click="cancelRemove">Cancel</button>
+						<button class="confirm-remove" @click="vm.removeCard(card.id, true)">Remove</button>
+						<button class="btn-secondary confirm-cancel" @click="vm.cancelRemove()">Cancel</button>
 					</div>
 					<!-- eslint-enable vue/no-restricted-html-elements -->
 				</div>
 			</label>
 		</div>
 
-		<AppButton variant="primary" class="done-btn" @click="onDone">Done</AppButton>
+		<AppButton variant="primary" class="done-btn" @click="handleDone">Done</AppButton>
 	</main>
 </template>
 
