@@ -9,7 +9,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ExploreViewModel, parseBullets } from "./ExploreViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -29,7 +29,7 @@ function setGlobalDom(win: Window): void {
 }
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 
 const server = setupServer();
@@ -48,7 +48,7 @@ beforeAll(() => {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {
@@ -336,7 +336,7 @@ describe("synthesis loading", () => {
 		saveExploreData(sid(), data);
 
 		const answer = data[cardIds[0]].entries[0].userAnswer;
-		saveCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Cached synthesis", short: true });
+		saveCachedSynthesis({ profileId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Cached synthesis", short: true });
 
 		// No MSW handler — any fetch would fail with onUnhandledRequest: "error"
 		const vm = new ExploreViewModel(sid());
@@ -385,7 +385,7 @@ describe("synthesis loading", () => {
 		await vm.whenReady;
 
 		const answer = data[cardIds[0]].entries[0].userAnswer;
-		const cached = lookupCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, short: true });
+		const cached = lookupCachedSynthesis({ profileId: sid(), cardId: cardIds[0], fingerprint: answer, short: true });
 		expect(cached).toBe("A test synthesis");
 	});
 
@@ -396,7 +396,7 @@ describe("synthesis loading", () => {
 
 		const answer = data[cardIds[0]].entries[0].userAnswer;
 		// Save a normal (non-short) synthesis
-		saveCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Normal synthesis" });
+		saveCachedSynthesis({ profileId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Normal synthesis" });
 
 		// Short cache should miss
 		setupDefaultSynthesizeHandler();
@@ -406,7 +406,7 @@ describe("synthesis loading", () => {
 
 		expect(vm.cardSynthesis[cardIds[0]]!.text).toBe("A test synthesis");
 		// Normal cache should still be intact
-		const normalCached = lookupCachedSynthesis({ sessionId: sid(), cardId: cardIds[0], fingerprint: answer });
+		const normalCached = lookupCachedSynthesis({ profileId: sid(), cardId: cardIds[0], fingerprint: answer });
 		expect(normalCached).toBe("Normal synthesis");
 	});
 });

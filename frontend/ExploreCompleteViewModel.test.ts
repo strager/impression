@@ -9,7 +9,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
 import type { ExploreData } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, hasVisitedExploreComplete, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, hasVisitedExploreComplete, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -29,7 +29,7 @@ function setGlobalDom(win: Window): void {
 }
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 
 const server = setupServer();
@@ -48,7 +48,7 @@ beforeAll(() => {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {
@@ -175,7 +175,7 @@ describe("synthesis loading", () => {
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
 
 		const fingerprint = EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
-		saveCachedSynthesis({ sessionId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
+		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		// No MSW handler — any fetch would fail
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
@@ -207,7 +207,7 @@ describe("synthesis loading", () => {
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID], "My notes"));
 
 		const fingerprint = [...EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
-		saveCachedSynthesis({ sessionId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
+		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
 
 		const vm = new ExploreCompleteViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();

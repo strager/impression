@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { FindMeaningViewModel } from "./FindMeaningViewModel.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadChosenCardIds, loadRanking, loadSwipeProgress, saveSwipeProgress } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, loadSwipeProgress, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -25,13 +25,13 @@ function setGlobalDom(win: Window): void {
 }
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {

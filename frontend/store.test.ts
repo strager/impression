@@ -3,10 +3,10 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSession, deleteSession, detectSessionPhase, ensureSessionsInitialized, exportProgressData, formatSessionDate, getActiveSessionId, hasVisitedExploreComplete, importProgressData, listSessions, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExploreCompleteVisited, renameSession, saveCachedSynthesis, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createProfile, deleteProfile, detectProfilePhase, ensureProfilesInitialized, exportProgressData, formatProfileDate, getActiveProfileId, hasVisitedExploreComplete, importProgressData, listProfiles, loadChosenCardIds, loadExploreData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExploreCompleteVisited, renameProfile, saveCachedSynthesis, saveChosenCardIds, saveExploreData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 
@@ -32,7 +32,7 @@ function setGlobalDom(win: Window): void {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {
@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 function activeKey(suffix: string): string {
-	return `somecam-${getActiveSessionId()}-${suffix}`;
+	return `somecam-${getActiveProfileId()}-${suffix}`;
 }
 
 describe("loadChosenCardIds/saveChosenCardIds", () => {
@@ -462,34 +462,34 @@ describe("loadExploreData/saveExploreData", () => {
 
 describe("lookupCachedSynthesis/saveCachedSynthesis", () => {
 	it("returns null when key is absent", () => {
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "some fingerprint" })).toBeNull();
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "some fingerprint" })).toBeNull();
 	});
 
 	it("returns null on fingerprint mismatch", () => {
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fingerprint1", synthesis: "My synthesis" });
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "different" })).toBeNull();
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fingerprint1", synthesis: "My synthesis" });
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "different" })).toBeNull();
 	});
 
 	it("round-trips saved synthesis", () => {
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint", synthesis: "My synthesis" });
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint" })).toBe("My synthesis");
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint", synthesis: "My synthesis" });
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "my-fingerprint" })).toBe("My synthesis");
 	});
 
 	it("short and normal syntheses use separate cache keys", () => {
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal", short: false });
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBe("Normal");
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBe("Short");
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal", short: false });
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBe("Normal");
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBe("Short");
 	});
 
 	it("short lookup returns null when only normal is cached", () => {
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal" });
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBeNull();
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Normal" });
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", short: true })).toBeNull();
 	});
 
 	it("normal lookup returns null when only short is cached", () => {
-		saveCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
-		expect(lookupCachedSynthesis({ sessionId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBeNull();
+		saveCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp", synthesis: "Short", short: true });
+		expect(lookupCachedSynthesis({ profileId: sid(), cardId: "self-knowledge", fingerprint: "fp" })).toBeNull();
 	});
 });
 
@@ -655,7 +655,7 @@ describe("freeform notes in ExploreData", () => {
 });
 
 describe("exportProgressData/importProgressData", () => {
-	it("exportProgressData returns v2 format with empty session data", () => {
+	it("exportProgressData returns v2 format with empty profile data", () => {
 		const result = JSON.parse(exportProgressData());
 		expect(result.version).toBe("somecam-v2");
 		expect(Array.isArray(result.sessions)).toBe(true);
@@ -663,15 +663,15 @@ describe("exportProgressData/importProgressData", () => {
 		expect(result.sessions[0].data).toEqual({});
 	});
 
-	it("exportProgressData includes session data", () => {
+	it("exportProgressData includes profile data", () => {
 		saveChosenCardIds(sid(), ["self-knowledge", "community"]);
 		const result = JSON.parse(exportProgressData());
 		expect(result.sessions[0].data.chosen).toEqual(["self-knowledge", "community"]);
 	});
 
-	it("exportProgressData exports all sessions", () => {
+	it("exportProgressData exports all profiles", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const secondId = createSession("Second");
+		const secondId = createProfile("Second");
 		saveChosenCardIds(sid(), ["community"]);
 
 		const result = JSON.parse(exportProgressData());
@@ -681,10 +681,10 @@ describe("exportProgressData/importProgressData", () => {
 		expect(secondSession.data.chosen).toEqual(["community"]);
 	});
 
-	it("importProgressData v2 merges sessions by UUID", () => {
+	it("importProgressData v2 merges profiles by UUID", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const currentId = getActiveSessionId();
-		const currentSessions = listSessions();
+		const currentId = getActiveProfileId();
+		const currentSessions = listProfiles();
 
 		const v2Data = JSON.stringify({
 			version: "somecam-v2",
@@ -703,12 +703,12 @@ describe("exportProgressData/importProgressData", () => {
 		importProgressData(v2Data);
 
 		expect(loadChosenCardIds(sid())).toEqual(["community", "challenge"]);
-		const sessions = listSessions();
+		const sessions = listProfiles();
 		expect(sessions).toHaveLength(1);
 		expect(sessions[0].name).toBe("Updated Name");
 	});
 
-	it("importProgressData v2 adds new sessions", () => {
+	it("importProgressData v2 adds new profiles", () => {
 		saveChosenCardIds(sid(), ["existing-card"]);
 
 		const v2Data = JSON.stringify({
@@ -727,7 +727,7 @@ describe("exportProgressData/importProgressData", () => {
 
 		importProgressData(v2Data);
 
-		const sessions = listSessions();
+		const sessions = listProfiles();
 		expect(sessions).toHaveLength(2);
 		const imported = sessions.find((s) => s.id === "new-session-uuid");
 		expect(imported).toBeDefined();
@@ -745,9 +745,9 @@ describe("exportProgressData/importProgressData", () => {
 		});
 
 		const exported = exportProgressData();
-		const activeId = getActiveSessionId();
+		const activeId = getActiveProfileId();
 
-		// Clear active session data
+		// Clear active profile data
 		for (const suffix of ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements"]) {
 			localStorage.removeItem(`somecam-${activeId}-${suffix}`);
 		}
@@ -771,7 +771,7 @@ describe("exportProgressData/importProgressData", () => {
 				descriptionSelections: [],
 			},
 		});
-		const currentId = getActiveSessionId();
+		const currentId = getActiveProfileId();
 
 		const v2Data = JSON.stringify({
 			version: "somecam-v2",
@@ -866,7 +866,7 @@ describe("description selections in ExploreData", () => {
 	});
 
 	it("importProgressData restores descriptions data", () => {
-		const currentId = getActiveSessionId();
+		const currentId = getActiveProfileId();
 		const v2Data = JSON.stringify({
 			version: "somecam-v2",
 			sessions: [
@@ -899,7 +899,7 @@ describe("description selections in ExploreData", () => {
 				descriptionSelections: ["6"],
 			},
 		});
-		const currentId = getActiveSessionId();
+		const currentId = getActiveProfileId();
 
 		const v2Data = JSON.stringify({
 			version: "somecam-v2",
@@ -925,123 +925,123 @@ describe("description selections in ExploreData", () => {
 	});
 });
 
-describe("session management", () => {
-	it("listSessions hides empty sessions", () => {
-		expect(listSessions()).toHaveLength(0);
+describe("profile management", () => {
+	it("listProfiles hides empty profiles", () => {
+		expect(listProfiles()).toHaveLength(0);
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		expect(listSessions()).toHaveLength(1);
+		expect(listProfiles()).toHaveLength(1);
 	});
 
-	it("listSessions hides empty sessions among non-empty ones", () => {
+	it("listProfiles hides empty profiles among non-empty ones", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		createSession("Empty Session");
-		expect(listSessions()).toHaveLength(1);
-		expect(listSessions()[0].name).not.toBe("Empty Session");
+		createProfile("Empty Session");
+		expect(listProfiles()).toHaveLength(1);
+		expect(listProfiles()[0].name).not.toBe("Empty Session");
 	});
 
-	it("listSessions removes empty non-active sessions from localStorage", () => {
+	it("listProfiles removes empty non-active profiles from localStorage", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const firstId = getActiveSessionId();
-		const emptyId = createSession("Empty");
-		// Switch back so the empty session is not active
+		const firstId = getActiveProfileId();
+		const emptyId = createProfile("Empty");
+		// Switch back so the empty profile is not active
 		localStorage.setItem("somecam-active-session", firstId);
 
-		listSessions();
+		listProfiles();
 
-		// The empty session should be purged from metadata
+		// The empty profile should be purged from metadata
 		const raw = localStorage.getItem("somecam-sessions");
 		const meta = JSON.parse(raw ?? "[]");
 		expect(meta.find((s: any) => s.id === emptyId)).toBeUndefined();
 	});
 
-	it("ensureSessionsInitialized creates one session", () => {
-		expect(getActiveSessionId()).toBeTruthy();
+	it("ensureProfilesInitialized creates one profile", () => {
+		expect(getActiveProfileId()).toBeTruthy();
 	});
 
-	it("ensureSessionsInitialized is idempotent", () => {
-		const id = getActiveSessionId();
-		ensureSessionsInitialized();
-		ensureSessionsInitialized();
-		expect(getActiveSessionId()).toBe(id);
+	it("ensureProfilesInitialized is idempotent", () => {
+		const id = getActiveProfileId();
+		ensureProfilesInitialized();
+		ensureProfilesInitialized();
+		expect(getActiveProfileId()).toBe(id);
 	});
 
-	it("createSession adds a new session and makes it active", () => {
+	it("createProfile adds a new profile and makes it active", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const firstId = getActiveSessionId();
-		const secondId = createSession("Test Session");
+		const firstId = getActiveProfileId();
+		const secondId = createProfile("Test Session");
 		saveChosenCardIds(sid(), ["community"]);
 		expect(secondId).not.toBe(firstId);
-		expect(getActiveSessionId()).toBe(secondId);
-		expect(listSessions()).toHaveLength(2);
+		expect(getActiveProfileId()).toBe(secondId);
+		expect(listProfiles()).toHaveLength(2);
 	});
 
-	it("createSession auto-names with formatted date when no name given", () => {
-		const id = createSession();
+	it("createProfile auto-names with formatted date when no name given", () => {
+		const id = createProfile();
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const sessions = listSessions();
-		const session = sessions.find((s) => s.id === id);
-		expect(session).toBeDefined();
-		expect(session?.name).toBe(formatSessionDate(new Date()));
+		const sessions = listProfiles();
+		const profile = sessions.find((s) => s.id === id);
+		expect(profile).toBeDefined();
+		expect(profile?.name).toBe(formatProfileDate(new Date()));
 	});
 
-	it("renameSession updates the session name", () => {
-		const id = getActiveSessionId();
+	it("renameProfile updates the profile name", () => {
+		const id = getActiveProfileId();
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		renameSession(id, "New Name");
-		const session = listSessions().find((s) => s.id === id);
-		expect(session).toBeDefined();
-		expect(session?.name).toBe("New Name");
+		renameProfile(id, "New Name");
+		const profile = listProfiles().find((s) => s.id === id);
+		expect(profile).toBeDefined();
+		expect(profile?.name).toBe("New Name");
 	});
 
-	it("renameSession throws for unknown id", () => {
+	it("renameProfile throws for unknown id", () => {
 		expect(() => {
-			renameSession("nonexistent", "Name");
+			renameProfile("nonexistent", "Name");
 		}).toThrow(/not found/);
 	});
 
-	it("deleteSession removes session and its data", () => {
+	it("deleteProfile removes profile and its data", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		const firstId = getActiveSessionId();
-		createSession("Second");
+		const firstId = getActiveProfileId();
+		createProfile("Second");
 		saveChosenCardIds(sid(), ["community"]);
-		deleteSession(firstId);
-		expect(listSessions()).toHaveLength(1);
+		deleteProfile(firstId);
+		expect(listProfiles()).toHaveLength(1);
 		expect(localStorage.getItem(`somecam-${firstId}-chosen`)).toBeNull();
 	});
 
-	it("deleteSession switches to another session when deleting active", () => {
-		const firstId = getActiveSessionId();
-		const secondId = createSession("Second");
+	it("deleteProfile switches to another profile when deleting active", () => {
+		const firstId = getActiveProfileId();
+		const secondId = createProfile("Second");
 		localStorage.setItem("somecam-active-session", firstId);
-		deleteSession(firstId);
-		expect(getActiveSessionId()).toBe(secondId);
+		deleteProfile(firstId);
+		expect(getActiveProfileId()).toBe(secondId);
 	});
 
-	it("deleteSession creates new session when deleting the last one", () => {
-		const onlyId = getActiveSessionId();
-		deleteSession(onlyId);
-		expect(getActiveSessionId()).not.toBe(onlyId);
+	it("deleteProfile creates new profile when deleting the last one", () => {
+		const onlyId = getActiveProfileId();
+		deleteProfile(onlyId);
+		expect(getActiveProfileId()).not.toBe(onlyId);
 	});
 
-	it("deleteSession throws for unknown id", () => {
+	it("deleteProfile throws for unknown id", () => {
 		expect(() => {
-			deleteSession("nonexistent");
+			deleteProfile("nonexistent");
 		}).toThrow(/not found/);
 	});
 });
 
-describe("session data isolation", () => {
-	it("data saved in one session is not visible in another", () => {
+describe("profile data isolation", () => {
+	it("data saved in one profile is not visible in another", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
-				freeformNote: "notes from session 1",
+				freeformNote: "notes from profile 1",
 				descriptionSelections: [],
 			},
 		});
 
-		createSession("Second");
+		createProfile("Second");
 
 		expect(loadChosenCardIds(sid())).toBeNull();
 		expect(loadExploreData(sid())).toBeNull();
@@ -1206,9 +1206,9 @@ describe("loadRanking/saveRanking", () => {
 	});
 });
 
-describe("detectSessionPhase", () => {
+describe("detectProfilePhase", () => {
 	it("returns 'none' when no data exists", () => {
-		expect(detectSessionPhase(sid())).toBe("none");
+		expect(detectProfilePhase(sid())).toBe("none");
 	});
 
 	it("returns 'swipe' when swipe progress exists", () => {
@@ -1216,7 +1216,7 @@ describe("detectSessionPhase", () => {
 			shuffledCardIds: ["a", "b"],
 			swipeHistory: [{ cardId: "a", direction: "agree" }],
 		});
-		expect(detectSessionPhase(sid())).toBe("swipe");
+		expect(detectProfilePhase(sid())).toBe("swipe");
 	});
 
 	it("returns 'prioritize' when ranking data exists and not complete", () => {
@@ -1225,7 +1225,7 @@ describe("detectSessionPhase", () => {
 			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: false,
 		});
-		expect(detectSessionPhase(sid())).toBe("prioritize");
+		expect(detectProfilePhase(sid())).toBe("prioritize");
 	});
 
 	it("returns 'prioritize-complete' when ranking is complete", () => {
@@ -1234,18 +1234,18 @@ describe("detectSessionPhase", () => {
 			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
 			complete: true,
 		});
-		expect(detectSessionPhase(sid())).toBe("prioritize-complete");
+		expect(detectProfilePhase(sid())).toBe("prioritize-complete");
 	});
 
 	it("returns 'explore' when chosen cards exist", () => {
 		saveChosenCardIds(sid(), ["a", "b"]);
-		expect(detectSessionPhase(sid())).toBe("explore");
+		expect(detectProfilePhase(sid())).toBe("explore");
 	});
 
 	it("explore takes priority over ranking data", () => {
 		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
 		saveChosenCardIds(sid(), ["a"]);
-		expect(detectSessionPhase(sid())).toBe("explore");
+		expect(detectProfilePhase(sid())).toBe("explore");
 	});
 
 	it("ranking takes priority over swipe progress", () => {
@@ -1254,19 +1254,19 @@ describe("detectSessionPhase", () => {
 			swipeHistory: [{ cardId: "a", direction: "agree" }],
 		});
 		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
-		expect(detectSessionPhase(sid())).toBe("prioritize");
+		expect(detectProfilePhase(sid())).toBe("prioritize");
 	});
 
 	it("returns 'none' for old PrioritizeProgress format", () => {
 		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], swipeHistory: [] }));
-		expect(detectSessionPhase(sid())).toBe("none");
+		expect(detectProfilePhase(sid())).toBe("none");
 	});
 });
 
-describe("formatSessionDate", () => {
+describe("formatProfileDate", () => {
 	it("formats a date as 'Month Day, Year'", () => {
 		const date = new Date(2026, 1, 13); // Feb 13, 2026
-		expect(formatSessionDate(date)).toBe("February 13, 2026");
+		expect(formatProfileDate(date)).toBe("February 13, 2026");
 	});
 });
 
@@ -1295,17 +1295,17 @@ describe("hasVisitedExploreComplete/markExploreCompleteVisited", () => {
 		expect(hasVisitedExploreComplete(sid(), "challenge")).toBe(false);
 	});
 
-	it("is cleaned up by deleteSession", () => {
+	it("is cleaned up by deleteProfile", () => {
 		markExploreCompleteVisited(sid(), "self-knowledge");
-		const id = getActiveSessionId();
-		deleteSession(id);
+		const id = getActiveProfileId();
+		deleteProfile(id);
 		expect(localStorage.getItem(`somecam-${id}-complete-visited`)).toBeNull();
 	});
 
 	it("round-trips through export/import", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		markExploreCompleteVisited(sid(), "self-knowledge");
-		const activeId = getActiveSessionId();
+		const activeId = getActiveProfileId();
 
 		const exported = exportProgressData();
 

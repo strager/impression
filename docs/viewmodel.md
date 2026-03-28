@@ -23,7 +23,7 @@ A page consists of two files:
 
 ## ViewModel class conventions
 
-The constructor takes the dependencies the ViewModel needs (typically just `sessionId`). Initialization logic that reads from localStorage or sets up state goes in an `initialize()` method called from `onMounted`, not in the constructor.
+The constructor takes the dependencies the ViewModel needs (typically just `profileId`). Initialization logic that reads from localStorage or sets up state goes in an `initialize()` method called from `onMounted`, not in the constructor.
 
 State is stored in private `ref()` fields and exposed via getters, so consumers see normal properties without `.value`:
 
@@ -65,7 +65,7 @@ The View creates the ViewModel in `<script setup>` and references it as `vm` in 
 
 ```vue
 <script setup lang="ts">
-const vm = new FooViewModel(sessionId);
+const vm = new FooViewModel(profileId);
 
 onMounted(() => {
 	vm.initialize();

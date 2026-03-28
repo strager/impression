@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadChosenCardIds, loadRanking, saveRanking, saveSwipeProgress } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, saveRanking, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -26,7 +26,7 @@ function setGlobalDom(win: Window): void {
 }
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 
 function setupSwipeProgressAllSwiped(cardIds: string[]): void {
@@ -39,7 +39,7 @@ function setupSwipeProgressAllSwiped(cardIds: string[]): void {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {

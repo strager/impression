@@ -4,7 +4,7 @@
 //
 // Also handles calling the DocRaptor API to convert rendered HTML into a PDF,
 // loading/base64-encoding font files for embedding in the HTML document,
-// and assembling report data from session exports.
+// and assembling report data from profile exports.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -123,27 +123,27 @@ async function loadFontCss(): Promise<string> {
 	return cachedFontCss;
 }
 
-// --- Session export parsing and report data assembly ---
+// --- Profile export parsing and report data assembly ---
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function assembleReportData(sessionExportJson: string): CardReport[] {
-	const parsed: unknown = JSON.parse(sessionExportJson);
+export function assembleReportData(profileExportJson: string): CardReport[] {
+	const parsed: unknown = JSON.parse(profileExportJson);
 	if (!isRecord(parsed) || parsed.version !== "somecam-v2" || !Array.isArray(parsed.sessions) || parsed.sessions.length === 0) {
-		throw new Error("Invalid session export format.");
+		throw new Error("Invalid profile export format.");
 	}
 
-	const session: unknown = parsed.sessions[0];
-	if (!isRecord(session) || !isRecord(session.data)) {
-		throw new Error("Invalid session data.");
+	const profile: unknown = parsed.sessions[0];
+	if (!isRecord(profile) || !isRecord(profile.data)) {
+		throw new Error("Invalid profile data.");
 	}
-	const data = session.data;
+	const data = profile.data;
 
 	const chosenRaw: unknown = data.chosen;
 	if (!Array.isArray(chosenRaw)) {
-		throw new Error("Session has no chosen cards.");
+		throw new Error("Profile has no chosen cards.");
 	}
 	const chosenIds = chosenRaw.filter((id): id is string => typeof id === "string");
 
@@ -242,8 +242,8 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 	return reports;
 }
 
-export async function renderReportHtml(vite: unknown, sessionExportJson: string, paperSize = "a4"): Promise<string> {
-	const reports = assembleReportData(sessionExportJson);
+export async function renderReportHtml(vite: unknown, profileExportJson: string, paperSize = "a4"): Promise<string> {
+	const reports = assembleReportData(profileExportJson);
 	const { module: ssrModule, componentCss } = await loadSsrModule(vite);
 	const fontCss = await loadFontCss();
 	return ssrModule.renderPdfHtml(fontCss, componentCss, reports, paperSize);

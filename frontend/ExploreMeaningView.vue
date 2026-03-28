@@ -14,10 +14,10 @@ const router = useRouter();
 
 const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
 
-const sessionId = useStringParam("sessionId");
+const profileId = useStringParam("profileId");
 const cardId = useStringParam("meaningId");
 
-const vm = new ExploreMeaningViewModel(sessionId, cardId);
+const vm = new ExploreMeaningViewModel(profileId, cardId);
 
 const activeTextarea = ref<InstanceType<typeof ExploreTextarea> | null>(null);
 const entryTextareas: (InstanceType<typeof ExploreTextarea> | null)[] = [];
@@ -160,17 +160,17 @@ const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 function handleFinishExploring(): void {
 	vm.finishExploring();
 	if (vm.allAnswered) {
-		if (prefersReducedMotion.value || hasVisitedExploreComplete(sessionId, cardId)) {
-			void router.push({ name: "exploreComplete", params: { sessionId, meaningId: cardId } });
+		if (prefersReducedMotion.value || hasVisitedExploreComplete(profileId, cardId)) {
+			void router.push({ name: "exploreComplete", params: { profileId, meaningId: cardId } });
 		} else {
 			fadingOut.value = true;
 			document.documentElement.classList.add("page-fading-out");
 			fadeTimer = setTimeout(() => {
-				void router.push({ name: "exploreComplete", params: { sessionId, meaningId: cardId } });
+				void router.push({ name: "exploreComplete", params: { profileId, meaningId: cardId } });
 			}, 2000);
 		}
 	} else {
-		void router.push({ name: "explore", params: { sessionId } });
+		void router.push({ name: "explore", params: { profileId } });
 	}
 }
 
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "explore", params: { sessionId } });
+		void router.replace({ name: "explore", params: { profileId } });
 	}
 });
 </script>

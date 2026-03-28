@@ -11,8 +11,8 @@ import AppButton from "./AppButton.vue";
 import ToggleButton from "./ToggleButton.vue";
 
 const router = useRouter();
-const sessionId = useStringParam("sessionId");
-const vm = new FindMeaningRankingViewModel(sessionId);
+const profileId = useStringParam("profileId");
+const vm = new FindMeaningRankingViewModel(profileId);
 
 const interaction = useFindMeaningRankingInteractionState();
 const mostIndex = interaction.mostIndex;
@@ -98,11 +98,11 @@ watch([mostIndex, leastIndex], () => {
 onMounted(() => {
 	const result = vm.initialize();
 	if (result === "no-data") {
-		void router.replace({ name: "findMeaning", params: { sessionId } });
+		void router.replace({ name: "findMeaning", params: { profileId } });
 		return;
 	}
 	if (result === "skip") {
-		void router.replace({ name: "explore", params: { sessionId } });
+		void router.replace({ name: "explore", params: { profileId } });
 		return;
 	}
 	const redo = vm.pendingRedo;
@@ -437,7 +437,7 @@ function handleUndo(): void {
 
 function handleFinish(): void {
 	vm.finalize();
-	void router.push({ name: "explore", params: { sessionId } });
+	void router.push({ name: "explore", params: { profileId } });
 }
 </script>
 

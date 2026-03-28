@@ -173,14 +173,14 @@ five questions — they can stop whenever they feel they have reflected enough.
 
 After answering all five questions for a source of meaning, clicking
 **Finish exploring** takes the user to an interstitial page at
-`/:sessionId/explore/:meaningId/complete`. This page makes completion feel more
+`/:profileId/explore/:meaningId/complete`. This page makes completion feel more
 satisfying by showing the user's reflections distilled back to them.
 
 The page displays:
 
 - The source of meaning's description as a heading.
 - A warm rotating phrase (e.g. "Your reflections, distilled"), selected
-  deterministically from the session and source of meaning IDs.
+  deterministically from the profile and source of meaning IDs.
 - Progress squares showing how many sources have been fully explored.
 - AI-generated summary of the user's answers.
 

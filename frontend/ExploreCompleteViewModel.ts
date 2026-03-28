@@ -13,7 +13,7 @@ const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const WARM_PHRASES = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your exploration", "A snapshot of your thoughts"];
 
 export class ExploreCompleteViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 	private readonly cardId: string;
 
 	private readonly _card = ref<MeaningCard | undefined>(undefined);
@@ -25,8 +25,8 @@ export class ExploreCompleteViewModel {
 	private readonly _exploredCount = ref(0);
 	private _loadingPromise: Promise<void> | null = null;
 
-	constructor(sessionId: string, cardId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string, cardId: string) {
+		this.profileId = profileId;
 		this.cardId = cardId;
 	}
 
@@ -63,11 +63,11 @@ export class ExploreCompleteViewModel {
 	}
 
 	get warmPhrase(): string {
-		return WARM_PHRASES[hashStrings(this.sessionId, this.cardId) % WARM_PHRASES.length];
+		return WARM_PHRASES[hashStrings(this.profileId, this.cardId) % WARM_PHRASES.length];
 	}
 
 	get hasBeenVisited(): boolean {
-		return hasVisitedExploreComplete(this.sessionId, this.cardId);
+		return hasVisitedExploreComplete(this.profileId, this.cardId);
 	}
 
 	get isLoading(): boolean {
@@ -84,12 +84,12 @@ export class ExploreCompleteViewModel {
 			return "no-data";
 		}
 
-		const chosenCardIds = loadChosenCardIds(this.sessionId);
+		const chosenCardIds = loadChosenCardIds(this.profileId);
 		if (chosenCardIds === null) {
 			return "no-data";
 		}
 
-		const exploreData = loadExploreData(this.sessionId);
+		const exploreData = loadExploreData(this.profileId);
 		if (exploreData === null) {
 			return "no-data";
 		}
@@ -115,7 +115,7 @@ export class ExploreCompleteViewModel {
 		}
 		this._exploredCount.value = explored;
 
-		this._allComplete.value = isExplorePhaseComplete(this.sessionId);
+		this._allComplete.value = isExplorePhaseComplete(this.profileId);
 
 		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
@@ -130,7 +130,7 @@ export class ExploreCompleteViewModel {
 		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.descriptionSelections, fingerprint);
 
 		capture("explore_complete_viewed", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			explored_count: explored,
 			total_count: chosenCardIds.length,
@@ -141,7 +141,7 @@ export class ExploreCompleteViewModel {
 	}
 
 	retrySynthesis(): void {
-		const exploreData = loadExploreData(this.sessionId);
+		const exploreData = loadExploreData(this.profileId);
 		if (exploreData === null || !(this.cardId in exploreData)) return;
 		const cardData = exploreData[this.cardId];
 
@@ -159,11 +159,11 @@ export class ExploreCompleteViewModel {
 	}
 
 	onAnimationComplete(): void {
-		markExploreCompleteVisited(this.sessionId, this.cardId);
+		markExploreCompleteVisited(this.profileId, this.cardId);
 	}
 
 	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedDescriptions: string[], fingerprint: string): Promise<void> {
-		const cached = lookupCachedSynthesis({ sessionId: this.sessionId, cardId: this.cardId, fingerprint });
+		const cached = lookupCachedSynthesis({ profileId: this.profileId, cardId: this.cardId, fingerprint });
 		if (cached !== null) {
 			this._synthesis.value = cached;
 			return;
@@ -178,7 +178,7 @@ export class ExploreCompleteViewModel {
 				...(freeformNote !== "" ? { freeformNote } : {}),
 			});
 			this._synthesis.value = result.synthesis;
-			saveCachedSynthesis({ sessionId: this.sessionId, cardId: this.cardId, fingerprint, synthesis: result.synthesis });
+			saveCachedSynthesis({ profileId: this.profileId, cardId: this.cardId, fingerprint, synthesis: result.synthesis });
 		} catch (error) {
 			this._synthesisError.value = error instanceof Error ? error.message : "Failed to load synthesis.";
 		} finally {

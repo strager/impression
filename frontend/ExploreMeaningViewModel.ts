@@ -15,7 +15,7 @@ const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const EXPLORE_PHASE_TRACK_KEY_PREFIX = "somecam-explore-phase-complete";
 
 export class ExploreMeaningViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 	private readonly cardId: string;
 
 	private readonly _card = ref<MeaningCard | undefined>(undefined);
@@ -32,8 +32,8 @@ export class ExploreMeaningViewModel {
 	private readonly _manualReflectLoading = ref<Set<string>>(new Set());
 	private readonly _manualReflectResult = ref<Map<string, ReflectOnAnswerResponse>>(new Map());
 
-	constructor(sessionId: string, cardId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string, cardId: string) {
+		this.profileId = profileId;
 		this.cardId = cardId;
 	}
 
@@ -117,7 +117,7 @@ export class ExploreMeaningViewModel {
 		}
 
 		try {
-			const data = loadExploreData(this.sessionId) ?? {};
+			const data = loadExploreData(this.profileId) ?? {};
 			if (!(this.cardId in data) || data[this.cardId].entries.length === 0) {
 				if (!(this.cardId in data)) {
 					data[this.cardId] = { entries: [], freeformNote: "", descriptionSelections: [] };
@@ -135,7 +135,7 @@ export class ExploreMeaningViewModel {
 					thoughtBubbleAcknowledged: false,
 					autoFilledPending: false,
 				});
-				saveExploreData(this.sessionId, data);
+				saveExploreData(this.profileId, data);
 			}
 			const cardData = data[this.cardId];
 
@@ -217,7 +217,7 @@ export class ExploreMeaningViewModel {
 					this.persistEntries();
 					this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [entry.questionId, { type: "thought_bubble", message: secondResult.message }]]);
 					capture("thought_bubble_shown", {
-						session_id: this.sessionId,
+						session_id: this.profileId,
 						card_id: this.cardId,
 						question_id: entry.questionId,
 					});
@@ -240,7 +240,7 @@ export class ExploreMeaningViewModel {
 		const questionId = this._entries.value[idx].questionId;
 		const source = this.answerSource(this._entries.value[idx], answerText);
 		capture("question_answered", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			question_id: questionId,
 			answer_length: answerText.length,
@@ -249,13 +249,13 @@ export class ExploreMeaningViewModel {
 		});
 		if (source === "inferred-accepted") {
 			capture("inferred_answer_accepted", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				question_id: questionId,
 			});
 		} else if (source === "inferred-edited") {
 			capture("inferred_answer_edited", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				question_id: questionId,
 			});
@@ -267,7 +267,7 @@ export class ExploreMeaningViewModel {
 		this.trackSubmittedSnapshot(questionId, answerText);
 		this.persistEntries();
 
-		requestStoragePersistence(this.sessionId);
+		requestStoragePersistence(this.profileId);
 
 		const remaining = this.remainingQuestionIds();
 
@@ -297,7 +297,7 @@ export class ExploreMeaningViewModel {
 				this._manualReflectLoading.value = loadingNext;
 			});
 		capture("reflect_on_answer_triggered", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			question_id: questionId,
 			result_type: reflectResult.type,
@@ -310,7 +310,7 @@ export class ExploreMeaningViewModel {
 			this._entries.value[idx].guardrailText = reflectResult.message;
 			this.persistEntries();
 			capture("guardrail_shown", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				question_id: questionId,
 			});
@@ -328,7 +328,7 @@ export class ExploreMeaningViewModel {
 			this._entries.value[idx].thoughtBubbleAcknowledged = false;
 			this.persistEntries();
 			capture("thought_bubble_shown", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				question_id: questionId,
 			});
@@ -377,7 +377,7 @@ export class ExploreMeaningViewModel {
 			return;
 		}
 		capture("answer_edited_after_submit", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			question_id: entry.questionId,
 			answer_length: entry.userAnswer.trim().length,
@@ -419,7 +419,7 @@ export class ExploreMeaningViewModel {
 		this._manualReflectLoading.value = loadingNext;
 
 		capture("manual_reflect", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			question_id: questionId,
 			result_type: result.type,
@@ -444,17 +444,17 @@ export class ExploreMeaningViewModel {
 	}
 
 	persistEntries(): void {
-		const data = loadExploreData(this.sessionId);
+		const data = loadExploreData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], entries: this._entries.value };
-		saveExploreData(this.sessionId, data);
+		saveExploreData(this.profileId, data);
 	}
 
 	persistFreeform(): void {
-		const data = loadExploreData(this.sessionId);
+		const data = loadExploreData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], freeformNote: this._freeformNote.value };
-		saveExploreData(this.sessionId, data);
+		saveExploreData(this.profileId, data);
 	}
 
 	onFreeformBlur(): void {
@@ -477,14 +477,14 @@ export class ExploreMeaningViewModel {
 		const noteLength = this._freeformNote.value.trim().length;
 		if (noteLength > 0) {
 			capture("freeform_notes_added", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				note_length: noteLength,
 			});
 		}
 		const answeredCount = this._entries.value.filter((entry) => entry.submitted).length;
 		capture("card_exploration_finished", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: this.cardId,
 			answered_count: answeredCount,
 			total_questions: EXPLORE_QUESTIONS.length,
@@ -528,7 +528,7 @@ export class ExploreMeaningViewModel {
 			entry.submittedAfterGuardrail = true;
 			this.trackSubmittedSnapshot(entry.questionId, entry.userAnswer);
 			capture("answer_submitted_after_guardrail", {
-				session_id: this.sessionId,
+				session_id: this.profileId,
 				card_id: this.cardId,
 				question_id: entry.questionId,
 			});
@@ -595,23 +595,23 @@ export class ExploreMeaningViewModel {
 	}
 
 	private persistDescriptions(): void {
-		const data = loadExploreData(this.sessionId);
+		const data = loadExploreData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], descriptionSelections: [...this._selectedDescriptionIds.value] };
-		saveExploreData(this.sessionId, data);
+		saveExploreData(this.profileId, data);
 	}
 
 	private maybeTrackExplorePhaseCompleted(): void {
-		const trackedKey = `${EXPLORE_PHASE_TRACK_KEY_PREFIX}:${this.sessionId}`;
+		const trackedKey = `${EXPLORE_PHASE_TRACK_KEY_PREFIX}:${this.profileId}`;
 		if (sessionStorage.getItem(trackedKey) === "1") {
 			return;
 		}
 
-		if (!isExplorePhaseComplete(this.sessionId)) {
+		if (!isExplorePhaseComplete(this.profileId)) {
 			return;
 		}
 
-		capture("explore_phase_completed", { session_id: this.sessionId });
+		capture("explore_phase_completed", { session_id: this.profileId });
 		sessionStorage.setItem(trackedKey, "1");
 	}
 }

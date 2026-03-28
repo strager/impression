@@ -5,13 +5,13 @@ import { useRouter } from "vue-router";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
 import { FindMeaningViewModel } from "./FindMeaningViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
-import { detectSessionPhase } from "./store.ts";
+import { detectProfilePhase } from "./store.ts";
 import AppButton from "./AppButton.vue";
 import SwipeCard from "./SwipeCard.vue";
 
 const router = useRouter();
-const sessionId = useStringParam("sessionId");
-const vm = new FindMeaningViewModel(sessionId);
+const profileId = useStringParam("profileId");
+const vm = new FindMeaningViewModel(profileId);
 
 const swipeCardRef = ref<InstanceType<typeof SwipeCard> | null>(null);
 const endStateRef = ref<HTMLElement | null>(null);
@@ -47,21 +47,21 @@ function handleUndo(): void {
 }
 
 function continueToNextPhase(): void {
-	const phase = detectSessionPhase(sessionId);
+	const phase = detectProfilePhase(profileId);
 	if (phase === "explore") {
-		void router.push({ name: "explore", params: { sessionId } });
+		void router.push({ name: "explore", params: { profileId } });
 		return;
 	}
 	if (phase === "prioritize-complete" || phase === "prioritize") {
-		void router.push({ name: "findMeaningPrioritize", params: { sessionId } });
+		void router.push({ name: "findMeaningPrioritize", params: { profileId } });
 		return;
 	}
 
 	vm.finalize();
 	if (vm.requiresPrioritization) {
-		void router.push({ name: "findMeaningPrioritize", params: { sessionId } });
+		void router.push({ name: "findMeaningPrioritize", params: { profileId } });
 	} else {
-		void router.push({ name: "explore", params: { sessionId } });
+		void router.push({ name: "explore", params: { profileId } });
 	}
 }
 </script>

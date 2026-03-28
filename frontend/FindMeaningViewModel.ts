@@ -18,15 +18,15 @@ function shuffle<T>(array: readonly T[]): T[] {
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
 export class FindMeaningViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 	private readonly _shuffledCards = ref<MeaningCard[]>([]);
 	private readonly _currentIndex = ref(0);
 	private readonly _swipeHistory = ref<SwipeRecord[]>([]);
 	private readonly _cardShownAtMs = ref(performance.now());
 	private readonly _phaseStartedAtMs = ref(performance.now());
 
-	constructor(sessionId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string) {
+		this.profileId = profileId;
 	}
 
 	get currentCard(): MeaningCard | null {
@@ -68,12 +68,12 @@ export class FindMeaningViewModel {
 	}
 
 	get requiresPrioritization(): boolean {
-		return needsPrioritization(this.sessionId);
+		return needsPrioritization(this.profileId);
 	}
 
 	initialize(): void {
 		this._phaseStartedAtMs.value = performance.now();
-		const saved = loadSwipeProgress(this.sessionId);
+		const saved = loadSwipeProgress(this.profileId);
 		if (saved !== null) {
 			const cards = saved.shuffledCardIds.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
 			if (cards.length > 0) {
@@ -93,7 +93,7 @@ export class FindMeaningViewModel {
 		if (card === null) return;
 		const now = performance.now();
 		capture("card_swiped", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			method,
 			time_on_card_ms: Math.round(now - this._cardShownAtMs.value),
 		});
@@ -107,7 +107,7 @@ export class FindMeaningViewModel {
 		if (this._swipeHistory.value.length === 0) return;
 		this._swipeHistory.value.pop();
 		this._currentIndex.value = this._swipeHistory.value.length;
-		capture("swipe_undone", { session_id: this.sessionId });
+		capture("swipe_undone", { session_id: this.profileId });
 		this.saveProgress();
 		this._cardShownAtMs.value = performance.now();
 	}
@@ -117,24 +117,24 @@ export class FindMeaningViewModel {
 		const disagreedCount = this._swipeHistory.value.filter((record) => record.direction === "disagree").length;
 		const unsureCount = this._swipeHistory.value.filter((record) => record.direction === "unsure").length;
 		capture("swiping_phase_completed", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			agreed_count: agreedCount,
 			disagreed_count: disagreedCount,
 			unsure_count: unsureCount,
 			total_time_ms: Math.round(performance.now() - this._phaseStartedAtMs.value),
 		});
 
-		const cardIdsToConsider = selectCandidateCards(this.sessionId);
+		const cardIdsToConsider = selectCandidateCards(this.profileId);
 
-		if (needsPrioritization(this.sessionId)) {
-			saveRanking(this.sessionId, { cardIds: cardIdsToConsider, comparisons: [], complete: false });
+		if (needsPrioritization(this.profileId)) {
+			saveRanking(this.profileId, { cardIds: cardIdsToConsider, comparisons: [], complete: false });
 		} else {
-			saveChosenCardIds(this.sessionId, cardIdsToConsider);
+			saveChosenCardIds(this.profileId, cardIdsToConsider);
 		}
 	}
 
 	private saveProgress(): void {
-		saveSwipeProgress(this.sessionId, {
+		saveSwipeProgress(this.profileId, {
 			shuffledCardIds: this._shuffledCards.value.map((c) => c.id),
 			swipeHistory: this._swipeHistory.value,
 		});

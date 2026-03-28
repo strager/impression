@@ -8,12 +8,12 @@ Analytics should measure _how_ users interact with the app (engagement, timing, 
 
 ## Data we collect
 
-- **Pageview events** with route name, route template, and session ID
+- **Pageview events** with route name, route template, and profile ID
 - **Aggregate counts per phase:** agreed/disagreed/unsure counts (swipe), kept/removed counts (prioritize), selected count (manual selection)
 - **Interaction quality metrics:** time on source of meaning, swipe method (drag vs button), answer length, time spent on questions
 - **Phase completion events** (swiping complete, prioritization complete, exploration complete)
 - **API call metrics:** endpoint path, latency, error type
-- **Import/export counts:** number of sessions imported or exported
+- **Import/export counts:** number of profiles imported or exported
 
 ## Data we do NOT collect
 

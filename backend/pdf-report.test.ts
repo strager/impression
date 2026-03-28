@@ -7,7 +7,7 @@ import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 
 // --- assembleReportData ---
 
-function makeSessionExport(data: Record<string, unknown>): string {
+function makeProfileExport(data: Record<string, unknown>): string {
 	return JSON.stringify({
 		version: "somecam-v2",
 		sessions: [{ id: "test-session", name: "Test", createdAt: "2025-01-01T00:00:00Z", lastUpdatedAt: "2025-01-01T00:00:00Z", data }],
@@ -15,8 +15,8 @@ function makeSessionExport(data: Record<string, unknown>): string {
 }
 
 describe("assembleReportData", () => {
-	it("builds reports from a valid session export", () => {
-		const json = makeSessionExport({
+	it("builds reports from a valid profile export", () => {
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
 				"self-knowledge": [{ questionId: "interpretation", userAnswer: "Understanding myself", prefilledAnswer: "", submitted: true }],
@@ -43,7 +43,7 @@ describe("assembleReportData", () => {
 	});
 
 	it("skips unknown card IDs", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge", "nonexistent-card"],
 		});
 
@@ -53,7 +53,7 @@ describe("assembleReportData", () => {
 	});
 
 	it("handles missing explore/summaries/freeform gracefully", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 		});
 
@@ -70,19 +70,19 @@ describe("assembleReportData", () => {
 	});
 
 	it("throws on wrong version", () => {
-		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v1", sessions: [] }))).toThrow("Invalid session export format.");
+		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v1", sessions: [] }))).toThrow("Invalid profile export format.");
 	});
 
 	it("throws on empty sessions array", () => {
-		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v2", sessions: [] }))).toThrow("Invalid session export format.");
+		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v2", sessions: [] }))).toThrow("Invalid profile export format.");
 	});
 
 	it("throws when chosen is missing", () => {
-		expect(() => assembleReportData(makeSessionExport({}))).toThrow("Session has no chosen cards.");
+		expect(() => assembleReportData(makeProfileExport({}))).toThrow("Profile has no chosen cards.");
 	});
 
 	it("includes selected descriptions in report", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
 				"self-knowledge": [{ questionId: "interpretation", userAnswer: "Understanding myself", prefilledAnswer: "", submitted: true }],
@@ -97,7 +97,7 @@ describe("assembleReportData", () => {
 	});
 
 	it("returns empty selectedDescriptions when descriptions data is missing", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 		});
 
@@ -107,7 +107,7 @@ describe("assembleReportData", () => {
 
 	it("includes synthesis when cached fingerprint matches", () => {
 		const fingerprint = "Understanding myself";
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
 				"self-knowledge": [{ questionId: "interpretation", userAnswer: "Understanding myself", prefilledAnswer: "", submitted: true }],
@@ -122,7 +122,7 @@ describe("assembleReportData", () => {
 	});
 
 	it("returns empty synthesis when fingerprint does not match", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
 				"self-knowledge": [{ questionId: "interpretation", userAnswer: "New answer", prefilledAnswer: "", submitted: true }],
@@ -137,7 +137,7 @@ describe("assembleReportData", () => {
 	});
 
 	it("returns empty synthesis when no synthesis cache entry exists", () => {
-		const json = makeSessionExport({
+		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 		});
 

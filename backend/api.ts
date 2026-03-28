@@ -48,7 +48,7 @@ const safeErrorDetails = {
 	challengeVerificationFailed: "Challenge verification failed.",
 	challengeReplayed: "Challenge has already been consumed.",
 	upstreamAiService: "Upstream AI service error.",
-	invalidSessionData: "Invalid session data.",
+	invalidProfileData: "Invalid profile data.",
 	pdfGenerationService: "PDF generation service error.",
 };
 
@@ -618,12 +618,12 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		}
 	},
 	postReportHtml: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
-		const sessionExport: unknown = req.body;
-		if (typeof sessionExport !== "string" || sessionExport === "") {
+		const profileExport: unknown = req.body;
+		if (typeof profileExport !== "string" || profileExport === "") {
 			res
 				.status(400)
 				.type("application/problem+json")
-				.send(JSON.stringify(createProblemDetails(400, "Bad Request", "Request body must be a non-empty session export string.")));
+				.send(JSON.stringify(createProblemDetails(400, "Bad Request", "Request body must be a non-empty profile export string.")));
 			return;
 		}
 
@@ -631,12 +631,12 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, sessionExport, paperSize);
+			html = await renderReportHtml(req.app.locals.vite, profileExport, paperSize);
 		} catch {
 			res
 				.status(400)
 				.type("application/problem+json")
-				.send(JSON.stringify(createProblemDetails(400, "Bad Request", safeErrorDetails.invalidSessionData)));
+				.send(JSON.stringify(createProblemDetails(400, "Bad Request", safeErrorDetails.invalidProfileData)));
 			return;
 		}
 
@@ -692,13 +692,13 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			return;
 		}
 
-		const sessionExport: unknown = req.body;
-		if (typeof sessionExport !== "string" || sessionExport === "") {
+		const profileExport: unknown = req.body;
+		if (typeof profileExport !== "string" || profileExport === "") {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
 				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
-			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", "Request body must be a non-empty session export string.")));
+			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", "Request body must be a non-empty profile export string.")));
 			return;
 		}
 
@@ -706,13 +706,13 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, sessionExport, paperSize);
+			html = await renderReportHtml(req.app.locals.vite, profileExport, paperSize);
 		} catch {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
 				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
-			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", safeErrorDetails.invalidSessionData)));
+			response.send(JSON.stringify(createProblemDetails(400, "Bad Request", safeErrorDetails.invalidProfileData)));
 			return;
 		}
 

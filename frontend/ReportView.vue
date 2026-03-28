@@ -7,14 +7,14 @@ import ReportContent from "./ReportContent.vue";
 import { budgetedFetch } from "./api.ts";
 import { capture } from "./analytics.ts";
 import { useStringParam } from "./route-utils.ts";
-import { exportSessionData, loadPaperSize, savePaperSize } from "./store.ts";
+import { exportProfileData, loadPaperSize, savePaperSize } from "./store.ts";
 import type { PaperSize } from "./store.ts";
 import { ReportViewModel } from "./ReportViewModel.ts";
 import reportPageCss from "./report-page.css?inline";
 
 const router = useRouter();
-const sessionId = useStringParam("sessionId");
-const vm = new ReportViewModel(sessionId);
+const profileId = useStringParam("profileId");
+const vm = new ReportViewModel(profileId);
 
 const paperSize = ref<PaperSize>(loadPaperSize());
 const downloading = ref(false);
@@ -93,7 +93,7 @@ async function downloadReport(endpoint: string, filename: string): Promise<void>
 	downloadError.value = "";
 
 	try {
-		const body = exportSessionData(sessionId);
+		const body = exportProfileData(profileId);
 		const response = await budgetedFetch(endpoint, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
@@ -153,7 +153,7 @@ function onPaperSizeChange(event: Event): void {
 }
 
 async function downloadPdf(): Promise<void> {
-	capture("pdf_download_initiated", { session_id: sessionId });
+	capture("pdf_download_initiated", { session_id: profileId });
 	const params = new URLSearchParams({ paperSize: paperSize.value });
 	await downloadReport(`/api/report-pdf?${params.toString()}`, "impression-report.pdf");
 }
@@ -165,7 +165,7 @@ async function downloadHtml(): Promise<void> {
 onMounted(() => {
 	const result = vm.initialize();
 	if (result === "no-data") {
-		void router.replace({ name: "findMeaning", params: { sessionId } });
+		void router.replace({ name: "findMeaning", params: { profileId } });
 	}
 });
 

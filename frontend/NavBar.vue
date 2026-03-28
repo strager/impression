@@ -2,20 +2,20 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { getSessionName } from "./store.ts";
+import { getProfileName } from "./store.ts";
 
 const route = useRoute();
 
 const showNav = computed(() => route.name !== "home");
 
-const sessionId = computed(() => {
-	const param = route.params.sessionId;
+const profileId = computed(() => {
+	const param = route.params.profileId;
 	return typeof param === "string" ? param : null;
 });
 
-const sessionName = computed(() => {
-	if (sessionId.value === null) return null;
-	return getSessionName(sessionId.value);
+const profileName = computed(() => {
+	if (profileId.value === null) return null;
+	return getProfileName(profileId.value);
 });
 
 const phaseLabel = computed(() => {
@@ -51,8 +51,8 @@ const meaningCardName = computed(() => {
 });
 
 const exploreRoute = computed(() => {
-	if (sessionId.value === null) return null;
-	return { name: "explore", params: { sessionId: sessionId.value } };
+	if (profileId.value === null) return null;
+	return { name: "explore", params: { profileId: profileId.value } };
 });
 </script>
 
@@ -70,7 +70,7 @@ const exploreRoute = computed(() => {
 				<span class="nav-separator">/</span>
 				<span class="nav-phase">{{ meaningCardName }}</span>
 			</template>
-			<span v-if="sessionName !== null" class="nav-session">{{ sessionName }}</span>
+			<span v-if="profileName !== null" class="nav-profile">{{ profileName }}</span>
 		</div>
 	</nav>
 </template>
@@ -108,7 +108,7 @@ const exploreRoute = computed(() => {
 	flex-shrink: 0;
 }
 
-.nav-session {
+.nav-profile {
 	color: #6b7280;
 	margin-left: auto;
 	white-space: nowrap;

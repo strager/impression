@@ -23,8 +23,8 @@ export function initAnalytics(router: Router): void {
 
 	router.afterEach((to) => {
 		const routeTemplate = to.matched.at(-1)?.path ?? to.path;
-		const sessionParam = to.params.sessionId;
-		const sessionId = typeof sessionParam === "string" ? sessionParam : undefined;
+		const profileParam = to.params.profileId;
+		const sessionId = typeof profileParam === "string" ? profileParam : undefined;
 
 		const routeName = typeof to.name === "string" ? to.name : undefined;
 		capture("$pageview", {

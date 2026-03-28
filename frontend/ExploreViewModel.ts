@@ -26,14 +26,14 @@ interface CardSynthesisState {
 const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
 
 export class ExploreViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 	private readonly _chosenCards = ref<MeaningCard[]>([]);
 	private readonly _cardAnswerCounts = ref<Record<string, number>>({});
 	private readonly _cardSynthesis = ref<Partial<Record<string, CardSynthesisState>>>({});
 	private _loadingPromise: Promise<void> | null = null;
 
-	constructor(sessionId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string) {
+		this.profileId = profileId;
 	}
 
 	get chosenCards(): MeaningCard[] {
@@ -77,7 +77,7 @@ export class ExploreViewModel {
 	}
 
 	cardStatus(cardId: string): "untouched" | "partial" | "complete" {
-		const exploreData = loadExploreData(this.sessionId);
+		const exploreData = loadExploreData(this.profileId);
 		if (exploreData !== null && cardId in exploreData && isCardFullyExplored(exploreData[cardId].entries)) {
 			return "complete";
 		}
@@ -89,36 +89,36 @@ export class ExploreViewModel {
 	onExploreCard(cardId: string): void {
 		const answered = this._cardAnswerCounts.value[cardId] ?? 0;
 		capture("card_exploration_started", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_id: cardId,
 			question_number: Math.min(answered + 1, EXPLORE_QUESTIONS.length),
 		});
 	}
 
 	onEditSelection(): void {
-		capture("edit_selection_clicked", { session_id: this.sessionId });
+		capture("edit_selection_clicked", { session_id: this.profileId });
 	}
 
 	onOpenReport(source: string): void {
 		capture("report_opened", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			source,
 		});
 	}
 
 	initialize(): "ready" | "no-data" {
 		try {
-			const cardIds = loadChosenCardIds(this.sessionId);
+			const cardIds = loadChosenCardIds(this.profileId);
 			if (cardIds === null) {
 				return "no-data";
 			}
 			const chosenSet = new Set(cardIds);
 			this._chosenCards.value = MEANING_CARDS.filter((c) => chosenSet.has(c.id));
 
-			let exploreData = loadExploreData(this.sessionId);
+			let exploreData = loadExploreData(this.profileId);
 			if (exploreData === null) {
 				exploreData = {};
-				saveExploreData(this.sessionId, exploreData);
+				saveExploreData(this.profileId, exploreData);
 			}
 			const promises: Promise<void>[] = [];
 
@@ -134,7 +134,7 @@ export class ExploreViewModel {
 			if (promises.length > 0) {
 				this._loadingPromise = Promise.all(promises).then(() => undefined);
 			}
-			capture("explore_overview_visited", { session_id: this.sessionId });
+			capture("explore_overview_visited", { session_id: this.profileId });
 			return "ready";
 		} catch {
 			return "no-data";
@@ -142,7 +142,7 @@ export class ExploreViewModel {
 	}
 
 	retrySynthesis(cardId: string): void {
-		const exploreData = loadExploreData(this.sessionId);
+		const exploreData = loadExploreData(this.profileId);
 		if (exploreData === null || !(cardId in exploreData)) return;
 		this._loadingPromise = this.loadCardSynthesis(cardId, exploreData[cardId]);
 	}
@@ -162,7 +162,7 @@ export class ExploreViewModel {
 
 		this._cardSynthesis.value[cardId] = { text: "", loading: true, error: "" };
 
-		const cached = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, short: true });
+		const cached = lookupCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, short: true });
 		if (cached !== null) {
 			this._cardSynthesis.value[cardId] = { text: cached, loading: false, error: "" };
 			return;
@@ -177,7 +177,7 @@ export class ExploreViewModel {
 				short: true,
 			});
 			this._cardSynthesis.value[cardId] = { text: result.synthesis, loading: false, error: "" };
-			saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis, short: true });
+			saveCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, synthesis: result.synthesis, short: true });
 		} catch (error) {
 			this._cardSynthesis.value[cardId] = { text: "", loading: false, error: error instanceof Error ? error.message : "Failed to load synthesis." };
 		}

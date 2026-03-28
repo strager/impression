@@ -9,7 +9,7 @@ import { loadChosenCardIds, loadExploreData, saveChosenCardIds } from "./store.t
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 
 const router = useRouter();
-const sessionId = useStringParam("sessionId");
+const profileId = useStringParam("profileId");
 const chosenIds = ref<Set<string>>(new Set());
 const exploredIds = ref<Set<string>>(new Set());
 const confirmingRemove = ref<string | null>(null);
@@ -18,7 +18,7 @@ const selectedCount = computed(() => chosenIds.value.size);
 
 function saveChosenIds(): void {
 	const ordered = MEANING_CARDS.filter((c) => chosenIds.value.has(c.id)).map((c) => c.id);
-	saveChosenCardIds(sessionId, ordered);
+	saveChosenCardIds(profileId, ordered);
 }
 
 function isExplored(cardId: string): boolean {
@@ -41,7 +41,7 @@ function addCard(cardId: string): void {
 	chosenIds.value.add(cardId);
 	chosenIds.value = new Set(chosenIds.value);
 	saveChosenIds();
-	capture("card_toggled", { session_id: sessionId });
+	capture("card_toggled", { session_id: profileId });
 }
 
 function removeCard(cardId: string, hadData: boolean): void {
@@ -49,16 +49,16 @@ function removeCard(cardId: string, hadData: boolean): void {
 	chosenIds.value = new Set(chosenIds.value);
 	confirmingRemove.value = null;
 	saveChosenIds();
-	capture("card_toggled", { session_id: sessionId });
+	capture("card_toggled", { session_id: profileId });
 	if (hadData) {
-		capture("card_with_data_removed", { session_id: sessionId });
+		capture("card_with_data_removed", { session_id: profileId });
 	}
 }
 
 function cancelRemove(): void {
 	if (confirmingRemove.value !== null) {
 		capture("manual_remove_with_data_cancelled", {
-			session_id: sessionId,
+			session_id: profileId,
 		});
 	}
 	confirmingRemove.value = null;
@@ -66,22 +66,22 @@ function cancelRemove(): void {
 
 function onDone(): void {
 	capture("manual_selection_completed", {
-		session_id: sessionId,
+		session_id: profileId,
 		card_count: selectedCount.value,
 	});
-	void router.push({ name: "explore", params: { sessionId } });
+	void router.push({ name: "explore", params: { profileId } });
 }
 
 onMounted(() => {
 	try {
-		const cardIds = loadChosenCardIds(sessionId);
+		const cardIds = loadChosenCardIds(profileId);
 		if (cardIds === null) {
-			void router.replace({ name: "findMeaning", params: { sessionId } });
+			void router.replace({ name: "findMeaning", params: { profileId } });
 			return;
 		}
 		chosenIds.value = new Set(cardIds);
 
-		const exploreData = loadExploreData(sessionId);
+		const exploreData = loadExploreData(profileId);
 		if (exploreData !== null) {
 			for (const [cardId, cardData] of Object.entries(exploreData)) {
 				if (cardData.entries.some((e) => e.userAnswer !== "")) {
@@ -89,9 +89,9 @@ onMounted(() => {
 				}
 			}
 		}
-		capture("manual_selection_visited", { session_id: sessionId });
+		capture("manual_selection_visited", { session_id: profileId });
 	} catch {
-		void router.replace({ name: "findMeaning", params: { sessionId } });
+		void router.replace({ name: "findMeaning", params: { profileId } });
 	}
 });
 </script>

@@ -13,14 +13,14 @@ const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.tex
 const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
 
 export class ReportViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 
 	private readonly _reports = ref<CardReport[]>([]);
 	private readonly _loading = ref(true);
 	private _loadingPromise: Promise<void> | null = null;
 
-	constructor(sessionId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string) {
+		this.profileId = profileId;
 	}
 
 	get reports(): CardReport[] {
@@ -39,7 +39,7 @@ export class ReportViewModel {
 		const report = this._reports.value.find((r) => r.card.id === cardId);
 		if (report === undefined) return;
 
-		const exploreData = loadExploreData(this.sessionId) ?? {};
+		const exploreData = loadExploreData(this.profileId) ?? {};
 		if (!(cardId in exploreData)) return;
 
 		const entries = exploreData[cardId].entries;
@@ -67,7 +67,7 @@ export class ReportViewModel {
 				...(freeformNote !== "" ? { freeformNote } : {}),
 			});
 			report.synthesis = result.synthesis;
-			saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis });
+			saveCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, synthesis: result.synthesis });
 		} catch {
 			report.synthesisError = true;
 		}
@@ -75,12 +75,12 @@ export class ReportViewModel {
 	}
 
 	initialize(): "ready" | "no-data" {
-		const cardIds = loadChosenCardIds(this.sessionId);
+		const cardIds = loadChosenCardIds(this.profileId);
 		if (cardIds === null) {
 			return "no-data";
 		}
 
-		const exploreData = loadExploreData(this.sessionId) ?? {};
+		const exploreData = loadExploreData(this.profileId) ?? {};
 
 		const reports: CardReport[] = [];
 		const fetchTasks: Promise<void>[] = [];
@@ -117,7 +117,7 @@ export class ReportViewModel {
 			}
 			const fingerprint = fingerprintParts.join("\x00");
 
-			const cachedSynthesis = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint });
+			const cachedSynthesis = lookupCachedSynthesis({ profileId: this.profileId, cardId, fingerprint });
 
 			const needsFetch = cachedSynthesis === null && answered.length > 0;
 			const report: CardReport = { card, questions, selectedDescriptions, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
@@ -135,7 +135,7 @@ export class ReportViewModel {
 					})
 						.then((result) => {
 							report.synthesis = result.synthesis;
-							saveCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint, synthesis: result.synthesis });
+							saveCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, synthesis: result.synthesis });
 						})
 						.catch(() => {
 							report.synthesisError = true;
@@ -158,7 +158,7 @@ export class ReportViewModel {
 			this._loading.value = false;
 		}
 
-		capture("report_viewed", { session_id: this.sessionId });
+		capture("report_viewed", { session_id: this.profileId });
 		return "ready";
 	}
 }

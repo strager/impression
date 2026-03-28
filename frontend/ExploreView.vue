@@ -10,13 +10,13 @@ import { useStringParam } from "./route-utils.ts";
 const questionsPerCard = EXPLORE_QUESTIONS.length;
 
 const router = useRouter();
-const sessionId = useStringParam("sessionId");
-const vm = new ExploreViewModel(sessionId);
+const profileId = useStringParam("profileId");
+const vm = new ExploreViewModel(profileId);
 
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "findMeaning", params: { sessionId } });
+		void router.replace({ name: "findMeaning", params: { profileId } });
 	}
 });
 
@@ -39,17 +39,17 @@ function exploreButtonLabel(cardId: string): string {
 
 function handleExploreCard(cardId: string): void {
 	vm.onExploreCard(cardId);
-	void router.push({ name: "exploreMeaning", params: { sessionId, meaningId: cardId } });
+	void router.push({ name: "exploreMeaning", params: { profileId, meaningId: cardId } });
 }
 
 function handleEditSelection(): void {
 	vm.onEditSelection();
-	void router.push({ name: "findMeaningManual", params: { sessionId } });
+	void router.push({ name: "findMeaningManual", params: { profileId } });
 }
 
 function handleOpenReport(source: string): void {
 	vm.onOpenReport(source);
-	void router.push({ name: "report", params: { sessionId } });
+	void router.push({ name: "report", params: { profileId } });
 }
 </script>
 

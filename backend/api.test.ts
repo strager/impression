@@ -354,7 +354,7 @@ describe("API", () => {
 		expect(response.headers.get("content-type")).toContain("application/problem+json");
 	});
 
-	it("returns 400 for POST /api/report-html with invalid session data", async () => {
+	it("returns 400 for POST /api/report-html with invalid profile data", async () => {
 		const token = await obtainSessionToken(baseUrl);
 		const response = await fetch(`${baseUrl}/api/report-html`, {
 			method: "POST",
@@ -364,7 +364,7 @@ describe("API", () => {
 		expect(response.status).toBe(400);
 		expect(response.headers.get("content-type")).toContain("application/problem+json");
 		const body: unknown = await response.json();
-		expect(body).toHaveProperty("detail", "Invalid session data.");
+		expect(body).toHaveProperty("detail", "Invalid profile data.");
 		expect(JSON.stringify(body)).not.toContain("Unexpected");
 	});
 
@@ -389,7 +389,7 @@ describe("API", () => {
 		}
 	});
 
-	it("returns 400 for POST /api/report-pdf with invalid session data", async () => {
+	it("returns 400 for POST /api/report-pdf with invalid profile data", async () => {
 		const token = await obtainSessionToken(baseUrl);
 		const savedKey = process.env.DOCRAPTOR_API_KEY;
 		process.env.DOCRAPTOR_API_KEY = "test-key";
@@ -402,7 +402,7 @@ describe("API", () => {
 			expect(response.status).toBe(400);
 			expect(response.headers.get("content-type")).toContain("application/problem+json");
 			const body: unknown = await response.json();
-			expect(body).toHaveProperty("detail", "Invalid session data.");
+			expect(body).toHaveProperty("detail", "Invalid profile data.");
 			expect(JSON.stringify(body)).not.toContain("Unexpected");
 		} finally {
 			if (savedKey === undefined) {

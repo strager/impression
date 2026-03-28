@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { HomeViewModel } from "./HomeViewModel.ts";
-import { createSession, ensureSessionsInitialized, listSessions, saveSwipeProgress } from "./store.ts";
+import { createProfile, ensureProfilesInitialized, listProfiles, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -24,9 +24,9 @@ function setGlobalDom(win: Window): void {
 	});
 }
 
-/** Creates a session and gives it swipe data so listSessions() includes it. */
-function createSessionWithData(name: string): string {
-	const id = createSession(name);
+/** Creates a profile and gives it swipe data so listProfiles() includes it. */
+function createProfileWithData(name: string): string {
+	const id = createProfile(name);
 	saveSwipeProgress(id, { shuffledCardIds: [MEANING_CARDS[0].id], swipeHistory: [] });
 	return id;
 }
@@ -34,7 +34,7 @@ function createSessionWithData(name: string): string {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {
@@ -44,117 +44,117 @@ afterEach(() => {
 
 describe("initialize", () => {
 	it("populates sessions list from store", () => {
-		createSessionWithData("First");
-		createSessionWithData("Second");
+		createProfileWithData("First");
+		createProfileWithData("Second");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		expect(vm.sessions).toHaveLength(2);
+		expect(vm.profiles).toHaveLength(2);
 	});
 });
 
-describe("createSession", () => {
-	it("adds a session to the list and returns its ID", () => {
+describe("createProfile", () => {
+	it("adds a profile to the list and returns its ID", () => {
 		const vm = new HomeViewModel();
 		vm.initialize();
-		expect(vm.sessions).toHaveLength(0);
+		expect(vm.profiles).toHaveLength(0);
 
-		const newId = vm.createSession();
+		const newId = vm.createProfile();
 		expect(typeof newId).toBe("string");
-		// New session has no data yet, so it won't appear in the list.
+		// New profile has no data yet, so it won't appear in the list.
 		// The view navigates to it immediately, where data gets created.
 		expect(newId.length).toBeGreaterThan(0);
 	});
 });
 
 describe("startRename", () => {
-	it("marks session as renaming with its current name", () => {
-		createSessionWithData("My Session");
+	it("marks profile as renaming with its current name", () => {
+		createProfileWithData("My Session");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const session = vm.sessions[0];
+		const profile = vm.profiles[0];
 
-		vm.startRename(session.id, session.name);
-		expect(vm.isRenaming(session.id)).toBe(true);
-		expect(vm.renameInputFor(session.id)).toBe("My Session");
+		vm.startRename(profile.id, profile.name);
+		expect(vm.isRenaming(profile.id)).toBe(true);
+		expect(vm.renameInputFor(profile.id)).toBe("My Session");
 	});
 });
 
 describe("confirmRename", () => {
 	it("persists new name to store, clears rename state, refreshes list", () => {
-		createSessionWithData("Original");
+		createProfileWithData("Original");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const session = vm.sessions[0];
+		const profile = vm.profiles[0];
 
-		vm.startRename(session.id, session.name);
-		vm.setRenameInput(session.id, "New Name");
-		vm.confirmRename(session.id);
+		vm.startRename(profile.id, profile.name);
+		vm.setRenameInput(profile.id, "New Name");
+		vm.confirmRename(profile.id);
 
-		expect(vm.isRenaming(session.id)).toBe(false);
-		expect(vm.sessions.find((s) => s.id === session.id)!.name).toBe("New Name");
+		expect(vm.isRenaming(profile.id)).toBe(false);
+		expect(vm.profiles.find((s) => s.id === profile.id)!.name).toBe("New Name");
 	});
 
 	it("does not save when input is empty, clears rename state", () => {
-		createSessionWithData("Keep Me");
+		createProfileWithData("Keep Me");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const session = vm.sessions[0];
+		const profile = vm.profiles[0];
 
-		vm.startRename(session.id, session.name);
-		vm.setRenameInput(session.id, "   ");
-		vm.confirmRename(session.id);
+		vm.startRename(profile.id, profile.name);
+		vm.setRenameInput(profile.id, "   ");
+		vm.confirmRename(profile.id);
 
-		expect(vm.isRenaming(session.id)).toBe(false);
-		expect(vm.sessions.find((s) => s.id === session.id)!.name).toBe("Keep Me");
+		expect(vm.isRenaming(profile.id)).toBe(false);
+		expect(vm.profiles.find((s) => s.id === profile.id)!.name).toBe("Keep Me");
 	});
 });
 
 describe("cancelRename", () => {
 	it("clears rename state without saving, name unchanged in store", () => {
-		createSessionWithData("Unchanged");
+		createProfileWithData("Unchanged");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const session = vm.sessions[0];
+		const profile = vm.profiles[0];
 
-		vm.startRename(session.id, session.name);
-		vm.setRenameInput(session.id, "Changed");
-		vm.cancelRename(session.id);
+		vm.startRename(profile.id, profile.name);
+		vm.setRenameInput(profile.id, "Changed");
+		vm.cancelRename(profile.id);
 
-		expect(vm.isRenaming(session.id)).toBe(false);
-		const stored = listSessions().find((s) => s.id === session.id)!;
+		expect(vm.isRenaming(profile.id)).toBe(false);
+		const stored = listProfiles().find((s) => s.id === profile.id)!;
 		expect(stored.name).toBe("Unchanged");
 	});
 });
 
-describe("deleteSession", () => {
-	it("removes session from store and refreshes list", () => {
-		createSessionWithData("First");
-		createSessionWithData("Second");
+describe("deleteProfile", () => {
+	it("removes profile from store and refreshes list", () => {
+		createProfileWithData("First");
+		createProfileWithData("Second");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		expect(vm.sessions).toHaveLength(2);
-		const toDelete = vm.sessions[0];
+		expect(vm.profiles).toHaveLength(2);
+		const toDelete = vm.profiles[0];
 
-		vm.deleteSession(toDelete.id);
-		expect(vm.sessions).toHaveLength(1);
-		expect(vm.sessions.some((s) => s.id === toDelete.id)).toBe(false);
+		vm.deleteProfile(toDelete.id);
+		expect(vm.profiles).toHaveLength(1);
+		expect(vm.profiles.some((s) => s.id === toDelete.id)).toBe(false);
 	});
 });
 
 describe("multiple concurrent renames", () => {
 	it("tracks renames independently", () => {
-		createSessionWithData("Alpha");
-		createSessionWithData("Beta");
+		createProfileWithData("Alpha");
+		createProfileWithData("Beta");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const [a, b] = vm.sessions;
+		const [a, b] = vm.profiles;
 
 		vm.startRename(a.id, a.name);
 		vm.startRename(b.id, b.name);
@@ -170,12 +170,12 @@ describe("multiple concurrent renames", () => {
 	});
 
 	it("confirming one rename does not affect others", () => {
-		createSessionWithData("Alpha");
-		createSessionWithData("Beta");
+		createProfileWithData("Alpha");
+		createProfileWithData("Beta");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const [a, b] = vm.sessions;
+		const [a, b] = vm.profiles;
 
 		vm.startRename(a.id, a.name);
 		vm.startRename(b.id, b.name);
@@ -187,16 +187,16 @@ describe("multiple concurrent renames", () => {
 		expect(vm.isRenaming(a.id)).toBe(false);
 		expect(vm.isRenaming(b.id)).toBe(true);
 		expect(vm.renameInputFor(b.id)).toBe("Beta2");
-		expect(vm.sessions.find((s) => s.id === a.id)!.name).toBe("Alpha2");
+		expect(vm.profiles.find((s) => s.id === a.id)!.name).toBe("Alpha2");
 	});
 
 	it("canceling one rename does not affect others", () => {
-		createSessionWithData("Alpha");
-		createSessionWithData("Beta");
+		createProfileWithData("Alpha");
+		createProfileWithData("Beta");
 
 		const vm = new HomeViewModel();
 		vm.initialize();
-		const [a, b] = vm.sessions;
+		const [a, b] = vm.profiles;
 
 		vm.startRename(a.id, a.name);
 		vm.startRename(b.id, b.name);
@@ -207,6 +207,6 @@ describe("multiple concurrent renames", () => {
 		expect(vm.isRenaming(a.id)).toBe(false);
 		expect(vm.isRenaming(b.id)).toBe(true);
 		expect(vm.renameInputFor(b.id)).toBe("Beta2");
-		expect(listSessions().find((s) => s.id === a.id)!.name).toBe("Alpha");
+		expect(listProfiles().find((s) => s.id === a.id)!.name).toBe("Alpha");
 	});
 });

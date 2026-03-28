@@ -11,7 +11,7 @@ import { loadRanking, loadSwipeProgress, needsPrioritization, saveChosenCardIds,
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
 export class FindMeaningRankingViewModel {
-	private readonly sessionId: string;
+	private readonly profileId: string;
 	private readonly _currentTask = ref<MeaningCard[] | null>(null);
 	// You should manually trigger this ref when calling mutating methods of
 	// Ranking.
@@ -21,8 +21,8 @@ export class FindMeaningRankingViewModel {
 	private _phaseStartedAtMs = 0;
 	private _taskShownAtMs = 0;
 
-	constructor(sessionId: string) {
-		this.sessionId = sessionId;
+	constructor(profileId: string) {
+		this.profileId = profileId;
 	}
 
 	get isComplete(): boolean {
@@ -64,17 +64,17 @@ export class FindMeaningRankingViewModel {
 
 	initialize(): "ready" | "no-data" | "skip" {
 		this._phaseStartedAtMs = performance.now();
-		const saved = loadRanking(this.sessionId);
+		const saved = loadRanking(this.profileId);
 		let resolvedCardIds: string[];
 
 		if (saved !== null) {
 			resolvedCardIds = saved.cardIds;
 		} else {
-			const progress = loadSwipeProgress(this.sessionId);
+			const progress = loadSwipeProgress(this.profileId);
 			if (progress === null || progress.swipeHistory.length < progress.shuffledCardIds.length) {
 				return "no-data";
 			}
-			resolvedCardIds = selectCandidateCards(this.sessionId);
+			resolvedCardIds = selectCandidateCards(this.profileId);
 		}
 
 		if (resolvedCardIds.length === 0) {
@@ -83,8 +83,8 @@ export class FindMeaningRankingViewModel {
 
 		this.cardIds = resolvedCardIds;
 
-		if (!needsPrioritization(this.sessionId)) {
-			saveChosenCardIds(this.sessionId, resolvedCardIds);
+		if (!needsPrioritization(this.profileId)) {
+			saveChosenCardIds(this.profileId, resolvedCardIds);
 			return "skip";
 		}
 
@@ -109,7 +109,7 @@ export class FindMeaningRankingViewModel {
 		triggerRef(this._ranking);
 
 		capture("ranking_entered", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			card_count: resolvedCardIds.length,
 			resumed_from_round: resumedFromRound,
 		});
@@ -160,7 +160,7 @@ export class FindMeaningRankingViewModel {
 
 		const est = this._ranking.value.estimateRemaining();
 		capture("ranking_comparison_made", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			time_on_pair_ms: timeOnTaskMs,
 			comparisons_so_far: this._ranking.value.round,
 			estimated_remaining: est !== null ? Math.ceil(est) : -1,
@@ -179,7 +179,7 @@ export class FindMeaningRankingViewModel {
 		triggerRef(this._ranking);
 		this.saveProgress(false);
 
-		capture("ranking_undone", { session_id: this.sessionId });
+		capture("ranking_undone", { session_id: this.profileId });
 		return { bestId, worstId };
 	}
 
@@ -188,10 +188,10 @@ export class FindMeaningRankingViewModel {
 			throw new Error("Cannot finalize: ranking is null");
 		}
 		const chosenIds = this._ranking.value.topK;
-		saveChosenCardIds(this.sessionId, [...chosenIds]);
+		saveChosenCardIds(this.profileId, [...chosenIds]);
 
 		capture("ranking_completed", {
-			session_id: this.sessionId,
+			session_id: this.profileId,
 			comparisons_made: this._ranking.value.round,
 			stop_reason: this._ranking.value.stopReason ?? "unknown",
 			total_time_ms: Math.round(performance.now() - this._phaseStartedAtMs),
@@ -204,7 +204,7 @@ export class FindMeaningRankingViewModel {
 		if (this._ranking.value === null) {
 			throw new Error("Cannot save progress: ranking is null");
 		}
-		saveRanking(this.sessionId, {
+		saveRanking(this.profileId, {
 			cardIds: this.cardIds,
 			comparisons: this._allComparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
 			activeRound: this._ranking.value.round < this._allComparisons.length ? this._ranking.value.round : undefined,

@@ -14,9 +14,9 @@ const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "s
 const DEFAULT_QUESTION_ID = EXPLORE_QUESTIONS[0]?.id ?? "";
 
 export interface ImportProgressStats {
-	sessions: number;
-	finalSessionsAdded: number;
-	sessionsOverridden: number;
+	profiles: number;
+	finalProfilesAdded: number;
+	profilesOverridden: number;
 }
 
 function importErrorType(error: unknown): string {
@@ -29,7 +29,7 @@ function importErrorType(error: unknown): string {
 	return "import_error";
 }
 
-export interface SessionMeta {
+export interface ProfileMeta {
 	id: string;
 	name: string;
 	createdAt: string;
@@ -93,22 +93,22 @@ export interface LlmTestState {
 	freeformNote: string;
 }
 
-// --- Session management ---
+// --- Profile management ---
 
 function generateUUID(): string {
 	return crypto.randomUUID();
 }
 
-export function formatSessionDate(date: Date): string {
+export function formatProfileDate(date: Date): string {
 	return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function loadSessionsMeta(): SessionMeta[] {
+function loadProfilesMeta(): ProfileMeta[] {
 	const parsed = parseJsonFromStorage(SESSIONS_KEY);
 	if (!Array.isArray(parsed)) {
 		return [];
 	}
-	const result: SessionMeta[] = [];
+	const result: ProfileMeta[] = [];
 	for (const entry of parsed) {
 		if (!isObjectRecord(entry) || typeof entry.id !== "string" || typeof entry.name !== "string" || typeof entry.createdAt !== "string") {
 			continue;
@@ -123,163 +123,163 @@ function loadSessionsMeta(): SessionMeta[] {
 	return result;
 }
 
-function saveSessionsMeta(sessions: SessionMeta[]): void {
-	localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+function saveProfilesMeta(profiles: ProfileMeta[]): void {
+	localStorage.setItem(SESSIONS_KEY, JSON.stringify(profiles));
 }
 
-export function ensureSessionsInitialized(): void {
+export function ensureProfilesInitialized(): void {
 	if (localStorage.getItem(SESSIONS_KEY) !== null) {
 		return;
 	}
 	const id = generateUUID();
 	const now = new Date().toISOString();
-	const meta: SessionMeta = {
+	const meta: ProfileMeta = {
 		id,
-		name: formatSessionDate(new Date()),
+		name: formatProfileDate(new Date()),
 		createdAt: now,
 		lastUpdatedAt: now,
 	};
-	saveSessionsMeta([meta]);
+	saveProfilesMeta([meta]);
 	localStorage.setItem(ACTIVE_SESSION_KEY, id);
 }
 
-export function getActiveSessionId(): string {
-	ensureSessionsInitialized();
+export function getActiveProfileId(): string {
+	ensureProfilesInitialized();
 	const id = localStorage.getItem(ACTIVE_SESSION_KEY);
 	if (id !== null) {
 		return id;
 	}
-	const sessions = loadSessionsMeta();
-	if (sessions.length > 0) {
-		localStorage.setItem(ACTIVE_SESSION_KEY, sessions[0].id);
-		return sessions[0].id;
+	const profiles = loadProfilesMeta();
+	if (profiles.length > 0) {
+		localStorage.setItem(ACTIVE_SESSION_KEY, profiles[0].id);
+		return profiles[0].id;
 	}
-	ensureSessionsInitialized();
-	// ensureSessionsInitialized always creates a session and sets the active key
+	ensureProfilesInitialized();
+	// ensureProfilesInitialized always creates a profile and sets the active key
 	const activeId = localStorage.getItem(ACTIVE_SESSION_KEY);
 	if (activeId === null) {
-		throw new Error("ensureSessionsInitialized failed to create a session");
+		throw new Error("ensureProfilesInitialized failed to create a profile");
 	}
 	return activeId;
 }
 
-function sessionHasData(id: string): boolean {
+function profileHasData(id: string): boolean {
 	return SESSION_DATA_SUFFIXES.some((suffix) => localStorage.getItem(`somecam-${id}-${suffix}`) !== null);
 }
 
-export function listSessions(): SessionMeta[] {
-	ensureSessionsInitialized();
-	const all = loadSessionsMeta();
-	const nonEmpty = all.filter((s) => sessionHasData(s.id));
+export function listProfiles(): ProfileMeta[] {
+	ensureProfilesInitialized();
+	const all = loadProfilesMeta();
+	const nonEmpty = all.filter((s) => profileHasData(s.id));
 	if (nonEmpty.length < all.length) {
-		saveSessionsMeta(all.filter((s) => sessionHasData(s.id) || s.id === localStorage.getItem(ACTIVE_SESSION_KEY)));
+		saveProfilesMeta(all.filter((s) => profileHasData(s.id) || s.id === localStorage.getItem(ACTIVE_SESSION_KEY)));
 	}
 	return nonEmpty;
 }
 
-export function createSession(name?: string): string {
-	ensureSessionsInitialized();
+export function createProfile(name?: string): string {
+	ensureProfilesInitialized();
 	const id = generateUUID();
 	const now = new Date().toISOString();
-	const meta: SessionMeta = {
+	const meta: ProfileMeta = {
 		id,
-		name: name ?? formatSessionDate(new Date()),
+		name: name ?? formatProfileDate(new Date()),
 		createdAt: now,
 		lastUpdatedAt: now,
 	};
-	const sessions = loadSessionsMeta();
-	sessions.push(meta);
-	saveSessionsMeta(sessions);
+	const profiles = loadProfilesMeta();
+	profiles.push(meta);
+	saveProfilesMeta(profiles);
 	localStorage.setItem(ACTIVE_SESSION_KEY, id);
 	return id;
 }
 
-export function renameSession(id: string, newName: string): void {
-	const sessions = loadSessionsMeta();
-	const session = sessions.find((s) => s.id === id);
-	if (session === undefined) {
-		throw new Error(`Session not found: ${id}`);
+export function renameProfile(id: string, newName: string): void {
+	const profiles = loadProfilesMeta();
+	const profile = profiles.find((s) => s.id === id);
+	if (profile === undefined) {
+		throw new Error(`Profile not found: ${id}`);
 	}
-	session.name = newName;
-	saveSessionsMeta(sessions);
+	profile.name = newName;
+	saveProfilesMeta(profiles);
 }
 
-export function getSessionName(id: string): string | null {
-	const sessions = loadSessionsMeta();
-	const session = sessions.find((s) => s.id === id);
-	return session?.name ?? null;
+export function getProfileName(id: string): string | null {
+	const profiles = loadProfilesMeta();
+	const profile = profiles.find((s) => s.id === id);
+	return profile?.name ?? null;
 }
 
-export function deleteSession(id: string): void {
-	const sessions = loadSessionsMeta();
-	const index = sessions.findIndex((s) => s.id === id);
+export function deleteProfile(id: string): void {
+	const profiles = loadProfilesMeta();
+	const index = profiles.findIndex((s) => s.id === id);
 	if (index === -1) {
-		throw new Error(`Session not found: ${id}`);
+		throw new Error(`Profile not found: ${id}`);
 	}
 
 	for (const suffix of SESSION_DATA_SUFFIXES) {
 		localStorage.removeItem(`somecam-${id}-${suffix}`);
 	}
 
-	sessions.splice(index, 1);
+	profiles.splice(index, 1);
 
-	if (sessions.length === 0) {
+	if (profiles.length === 0) {
 		const newId = generateUUID();
 		const now = new Date().toISOString();
-		const meta: SessionMeta = {
+		const meta: ProfileMeta = {
 			id: newId,
-			name: formatSessionDate(new Date()),
+			name: formatProfileDate(new Date()),
 			createdAt: now,
 			lastUpdatedAt: now,
 		};
-		sessions.push(meta);
+		profiles.push(meta);
 		localStorage.setItem(ACTIVE_SESSION_KEY, newId);
 	} else if (localStorage.getItem(ACTIVE_SESSION_KEY) === id) {
-		localStorage.setItem(ACTIVE_SESSION_KEY, sessions[sessions.length - 1].id);
+		localStorage.setItem(ACTIVE_SESSION_KEY, profiles[profiles.length - 1].id);
 	}
 
-	saveSessionsMeta(sessions);
+	saveProfilesMeta(profiles);
 }
 
-function touchSession(sessionId: string): void {
-	const sessions = loadSessionsMeta();
-	const session = sessions.find((s) => s.id === sessionId);
-	if (session !== undefined) {
-		session.lastUpdatedAt = new Date().toISOString();
-		saveSessionsMeta(sessions);
+function touchProfile(profileId: string): void {
+	const profiles = loadProfilesMeta();
+	const profile = profiles.find((s) => s.id === profileId);
+	if (profile !== undefined) {
+		profile.lastUpdatedAt = new Date().toISOString();
+		saveProfilesMeta(profiles);
 	}
 }
 
 // --- Dynamic key resolution ---
 
-function sessionKey(sessionId: string, suffix: string): string {
-	return `somecam-${sessionId}-${suffix}`;
+function profileKey(profileId: string, suffix: string): string {
+	return `somecam-${profileId}-${suffix}`;
 }
 
-function progressKey(sessionId: string): string {
-	return sessionKey(sessionId, "progress");
+function progressKey(profileId: string): string {
+	return profileKey(profileId, "progress");
 }
-function narrowdownKey(sessionId: string): string {
-	return sessionKey(sessionId, "narrowdown");
+function narrowdownKey(profileId: string): string {
+	return profileKey(profileId, "narrowdown");
 }
-function chosenKey(sessionId: string): string {
-	return sessionKey(sessionId, "chosen");
+function chosenKey(profileId: string): string {
+	return profileKey(profileId, "chosen");
 }
-function exploreKey(sessionId: string): string {
-	return sessionKey(sessionId, "explore");
+function exploreKey(profileId: string): string {
+	return profileKey(profileId, "explore");
 }
-function summariesKey(sessionId: string): string {
-	return sessionKey(sessionId, "summaries");
+function summariesKey(profileId: string): string {
+	return profileKey(profileId, "summaries");
 }
-function freeformKey(sessionId: string): string {
-	return sessionKey(sessionId, "freeform");
+function freeformKey(profileId: string): string {
+	return profileKey(profileId, "freeform");
 }
-function descriptionsKey(sessionId: string): string {
+function descriptionsKey(profileId: string): string {
 	// localStorage key intentionally kept as "statements" for backward compatibility.
-	return sessionKey(sessionId, "statements");
+	return profileKey(profileId, "statements");
 }
-function completeVisitedKey(sessionId: string): string {
-	return sessionKey(sessionId, "complete-visited");
+function completeVisitedKey(profileId: string): string {
+	return profileKey(profileId, "complete-visited");
 }
 
 // --- Internal helpers ---
@@ -360,10 +360,10 @@ function isSummaryCacheEntry(value: unknown): value is { answer: string; summary
 	return typeof value.answer === "string" && typeof value.summary === "string";
 }
 
-// --- Session-scoped load/save ---
+// --- Profile-scoped load/save ---
 
-export function loadSwipeProgress(sessionId: string): SwipeProgress | null {
-	const parsed = parseJsonFromStorage(progressKey(sessionId));
+export function loadSwipeProgress(profileId: string): SwipeProgress | null {
+	const parsed = parseJsonFromStorage(progressKey(profileId));
 	if (!isObjectRecord(parsed)) {
 		return null;
 	}
@@ -379,13 +379,13 @@ export function loadSwipeProgress(sessionId: string): SwipeProgress | null {
 	};
 }
 
-export function saveSwipeProgress(sessionId: string, data: SwipeProgress): void {
-	localStorage.setItem(progressKey(sessionId), JSON.stringify(data));
-	touchSession(sessionId);
+export function saveSwipeProgress(profileId: string, data: SwipeProgress): void {
+	localStorage.setItem(progressKey(profileId), JSON.stringify(data));
+	touchProfile(profileId);
 }
 
-export function loadRanking(sessionId: string): RankingProgress | null {
-	const parsed = parseJsonFromStorage(narrowdownKey(sessionId));
+export function loadRanking(profileId: string): RankingProgress | null {
+	const parsed = parseJsonFromStorage(narrowdownKey(profileId));
 	if (!isObjectRecord(parsed)) {
 		return null;
 	}
@@ -415,48 +415,48 @@ export function loadRanking(sessionId: string): RankingProgress | null {
 	};
 }
 
-export function saveRanking(sessionId: string, data: RankingProgress): void {
-	localStorage.setItem(narrowdownKey(sessionId), JSON.stringify(data));
-	touchSession(sessionId);
+export function saveRanking(profileId: string, data: RankingProgress): void {
+	localStorage.setItem(narrowdownKey(profileId), JSON.stringify(data));
+	touchProfile(profileId);
 }
 
-export function loadChosenCardIds(sessionId: string): string[] | null {
-	const parsed = parseJsonFromStorage(chosenKey(sessionId));
+export function loadChosenCardIds(profileId: string): string[] | null {
+	const parsed = parseJsonFromStorage(chosenKey(profileId));
 	if (!isStringArray(parsed) || parsed.length === 0) {
 		return null;
 	}
 	return parsed;
 }
 
-export function saveChosenCardIds(sessionId: string, ids: string[]): void {
-	localStorage.setItem(chosenKey(sessionId), JSON.stringify(ids));
-	touchSession(sessionId);
+export function saveChosenCardIds(profileId: string, ids: string[]): void {
+	localStorage.setItem(chosenKey(profileId), JSON.stringify(ids));
+	touchProfile(profileId);
 }
 
-export function selectCandidateCards(sessionId: string): string[] {
-	const progress = loadSwipeProgress(sessionId);
+export function selectCandidateCards(profileId: string): string[] {
+	const progress = loadSwipeProgress(profileId);
 	if (progress === null) return [];
 	const agreeCardIds = progress.swipeHistory.filter((r) => r.direction === "agree").map((r) => r.cardId);
 	const unsureCardIds = progress.swipeHistory.filter((r) => r.direction === "unsure").map((r) => r.cardId);
 	return agreeCardIds.length < 3 ? agreeCardIds.concat(unsureCardIds) : agreeCardIds;
 }
 
-export function needsPrioritization(sessionId: string): boolean {
-	const ranking = loadRanking(sessionId);
+export function needsPrioritization(profileId: string): boolean {
+	const ranking = loadRanking(profileId);
 	if (ranking !== null) {
 		return ranking.cardIds.length > 5;
 	}
-	return selectCandidateCards(sessionId).length > 5;
+	return selectCandidateCards(profileId).length > 5;
 }
 
-export function loadExploreData(sessionId: string): ExploreData | null {
-	const parsed = parseJsonFromStorage(exploreKey(sessionId));
+export function loadExploreData(profileId: string): ExploreData | null {
+	const parsed = parseJsonFromStorage(exploreKey(profileId));
 	if (!isObjectRecord(parsed)) {
 		return null;
 	}
 
-	const freeformNotes = loadFreeformNotesInternal(sessionId);
-	const descriptionSelections = loadDescriptionSelectionsInternal(sessionId);
+	const freeformNotes = loadFreeformNotesInternal(profileId);
+	const descriptionSelections = loadDescriptionSelectionsInternal(profileId);
 
 	const result: ExploreData = {};
 	for (const [cardId, entries] of Object.entries(parsed)) {
@@ -483,7 +483,7 @@ export function loadExploreData(sessionId: string): ExploreData | null {
 	return result;
 }
 
-export function saveExploreData(sessionId: string, data: ExploreData): void {
+export function saveExploreData(profileId: string, data: ExploreData): void {
 	const entriesRecord: Record<string, ExploreEntry[]> = {};
 	const freeformRecord: FreeformNotes = {};
 	const descriptionsRecord: DescriptionSelections = {};
@@ -496,10 +496,10 @@ export function saveExploreData(sessionId: string, data: ExploreData): void {
 			descriptionsRecord[cardId] = cardData.descriptionSelections;
 		}
 	}
-	localStorage.setItem(exploreKey(sessionId), JSON.stringify(entriesRecord));
-	localStorage.setItem(freeformKey(sessionId), JSON.stringify(freeformRecord));
-	localStorage.setItem(descriptionsKey(sessionId), JSON.stringify(descriptionsRecord));
-	touchSession(sessionId);
+	localStorage.setItem(exploreKey(profileId), JSON.stringify(entriesRecord));
+	localStorage.setItem(freeformKey(profileId), JSON.stringify(freeformRecord));
+	localStorage.setItem(descriptionsKey(profileId), JSON.stringify(descriptionsRecord));
+	touchProfile(profileId);
 }
 
 export function selectNextQuestion(allowedQuestionIds: string[], priorityQuestionIds: string[]): string {
@@ -524,8 +524,8 @@ function isSummaryCache(value: unknown): value is SummaryCache {
 	return true;
 }
 
-export function lookupCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; short?: boolean }): string | null {
-	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
+export function lookupCachedSynthesis(options: { profileId: string; cardId: string; fingerprint: string; short?: boolean }): string | null {
+	const parsed = parseJsonFromStorage(summariesKey(options.profileId));
 	const cache = isSummaryCache(parsed) ? parsed : {};
 	const cacheKey = options.short === true ? `${options.cardId}:synthesis:short` : `${options.cardId}:synthesis`;
 	if (cacheKey in cache && cache[cacheKey].answer === options.fingerprint) {
@@ -534,13 +534,13 @@ export function lookupCachedSynthesis(options: { sessionId: string; cardId: stri
 	return null;
 }
 
-export function saveCachedSynthesis(options: { sessionId: string; cardId: string; fingerprint: string; synthesis: string; short?: boolean }): void {
-	const parsed = parseJsonFromStorage(summariesKey(options.sessionId));
+export function saveCachedSynthesis(options: { profileId: string; cardId: string; fingerprint: string; synthesis: string; short?: boolean }): void {
+	const parsed = parseJsonFromStorage(summariesKey(options.profileId));
 	const cache = isSummaryCache(parsed) ? parsed : {};
 	const cacheKey = options.short === true ? `${options.cardId}:synthesis:short` : `${options.cardId}:synthesis`;
 	cache[cacheKey] = { answer: options.fingerprint, summary: options.synthesis };
-	localStorage.setItem(summariesKey(options.sessionId), JSON.stringify(cache));
-	touchSession(options.sessionId);
+	localStorage.setItem(summariesKey(options.profileId), JSON.stringify(cache));
+	touchProfile(options.profileId);
 }
 
 function isFreeformNotes(value: unknown): value is FreeformNotes {
@@ -551,8 +551,8 @@ function isFreeformNotes(value: unknown): value is FreeformNotes {
 	return true;
 }
 
-function loadFreeformNotesInternal(sessionId: string): FreeformNotes {
-	const parsed = parseJsonFromStorage(freeformKey(sessionId));
+function loadFreeformNotesInternal(profileId: string): FreeformNotes {
+	const parsed = parseJsonFromStorage(freeformKey(profileId));
 	return isFreeformNotes(parsed) ? parsed : {};
 }
 
@@ -564,12 +564,12 @@ function isDescriptionSelections(value: unknown): value is DescriptionSelections
 	return true;
 }
 
-function loadDescriptionSelectionsInternal(sessionId: string): DescriptionSelections {
-	const parsed = parseJsonFromStorage(descriptionsKey(sessionId));
+function loadDescriptionSelectionsInternal(profileId: string): DescriptionSelections {
+	const parsed = parseJsonFromStorage(descriptionsKey(profileId));
 	return isDescriptionSelections(parsed) ? parsed : {};
 }
 
-// --- Global (non-session-scoped) ---
+// --- Global (non-profile-scoped) ---
 
 export function loadLlmTestState(): LlmTestState | null {
 	const parsed = parseJsonFromStorage(LLM_TEST_KEY);
@@ -621,7 +621,7 @@ export function saveLlmTestState(data: LlmTestState): void {
 
 export type ProgressPhase = "explore" | "prioritize-complete" | "prioritize" | "swipe" | "none";
 
-export function detectSessionPhase(id: string): ProgressPhase {
+export function detectProfilePhase(id: string): ProgressPhase {
 	const chosenRaw = parseJsonFromStorage(`somecam-${id}-chosen`);
 	if (isStringArray(chosenRaw) && chosenRaw.length > 0) {
 		return "explore";
@@ -641,9 +641,9 @@ export function isCardFullyExplored(entries: readonly ExploreEntry[]): boolean {
 	return entries.length === EXPLORE_QUESTIONS.length && entries.every((entry) => entry.submitted);
 }
 
-export function isExplorePhaseComplete(sessionId: string): boolean {
-	const chosenCardIds = loadChosenCardIds(sessionId);
-	const data = loadExploreData(sessionId);
+export function isExplorePhaseComplete(profileId: string): boolean {
+	const chosenCardIds = loadChosenCardIds(profileId);
+	const data = loadExploreData(profileId);
 	if (chosenCardIds === null || data === null) {
 		return false;
 	}
@@ -659,37 +659,39 @@ export function isExplorePhaseComplete(sessionId: string): boolean {
 const EXPORT_VERSION_V2 = "somecam-v2";
 
 export function exportProgressData(): string {
-	const sessions = loadSessionsMeta();
+	const profiles = loadProfilesMeta();
 	const exported: { id: string; name: string; createdAt: string; lastUpdatedAt: string; data: Record<string, unknown> }[] = [];
-	for (const session of sessions) {
+	for (const profile of profiles) {
 		const data: Record<string, unknown> = {};
 		for (const suffix of SESSION_DATA_SUFFIXES) {
-			const raw = localStorage.getItem(`somecam-${session.id}-${suffix}`);
+			const raw = localStorage.getItem(`somecam-${profile.id}-${suffix}`);
 			if (raw !== null) {
 				data[suffix] = JSON.parse(raw);
 			}
 		}
-		exported.push({ id: session.id, name: session.name, createdAt: session.createdAt, lastUpdatedAt: session.lastUpdatedAt, data });
+		exported.push({ id: profile.id, name: profile.name, createdAt: profile.createdAt, lastUpdatedAt: profile.lastUpdatedAt, data });
 	}
+	// JSON key "sessions" is kept for backward compatibility with existing exports.
 	return JSON.stringify({ version: EXPORT_VERSION_V2, sessions: exported });
 }
 
-export function exportSessionData(sessionId: string): string {
-	const sessions = loadSessionsMeta();
-	const session = sessions.find((s) => s.id === sessionId);
-	if (session === undefined) {
-		throw new Error(`Session not found: ${sessionId}`);
+export function exportProfileData(profileId: string): string {
+	const profiles = loadProfilesMeta();
+	const profile = profiles.find((s) => s.id === profileId);
+	if (profile === undefined) {
+		throw new Error(`Profile not found: ${profileId}`);
 	}
 	const data: Record<string, unknown> = {};
 	for (const suffix of SESSION_DATA_SUFFIXES) {
-		const raw = localStorage.getItem(`somecam-${sessionId}-${suffix}`);
+		const raw = localStorage.getItem(`somecam-${profileId}-${suffix}`);
 		if (raw !== null) {
 			data[suffix] = JSON.parse(raw);
 		}
 	}
+	// JSON key "sessions" is kept for backward compatibility with existing exports.
 	return JSON.stringify({
 		version: EXPORT_VERSION_V2,
-		sessions: [{ id: session.id, name: session.name, createdAt: session.createdAt, lastUpdatedAt: session.lastUpdatedAt, data }],
+		sessions: [{ id: profile.id, name: profile.name, createdAt: profile.createdAt, lastUpdatedAt: profile.lastUpdatedAt, data }],
 	});
 }
 
@@ -704,16 +706,17 @@ export function importProgressData(json: string): ImportProgressStats {
 		throw new Error(`Invalid progress data: unsupported version "${String(obj.version)}"`);
 	}
 
+	// JSON key "sessions" is kept for backward compatibility with existing exports.
 	if (!Array.isArray(obj.sessions)) {
 		throw new Error("Invalid progress data: expected sessions array");
 	}
 
-	ensureSessionsInitialized();
-	const existingSessions = loadSessionsMeta();
+	ensureProfilesInitialized();
+	const existingProfiles = loadProfilesMeta();
 	const stats: ImportProgressStats = {
-		sessions: obj.sessions.length,
-		finalSessionsAdded: 0,
-		sessionsOverridden: 0,
+		profiles: obj.sessions.length,
+		finalProfilesAdded: 0,
+		profilesOverridden: 0,
 	};
 
 	for (const entry of obj.sessions) {
@@ -722,7 +725,7 @@ export function importProgressData(json: string): ImportProgressStats {
 		}
 		const data = isObjectRecord(entry.data) ? entry.data : {};
 
-		// Write session data keys
+		// Write profile data keys
 		for (const suffix of SESSION_DATA_SUFFIXES) {
 			const key = `somecam-${entry.id}-${suffix}`;
 			if (suffix in data) {
@@ -732,53 +735,54 @@ export function importProgressData(json: string): ImportProgressStats {
 			}
 		}
 
-		// Update or add session metadata
-		const existingIndex = existingSessions.findIndex((s) => s.id === entry.id);
-		const meta: SessionMeta = {
+		// Update or add profile metadata
+		const existingIndex = existingProfiles.findIndex((s) => s.id === entry.id);
+		const meta: ProfileMeta = {
 			id: entry.id,
 			name: entry.name,
 			createdAt: entry.createdAt,
 			lastUpdatedAt: typeof entry.lastUpdatedAt === "string" ? entry.lastUpdatedAt : entry.createdAt,
 		};
 		if (existingIndex !== -1) {
-			existingSessions[existingIndex] = meta;
-			stats.sessionsOverridden++;
+			existingProfiles[existingIndex] = meta;
+			stats.profilesOverridden++;
 		} else {
-			existingSessions.push(meta);
-			stats.finalSessionsAdded++;
+			existingProfiles.push(meta);
+			stats.finalProfilesAdded++;
 		}
 	}
 
-	saveSessionsMeta(existingSessions);
+	saveProfilesMeta(existingProfiles);
 	return stats;
 }
 
 export function saveProgressFile(): void {
-	const sessions = loadSessionsMeta().length;
+	const profiles = loadProfilesMeta().length;
 	const json = exportProgressData();
-	capture("sessions_exported", { sessions });
+	capture("sessions_exported", { sessions: profiles });
 	const blob = new Blob([json], { type: "application/json" });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
+	// Filename kept as "impression-sessions.json" for backward compatibility.
 	a.download = "impression-sessions.json";
 	a.click();
 	URL.revokeObjectURL(url);
 }
 
-export function requestStoragePersistence(sessionId: string): void {
+export function requestStoragePersistence(profileId: string): void {
 	if (sessionStorage.getItem(PERSIST_REQUESTED_KEY) === null) {
 		sessionStorage.setItem(PERSIST_REQUESTED_KEY, "1");
 		void navigator.storage.persist().then(
 			(granted) => {
 				capture("storage_persistence_result", {
-					session_id: sessionId,
+					session_id: profileId,
 					granted,
 				});
 			},
 			() => {
 				capture("storage_persistence_result", {
-					session_id: sessionId,
+					session_id: profileId,
 					granted: false,
 				});
 			},
@@ -823,21 +827,21 @@ export function saveRateLimitToken(token: string): void {
 
 // --- Complete-visited tracking ---
 
-export function hasVisitedExploreComplete(sessionId: string, cardId: string): boolean {
-	const parsed = parseJsonFromStorage(completeVisitedKey(sessionId));
+export function hasVisitedExploreComplete(profileId: string, cardId: string): boolean {
+	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	if (!isStringArray(parsed)) {
 		return false;
 	}
 	return parsed.includes(cardId);
 }
 
-export function markExploreCompleteVisited(sessionId: string, cardId: string): void {
-	const parsed = parseJsonFromStorage(completeVisitedKey(sessionId));
+export function markExploreCompleteVisited(profileId: string, cardId: string): void {
+	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	const visited = isStringArray(parsed) ? parsed : [];
 	if (!visited.includes(cardId)) {
 		visited.push(cardId);
 	}
-	localStorage.setItem(completeVisitedKey(sessionId), JSON.stringify(visited));
+	localStorage.setItem(completeVisitedKey(profileId), JSON.stringify(visited));
 }
 
 export function loadProgressFile(): Promise<void> {
@@ -857,9 +861,9 @@ export function loadProgressFile(): Promise<void> {
 					try {
 						const stats = importProgressData(text);
 						capture("sessions_imported", {
-							sessions: stats.sessions,
-							final_sessions_added: stats.finalSessionsAdded,
-							sessions_overridden: stats.sessionsOverridden,
+							sessions: stats.profiles,
+							final_sessions_added: stats.finalProfilesAdded,
+							sessions_overridden: stats.profilesOverridden,
 						});
 						resolve();
 					} catch (error) {

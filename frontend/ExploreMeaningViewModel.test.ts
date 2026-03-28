@@ -10,7 +10,7 @@ import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
 import type { ExploreData, ExploreEntry } from "./store.ts";
-import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadExploreData, saveChosenCardIds, saveExploreData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -38,7 +38,7 @@ function setGlobalDom(win: Window): void {
 }
 
 function sid(): string {
-	return getActiveSessionId();
+	return getActiveProfileId();
 }
 
 const server = setupServer();
@@ -57,7 +57,7 @@ beforeAll(() => {
 beforeEach(() => {
 	currentWindow = new Window({ url: "http://localhost" });
 	setGlobalDom(currentWindow);
-	ensureSessionsInitialized();
+	ensureProfilesInitialized();
 });
 
 afterEach(() => {

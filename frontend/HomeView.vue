@@ -5,8 +5,8 @@ import type { RouteLocationRaw } from "vue-router";
 import AppButton from "./AppButton.vue";
 import { capture } from "./analytics.ts";
 import { HomeViewModel } from "./HomeViewModel.ts";
-import type { ProgressPhase, SessionMeta } from "./store.ts";
-import { formatSessionDate } from "./store.ts";
+import type { ProgressPhase, ProfileMeta } from "./store.ts";
+import { formatProfileDate } from "./store.ts";
 
 const router = useRouter();
 const vm = new HomeViewModel();
@@ -16,26 +16,26 @@ onMounted(() => {
 	vm.initialize();
 });
 
-function phaseRoute(sessionId: string, p: ProgressPhase): RouteLocationRaw {
+function phaseRoute(profileId: string, p: ProgressPhase): RouteLocationRaw {
 	switch (p) {
 		case "explore":
-			return { name: "explore", params: { sessionId } };
+			return { name: "explore", params: { profileId } };
 		case "prioritize-complete":
 		case "prioritize":
-			return { name: "findMeaningPrioritize", params: { sessionId } };
+			return { name: "findMeaningPrioritize", params: { profileId } };
 		case "swipe":
 		case "none":
-			return { name: "findMeaning", params: { sessionId } };
+			return { name: "findMeaning", params: { profileId } };
 	}
 }
 
-function onNewSession(): void {
-	const newId = vm.createSession();
-	void router.push({ name: "findMeaning", params: { sessionId: newId } });
+function onNewProfile(): void {
+	const newId = vm.createProfile();
+	void router.push({ name: "findMeaning", params: { profileId: newId } });
 }
 
-function onStartRename(session: SessionMeta): void {
-	vm.startRename(session.id, session.name);
+function onStartRename(profile: ProfileMeta): void {
+	vm.startRename(profile.id, profile.name);
 	void nextTick(() => {
 		const el = renameInputEl.value[0];
 		el.focus();
@@ -60,26 +60,26 @@ function onRenameKeydown(id: string, event: KeyboardEvent): void {
 }
 
 function onDelete(id: string): void {
-	if (!window.confirm("Delete this session? This cannot be undone.")) return;
-	vm.deleteSession(id);
+	if (!window.confirm("Delete this profile? This cannot be undone.")) return;
+	vm.deleteProfile(id);
 }
 
-function sessionRoute(session: SessionMeta): RouteLocationRaw {
-	const phase = vm.phaseForSession(session.id);
-	return phaseRoute(session.id, phase);
+function profileRoute(profile: ProfileMeta): RouteLocationRaw {
+	const phase = vm.phaseForProfile(profile.id);
+	return phaseRoute(profile.id, phase);
 }
 
-function onOpenSession(session: SessionMeta): void {
-	const phase = vm.phaseForSession(session.id);
-	capture("session_resumed", { session_id: session.id, phase });
+function onOpenProfile(profile: ProfileMeta): void {
+	const phase = vm.phaseForProfile(profile.id);
+	capture("session_resumed", { session_id: profile.id, phase });
 }
 
 function onExport(): void {
-	vm.exportSessions();
+	vm.exportProfiles();
 }
 
 function onLoadFile(): void {
-	vm.importSessions().catch((err: unknown) => {
+	vm.importProfiles().catch((err: unknown) => {
 		window.alert(err instanceof Error ? err.message : "Failed to load progress file");
 	});
 }
@@ -102,38 +102,38 @@ function onLoadFile(): void {
 			<p>Your data is never stored on our servers. Your responses are saved locally in your browser so you can return to them later. <router-link to="/privacy">Learn more</router-link></p>
 		</section>
 
-		<section class="sessions">
-			<div v-if="vm.sessions.length === 0" class="cta">
-				<AppButton variant="primary" type="button" @click="onNewSession">Start finding meaning</AppButton>
+		<section class="profiles">
+			<div v-if="vm.profiles.length === 0" class="cta">
+				<AppButton variant="primary" type="button" @click="onNewProfile">Start finding meaning</AppButton>
 			</div>
 			<template v-else>
-				<h2>Your sessions</h2>
-				<div class="session-list">
-					<div v-for="session in vm.sessions" :key="session.id" class="card-hrule">
+				<h2>Your profiles</h2>
+				<div class="profile-list">
+					<div v-for="profile in vm.profiles" :key="profile.id" class="card-hrule">
 						<div class="card-title">
-							<template v-if="vm.isRenaming(session.id)">
-								<input ref="renameInputEl" :value="vm.renameInputFor(session.id)" type="text" @input="vm.setRenameInput(session.id, ($event.target as HTMLInputElement).value)" @keydown="onRenameKeydown(session.id, $event)" />
-								<AppButton variant="primary" type="button" @click="onConfirmRename(session.id)">Save</AppButton>
+							<template v-if="vm.isRenaming(profile.id)">
+								<input ref="renameInputEl" :value="vm.renameInputFor(profile.id)" type="text" @input="vm.setRenameInput(profile.id, ($event.target as HTMLInputElement).value)" @keydown="onRenameKeydown(profile.id, $event)" />
+								<AppButton variant="primary" type="button" @click="onConfirmRename(profile.id)">Save</AppButton>
 							</template>
-							<router-link v-else :to="sessionRoute(session)" class="session-link" @click="onOpenSession(session)">{{ session.name }}</router-link>
+							<router-link v-else :to="profileRoute(profile)" class="profile-link" @click="onOpenProfile(profile)">{{ profile.name }}</router-link>
 						</div>
 						<div class="card-meta">
 							<!-- eslint-disable vue/no-restricted-html-elements -->
-							Created {{ formatSessionDate(new Date(session.createdAt)) }}<template v-if="session.lastUpdatedAt !== session.createdAt"> · Updated {{ formatSessionDate(new Date(session.lastUpdatedAt)) }}</template> · <button type="button" class="text-btn" @click="onStartRename(session)">Rename</button> · <button type="button" class="text-btn text-btn-danger" @click="onDelete(session.id)">Delete</button>
+							Created {{ formatProfileDate(new Date(profile.createdAt)) }}<template v-if="profile.lastUpdatedAt !== profile.createdAt"> · Updated {{ formatProfileDate(new Date(profile.lastUpdatedAt)) }}</template> · <button type="button" class="text-btn" @click="onStartRename(profile)">Rename</button> · <button type="button" class="text-btn text-btn-danger" @click="onDelete(profile.id)">Delete</button>
 							<!-- eslint-enable vue/no-restricted-html-elements -->
 						</div>
 					</div>
 				</div>
 				<div class="cta">
-					<AppButton variant="secondary" type="button" @click="onNewSession">Start new session</AppButton>
+					<AppButton variant="secondary" type="button" @click="onNewProfile">Start new profile</AppButton>
 				</div>
 			</template>
 		</section>
 
 		<div class="file-actions">
 			<!-- eslint-disable vue/no-restricted-html-elements -->
-			<button v-if="vm.sessions.length > 0" type="button" class="file-btn" @click="onExport">Export all sessions</button>
-			<button type="button" class="file-btn" @click="onLoadFile">Import sessions file</button>
+			<button v-if="vm.profiles.length > 0" type="button" class="file-btn" @click="onExport">Export all profiles</button>
+			<button type="button" class="file-btn" @click="onLoadFile">Import profiles file</button>
 			<!-- eslint-enable vue/no-restricted-html-elements -->
 		</div>
 
@@ -192,11 +192,11 @@ section p {
 	margin: 0;
 }
 
-.sessions {
+.profiles {
 	margin-bottom: var(--space-4);
 }
 
-.session-link {
+.profile-link {
 	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -214,7 +214,7 @@ section p {
 
 /* Negative vertical margins on the input and save button prevent their
    padding from increasing .card-title's height, avoiding a layout shift
-   when switching between the static session name and the rename form. */
+   when switching between the static profile name and the rename form. */
 .card-title input,
 .card-title :deep(button) {
 	margin-top: calc(-1 * var(--space-2));
@@ -228,7 +228,7 @@ section p {
 	line-height: inherit;
 	flex: 1;
 	min-width: 0;
-	/* Compensate for left padding so text aligns with the session name link. */
+	/* Compensate for left padding so text aligns with the profile name link. */
 	margin-left: calc(-1 * var(--space-3));
 }
 

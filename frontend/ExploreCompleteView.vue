@@ -241,13 +241,13 @@ class PulseAnimation {
 
 const router = useRouter();
 
-const sessionId = useStringParam("sessionId");
+const profileId = useStringParam("profileId");
 const cardId = useStringParam("meaningId");
 
-const vm = new ExploreCompleteViewModel(sessionId, cardId);
+const vm = new ExploreCompleteViewModel(profileId, cardId);
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExploreComplete(sessionId, cardId) : !DEBUG_FORCE_ANIMATE;
+const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExploreComplete(profileId, cardId) : !DEBUG_FORCE_ANIMATE;
 
 const titleVisible = ref(false);
 const warmPhraseVisible = ref(false);
@@ -415,7 +415,7 @@ async function runCascade(signal: AbortSignal): Promise<void> {
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "explore", params: { sessionId } });
+		void router.replace({ name: "explore", params: { profileId } });
 		return;
 	}
 
@@ -451,11 +451,11 @@ function handleShowAll(): void {
 }
 
 function handleKeepExploring(): void {
-	void router.push({ name: "explore", params: { sessionId } });
+	void router.push({ name: "explore", params: { profileId } });
 }
 
 function handleOpenReport(): void {
-	void router.push({ name: "report", params: { sessionId } });
+	void router.push({ name: "report", params: { profileId } });
 }
 </script>
 
