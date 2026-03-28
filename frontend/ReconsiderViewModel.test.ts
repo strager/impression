@@ -252,7 +252,7 @@ describe("toggleCard", () => {
 		expect(vm.chosenIds.has(cardIds[0])).toBe(false);
 	});
 
-	it("shows confirmation when chosen and examined", () => {
+	it("shows confirmation and optimistically removes when chosen and examined", () => {
 		const cardIds = setupChosenCards(1);
 		setupExamineDataWithAnswers(cardIds);
 
@@ -261,7 +261,19 @@ describe("toggleCard", () => {
 
 		vm.toggleCard(cardIds[0]);
 		expect(vm.confirmingRemove).toBe(cardIds[0]);
-		expect(vm.chosenIds.has(cardIds[0])).toBe(true);
+		expect(vm.chosenIds.has(cardIds[0])).toBe(false);
+	});
+
+	it("does not persist optimistic removal to localStorage", () => {
+		const cardIds = setupChosenCards(1);
+		setupExamineDataWithAnswers(cardIds);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		vm.toggleCard(cardIds[0]);
+		const saved = loadChosenCardIds(sid());
+		expect(saved).toEqual(cardIds);
 	});
 });
 
@@ -384,7 +396,7 @@ describe("onDone", () => {
 });
 
 describe("confirmation flow", () => {
-	it("toggle examined card sets confirmingRemove, removeCard clears it", () => {
+	it("toggle examined card sets confirmingRemove, removeCard confirms it", () => {
 		const cardIds = setupChosenCards(1);
 		setupExamineDataWithAnswers(cardIds);
 
@@ -393,14 +405,15 @@ describe("confirmation flow", () => {
 
 		vm.toggleCard(cardIds[0]);
 		expect(vm.confirmingRemove).toBe(cardIds[0]);
-		expect(vm.chosenIds.has(cardIds[0])).toBe(true);
+		expect(vm.chosenIds.has(cardIds[0])).toBe(false);
 
 		vm.removeCard(cardIds[0], true);
 		expect(vm.confirmingRemove).toBeNull();
 		expect(vm.chosenIds.has(cardIds[0])).toBe(false);
+		expect(loadChosenCardIds(sid())).toBeNull();
 	});
 
-	it("toggle examined card then cancel preserves card", () => {
+	it("toggle examined card then cancel re-adds card", () => {
 		const cardIds = setupChosenCards(1);
 		setupExamineDataWithAnswers(cardIds);
 
@@ -408,7 +421,7 @@ describe("confirmation flow", () => {
 		vm.initialize();
 
 		vm.toggleCard(cardIds[0]);
-		expect(vm.confirmingRemove).toBe(cardIds[0]);
+		expect(vm.chosenIds.has(cardIds[0])).toBe(false);
 
 		vm.cancelRemove();
 		expect(vm.confirmingRemove).toBeNull();

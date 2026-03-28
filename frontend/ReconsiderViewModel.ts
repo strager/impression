@@ -60,6 +60,10 @@ export class ReconsiderViewModel {
 	toggleCard(cardId: string): void {
 		if (this._chosenIds.value.has(cardId)) {
 			if (this.isExamined(cardId)) {
+				// Remove optimistically so the checkbox stays in sync with the
+				// browser's toggle.  cancelRemove() re-adds if the user cancels.
+				this._chosenIds.value.delete(cardId);
+				this._chosenIds.value = new Set(this._chosenIds.value);
 				this._confirmingRemove.value = cardId;
 				return;
 			}
@@ -89,6 +93,8 @@ export class ReconsiderViewModel {
 
 	cancelRemove(): void {
 		if (this._confirmingRemove.value !== null) {
+			this._chosenIds.value.add(this._confirmingRemove.value);
+			this._chosenIds.value = new Set(this._chosenIds.value);
 			capture("reconsider_remove_cancelled", {
 				session_id: this.profileId,
 			});
