@@ -17,7 +17,7 @@ function shuffle<T>(array: readonly T[]): T[] {
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
-export class FindMeaningViewModel {
+export class IdentifyViewModel {
 	private readonly profileId: string;
 	private readonly _shuffledCards = ref<MeaningCard[]>([]);
 	private readonly _currentIndex = ref(0);

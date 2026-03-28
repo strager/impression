@@ -16,11 +16,11 @@ The app supports multiple profiles so users can track separate sets of meaning s
 - **Open** a profile by clicking its name — navigates to the profile's URL based on its current phase.
 - **Rename** a profile by clicking the Rename button, editing inline, and pressing Enter.
 - **Delete** a profile (with confirmation). If the last profile is deleted, a new empty one is created automatically.
-- **New Profile** creates a fresh profile and navigates to its find-meaning page.
+- **New Profile** creates a fresh profile and navigates to its identify page.
 
 ## Start over
 
-The "Start over" button (available on most pages) creates a new profile and navigates to its find-meaning page. The previous profile is preserved in the profile list.
+The "Start over" button (available on most pages) creates a new profile and navigates to its identify page. The previous profile is preserved in the profile list.
 
 ## Export / import
 

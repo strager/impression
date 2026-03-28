@@ -22,16 +22,16 @@ function phaseRoute(profileId: string, p: ProgressPhase): RouteLocationRaw {
 			return { name: "examine", params: { profileId } };
 		case "prioritize-complete":
 		case "prioritize":
-			return { name: "findMeaningPrioritize", params: { profileId } };
+			return { name: "identifyPrioritize", params: { profileId } };
 		case "swipe":
 		case "none":
-			return { name: "findMeaning", params: { profileId } };
+			return { name: "identify", params: { profileId } };
 	}
 }
 
 function onNewProfile(): void {
 	const newId = vm.createProfile();
-	void router.push({ name: "findMeaning", params: { profileId: newId } });
+	void router.push({ name: "identify", params: { profileId: newId } });
 }
 
 function onStartRename(profile: ProfileMeta): void {
@@ -104,7 +104,7 @@ function onLoadFile(): void {
 
 		<section class="profiles">
 			<div v-if="vm.profiles.length === 0" class="cta">
-				<AppButton variant="primary" type="button" @click="onNewProfile">Start finding meaning</AppButton>
+				<AppButton variant="primary" type="button" @click="onNewProfile">Start identifying meaning</AppButton>
 			</div>
 			<template v-else>
 				<h2>Your profiles</h2>

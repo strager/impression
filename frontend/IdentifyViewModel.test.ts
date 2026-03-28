@@ -4,7 +4,7 @@ import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { FindMeaningViewModel } from "./FindMeaningViewModel.ts";
+import { IdentifyViewModel } from "./IdentifyViewModel.ts";
 import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, loadSwipeProgress, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe("initialize", () => {
 	it("loads all cards on fresh start", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.totalCards).toBe(MEANING_CARDS.length);
 		expect(vm.currentIndex).toBe(0);
@@ -56,7 +56,7 @@ describe("initialize", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.totalCards).toBe(5);
 		expect(vm.currentIndex).toBe(2);
@@ -66,7 +66,7 @@ describe("initialize", () => {
 	it("falls back to fresh shuffle when saved card IDs are all unknown", () => {
 		saveSwipeProgress(sid(), { shuffledCardIds: ["nonexistent-1", "nonexistent-2"], swipeHistory: [] });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.totalCards).toBe(MEANING_CARDS.length);
 		expect(vm.currentIndex).toBe(0);
@@ -75,14 +75,14 @@ describe("initialize", () => {
 
 describe("swipe", () => {
 	it("advances currentIndex", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		expect(vm.currentIndex).toBe(1);
 	});
 
 	it("records unsure direction", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("unsure", "drag");
 		expect(vm.currentIndex).toBe(1);
@@ -91,7 +91,7 @@ describe("swipe", () => {
 	});
 
 	it("changes currentCard to the next card", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		const first = vm.currentCard;
 		vm.swipe("agree", "drag");
@@ -99,7 +99,7 @@ describe("swipe", () => {
 	});
 
 	it("sets canUndo to true", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.canUndo).toBe(false);
 		vm.swipe("agree", "drag");
@@ -107,7 +107,7 @@ describe("swipe", () => {
 	});
 
 	it("persists to localStorage", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		const saved = loadSwipeProgress(sid());
@@ -124,7 +124,7 @@ describe("swipe", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.isComplete).toBe(true);
 		vm.swipe("agree", "drag");
@@ -134,7 +134,7 @@ describe("swipe", () => {
 
 describe("undo", () => {
 	it("decrements currentIndex and restores previous card", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		const first = vm.currentCard;
 		vm.swipe("agree", "drag");
@@ -144,7 +144,7 @@ describe("undo", () => {
 	});
 
 	it("sets canUndo to false after undoing the only swipe", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		vm.undo();
@@ -152,7 +152,7 @@ describe("undo", () => {
 	});
 
 	it("persists to localStorage", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		vm.undo();
@@ -162,7 +162,7 @@ describe("undo", () => {
 	});
 
 	it("is a no-op when canUndo is false", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.undo();
 		expect(vm.currentIndex).toBe(0);
@@ -171,7 +171,7 @@ describe("undo", () => {
 
 describe("derived properties", () => {
 	it("progressPercent starts at 0 and increases after swipe", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.progressPercent).toBe(0);
 		vm.swipe("agree", "drag");
@@ -179,7 +179,7 @@ describe("derived properties", () => {
 	});
 
 	it("progressPercent decreases after undo", () => {
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		vm.swipe("disagree", "drag");
@@ -192,7 +192,7 @@ describe("derived properties", () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: [] });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.isComplete).toBe(false);
 		vm.swipe("agree", "drag");
@@ -204,7 +204,7 @@ describe("derived properties", () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: [] });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		expect(vm.nextCard).toBeNull();
@@ -222,7 +222,7 @@ describe("agreed and unsure cards", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.agreedCards.map((c) => c.id)).toEqual([cardIds[0], cardIds[3]]);
 	});
@@ -237,7 +237,7 @@ describe("agreed and unsure cards", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.unsureCards.map((c) => c.id)).toEqual([cardIds[1], cardIds[3]]);
 	});
@@ -247,7 +247,7 @@ describe("agreed and unsure cards", () => {
 		const history = cardIds.map((id) => ({ cardId: id, direction: "agree" as const }));
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.agreedCards.map((c) => c.id)).toEqual([MEANING_CARDS[0].id, MEANING_CARDS[2].id, MEANING_CARDS[4].id]);
 	});
@@ -257,7 +257,7 @@ describe("agreed and unsure cards", () => {
 		const history = cardIds.map((id) => ({ cardId: id, direction: "disagree" as const }));
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		expect(vm.agreedCards).toEqual([]);
 		expect(vm.unsureCards).toEqual([]);
@@ -267,7 +267,7 @@ describe("agreed and unsure cards", () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: [] });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.swipe("agree", "drag");
 		expect(vm.agreedCards).toHaveLength(1);
@@ -282,7 +282,7 @@ describe("finalize", () => {
 		const history = cardIds.map((id) => ({ cardId: id, direction: "agree" as const }));
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(false);
@@ -294,7 +294,7 @@ describe("finalize", () => {
 		const history = cardIds.map((id) => ({ cardId: id, direction: "agree" as const }));
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(true);
@@ -319,7 +319,7 @@ describe("finalize", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(false);
@@ -339,7 +339,7 @@ describe("finalize", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(false);
@@ -359,7 +359,7 @@ describe("finalize", () => {
 		];
 		saveSwipeProgress(sid(), { shuffledCardIds: cardIds, swipeHistory: history });
 
-		const vm = new FindMeaningViewModel(sid());
+		const vm = new IdentifyViewModel(sid());
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(false);

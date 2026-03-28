@@ -20,11 +20,11 @@ const profileName = computed(() => {
 
 const phaseLabel = computed(() => {
 	switch (route.name) {
-		case "findMeaning":
-			return "Find meaning";
-		case "findMeaningPrioritize":
+		case "identify":
+			return "Identify";
+		case "identifyPrioritize":
 			return "Prioritize";
-		case "findMeaningManual":
+		case "identifyManual":
 			return null; // handled as Examine sub-page
 		case "examine":
 			return "Examine";
@@ -42,7 +42,7 @@ const phaseLabel = computed(() => {
 });
 
 const meaningCardName = computed(() => {
-	if (route.name === "findMeaningManual") return "Edit selection";
+	if (route.name === "identifyManual") return "Edit selection";
 	if (route.name !== "examineMeaning") return null;
 	const meaningId = route.params.meaningId;
 	if (typeof meaningId !== "string") return null;

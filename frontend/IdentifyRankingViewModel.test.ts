@@ -5,7 +5,7 @@ import { watchSyncEffect } from "vue";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
+import { IdentifyRankingViewModel } from "./IdentifyRankingViewModel.ts";
 import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, saveRanking, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
@@ -49,7 +49,7 @@ afterEach(() => {
 
 describe("initialize", () => {
 	it("returns 'no-data' when sorting isn't complete", () => {
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -59,14 +59,14 @@ describe("initialize", () => {
 			shuffledCardIds: cardIds,
 			swipeHistory: [{ cardId: cardIds[0], direction: "agree" }],
 		});
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
 	it("returns 'skip' when <=5 candidate cards", () => {
 		const cardIds = MEANING_CARDS.slice(0, 4).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("skip");
 		expect(loadChosenCardIds(sid())).toEqual(cardIds);
 	});
@@ -74,7 +74,7 @@ describe("initialize", () => {
 	it("returns 'ready' when >5 cards, populates currentTask", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.currentTask).not.toBeNull();
 		expect(vm.currentTask!.length).toBe(3);
@@ -89,7 +89,7 @@ describe("initialize", () => {
 			comparisons: [{ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] }],
 			complete: false,
 		});
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.round).toBe(1);
 		expect(vm.canUndo).toBe(true);
@@ -97,10 +97,10 @@ describe("initialize", () => {
 });
 
 describe("choose", () => {
-	function setupVm(): FindMeaningRankingViewModel {
+	function setupVm(): IdentifyRankingViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
@@ -127,7 +127,7 @@ describe("choose", () => {
 			comparisons.push({ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] });
 		}
 		saveRanking(sid(), { cardIds, comparisons, complete: false });
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 		// After replaying 40 tasks, it should be stopped
 		expect(vm.isComplete).toBe(true);
@@ -138,10 +138,10 @@ describe("choose", () => {
 });
 
 describe("undo", () => {
-	function setupVm(): FindMeaningRankingViewModel {
+	function setupVm(): IdentifyRankingViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
@@ -176,10 +176,10 @@ describe("undo", () => {
 });
 
 describe("pendingRedo", () => {
-	function setupVm(): FindMeaningRankingViewModel {
+	function setupVm(): IdentifyRankingViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
@@ -245,7 +245,7 @@ describe("pendingRedo", () => {
 		vm1.undo();
 
 		// Simulate page refresh
-		const vm2 = new FindMeaningRankingViewModel(sid());
+		const vm2 = new IdentifyRankingViewModel(sid());
 		vm2.initialize();
 
 		const redo = vm2.pendingRedo;
@@ -258,7 +258,7 @@ describe("finalize", () => {
 	it("saves chosen cards via loadChosenCardIds", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 
 		// Make tasks until complete: pick first card as best, last as worst
@@ -278,7 +278,7 @@ describe("full ranking run", () => {
 	it("completes ranking with 7 cards, picking first card as best and last as worst", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new FindMeaningRankingViewModel(sid());
+		const vm = new IdentifyRankingViewModel(sid());
 		vm.initialize();
 
 		while (!vm.isComplete) {
@@ -299,7 +299,7 @@ describe("full ranking run", () => {
 		// Complete a ranking and save the result.
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm1 = new FindMeaningRankingViewModel(sid());
+		const vm1 = new IdentifyRankingViewModel(sid());
 		vm1.initialize();
 		while (!vm1.isComplete) {
 			const task = vm1.currentTask!;
@@ -308,7 +308,7 @@ describe("full ranking run", () => {
 		// vm1 saved the completed ranking to localStorage.
 
 		// Simulate a page refresh: create a new ViewModel and initialize it.
-		const vm2 = new FindMeaningRankingViewModel(sid());
+		const vm2 = new IdentifyRankingViewModel(sid());
 
 		// Track what Vue's reactivity system sees for isComplete.
 		let isComplete: boolean | undefined;

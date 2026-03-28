@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./IdentifyRankingInteractionState.ts";
 
 describe("moveCardToSlot", () => {
 	it("moves a card into the requested slot", () => {
@@ -46,16 +46,16 @@ describe("findClosestSlotIndex", () => {
 	});
 });
 
-describe("useFindMeaningRankingInteractionState", () => {
+describe("useIdentifyRankingInteractionState", () => {
 	it("moves the selected most meaningful card to the top", () => {
-		const state = useFindMeaningRankingInteractionState();
+		const state = useIdentifyRankingInteractionState();
 		state.chooseMost(2);
 		expect(state.mostIndex.value).toBe(2);
 		expect(state.displayOrder.value).toEqual([2, 0, 1]);
 	});
 
 	it("moves the selected least meaningful card to the bottom", () => {
-		const state = useFindMeaningRankingInteractionState();
+		const state = useIdentifyRankingInteractionState();
 		state.chooseLeast(0);
 		expect(state.leastIndex.value).toBe(0);
 		expect(state.displayOrder.value).toEqual([1, 2, 0]);
@@ -154,7 +154,7 @@ describe("useFindMeaningRankingInteractionState", () => {
 						leastIndex: applyPerm(perm, outcome.expected.leastIndex),
 					};
 
-					const state = useFindMeaningRankingInteractionState();
+					const state = useIdentifyRankingInteractionState();
 					state.displayOrder.value = [...order];
 					state.mostIndex.value = mostIndex;
 					state.leastIndex.value = leastIndex;
@@ -172,7 +172,7 @@ describe("useFindMeaningRankingInteractionState", () => {
 
 	it("restores the saved top and bottom choices for the current task", () => {
 		const task = MEANING_CARDS.slice(0, 3);
-		const state = useFindMeaningRankingInteractionState();
+		const state = useIdentifyRankingInteractionState();
 		state.restoreSelection(task, task[1].id, task[2].id);
 		expect(state.mostIndex.value).toBe(1);
 		expect(state.leastIndex.value).toBe(2);

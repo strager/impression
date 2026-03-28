@@ -8,7 +8,7 @@ The ViewModel pattern descends from Martin Fowler's Presentation Model (2004) an
 
 This separation buys two things:
 
-1. **Testability without rendering.** Because the ViewModel is a plain TypeScript class, tests can call its methods and assert on its getters without mounting a component, touching the DOM, or waiting for animation frames. In this project `FindMeaningViewModel.test.ts` and `FindMeaningPrioritizeViewModel.test.ts` exercise persistence, analytics, undo, edge cases, and state transitions entirely outside Vue.
+1. **Testability without rendering.** Because the ViewModel is a plain TypeScript class, tests can call its methods and assert on its getters without mounting a component, touching the DOM, or waiting for animation frames. In this project `IdentifyViewModel.test.ts` and `IdentifyRankingViewModel.test.ts` exercise persistence, analytics, undo, edge cases, and state transitions entirely outside Vue.
 
 2. **A clear seam between "what happens" and "how it looks."** Deciding that a swipe records analytics, advances the card index, and persists progress is a workflow concern. Deciding that the card should fly off-screen before the index advances is a presentation concern. When these two concerns live in different files, each file stays small and single-purpose.
 
@@ -80,4 +80,4 @@ onMounted(() => {
 
 ## Example
 
-`FindMeaningView.vue` and `FindMeaningViewModel.ts` follow this pattern. The ViewModel owns card shuffling, swipe history, progress persistence, and analytics. The View owns the SwipeCard DOM ref (for animations), the pending-swipe-method flag (drag vs button — a UI coordination concern), route navigation, and the next-phase button label.
+`IdentifyView.vue` and `IdentifyViewModel.ts` follow this pattern. The ViewModel owns card shuffling, swipe history, progress persistence, and analytics. The View owns the SwipeCard DOM ref (for animations), the pending-swipe-method flag (drag vs button — a UI coordination concern), route navigation, and the next-phase button label.

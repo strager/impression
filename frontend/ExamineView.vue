@@ -16,7 +16,7 @@ const vm = new ExamineViewModel(profileId);
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "findMeaning", params: { profileId } });
+		void router.replace({ name: "identify", params: { profileId } });
 	}
 });
 
@@ -44,7 +44,7 @@ function handleExamineCard(cardId: string): void {
 
 function handleEditSelection(): void {
 	vm.onEditSelection();
-	void router.push({ name: "findMeaningManual", params: { profileId } });
+	void router.push({ name: "identifyManual", params: { profileId } });
 }
 
 function handleOpenProfile(source: string): void {

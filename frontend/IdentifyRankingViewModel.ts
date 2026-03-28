@@ -10,7 +10,7 @@ import { loadRanking, loadSwipeProgress, needsPrioritization, saveChosenCardIds,
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
-export class FindMeaningRankingViewModel {
+export class IdentifyRankingViewModel {
 	private readonly profileId: string;
 	private readonly _currentTask = ref<MeaningCard[] | null>(null);
 	// You should manually trigger this ref when calling mutating methods of

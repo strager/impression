@@ -7,9 +7,9 @@ import "./global.css";
 import ExamineCompleteView from "./ExamineCompleteView.vue";
 import ExamineMeaningView from "./ExamineMeaningView.vue";
 import ExamineView from "./ExamineView.vue";
-import FindMeaningManualView from "./FindMeaningManualView.vue";
-import FindMeaningRankingView from "./FindMeaningRankingView.vue";
-import FindMeaningView from "./FindMeaningView.vue";
+import IdentifyManualView from "./IdentifyManualView.vue";
+import IdentifyRankingView from "./IdentifyRankingView.vue";
+import IdentifyView from "./IdentifyView.vue";
 import HomeView from "./HomeView.vue";
 import PrivacyView from "./PrivacyView.vue";
 import ProfileView from "./ProfileView.vue";
@@ -29,14 +29,14 @@ const router = createRouter({
 			component: HomeView,
 		},
 		{
-			path: "/:profileId/find-meaning",
-			name: "findMeaning",
-			component: FindMeaningView,
+			path: "/:profileId/identify",
+			name: "identify",
+			component: IdentifyView,
 		},
 		{
-			path: "/:profileId/find-meaning/prioritize",
-			name: "findMeaningPrioritize",
-			component: FindMeaningRankingView,
+			path: "/:profileId/identify/prioritize",
+			name: "identifyPrioritize",
+			component: IdentifyRankingView,
 		},
 		{
 			path: "/:profileId/examine",
@@ -44,9 +44,9 @@ const router = createRouter({
 			component: ExamineView,
 		},
 		{
-			path: "/:profileId/find-meaning/manual",
-			name: "findMeaningManual",
-			component: FindMeaningManualView,
+			path: "/:profileId/identify/manual",
+			name: "identifyManual",
+			component: IdentifyManualView,
 		},
 		{
 			path: "/:profileId/profile",

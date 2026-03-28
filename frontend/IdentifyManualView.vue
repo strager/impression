@@ -76,7 +76,7 @@ onMounted(() => {
 	try {
 		const cardIds = loadChosenCardIds(profileId);
 		if (cardIds === null) {
-			void router.replace({ name: "findMeaning", params: { profileId } });
+			void router.replace({ name: "identify", params: { profileId } });
 			return;
 		}
 		chosenIds.value = new Set(cardIds);
@@ -91,7 +91,7 @@ onMounted(() => {
 		}
 		capture("manual_selection_visited", { session_id: profileId });
 	} catch {
-		void router.replace({ name: "findMeaning", params: { profileId } });
+		void router.replace({ name: "identify", params: { profileId } });
 	}
 });
 </script>
@@ -99,7 +99,7 @@ onMounted(() => {
 <template>
 	<main>
 		<header>
-			<h1>Find meaning — manual</h1>
+			<h1>Identify — manual</h1>
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
 				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>

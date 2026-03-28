@@ -2,7 +2,7 @@
 
 ## Entering the examine page
 
-After choosing their sources of meaning on the Find Meaning page, the user lands
+After choosing their sources of meaning on the Identify page, the user lands
 on the Examine overview. Each source of meaning has an **Examine** button.
 Clicking it takes the user to `/examine/:meaningId`, where they begin a guided
 reflection on that source of meaning.

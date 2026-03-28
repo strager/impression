@@ -2,9 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup, watch } from "vue";
 import { useRouter } from "vue-router";
 
-import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useFindMeaningRankingInteractionState } from "./FindMeaningRankingInteractionState.ts";
-import type { SlotRect } from "./FindMeaningRankingInteractionState.ts";
-import { FindMeaningRankingViewModel } from "./FindMeaningRankingViewModel.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./IdentifyRankingInteractionState.ts";
+import type { SlotRect } from "./IdentifyRankingInteractionState.ts";
+import { IdentifyRankingViewModel } from "./IdentifyRankingViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 import AppButton from "./AppButton.vue";
@@ -12,9 +12,9 @@ import ToggleButton from "./ToggleButton.vue";
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
-const vm = new FindMeaningRankingViewModel(profileId);
+const vm = new IdentifyRankingViewModel(profileId);
 
-const interaction = useFindMeaningRankingInteractionState();
+const interaction = useIdentifyRankingInteractionState();
 const mostIndex = interaction.mostIndex;
 const leastIndex = interaction.leastIndex;
 const displayOrder = interaction.displayOrder;
@@ -98,7 +98,7 @@ watch([mostIndex, leastIndex], () => {
 onMounted(() => {
 	const result = vm.initialize();
 	if (result === "no-data") {
-		void router.replace({ name: "findMeaning", params: { profileId } });
+		void router.replace({ name: "identify", params: { profileId } });
 		return;
 	}
 	if (result === "skip") {
@@ -444,7 +444,7 @@ function handleFinish(): void {
 <template>
 	<main>
 		<header>
-			<h1>Find meaning — rank</h1>
+			<h1>Identify — rank</h1>
 			<div v-if="!vm.isComplete" class="instruction-stack">
 				<p class="instruction active">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
 			</div>

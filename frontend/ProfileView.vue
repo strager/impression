@@ -165,7 +165,7 @@ async function downloadHtml(): Promise<void> {
 onMounted(() => {
 	const result = vm.initialize();
 	if (result === "no-data") {
-		void router.replace({ name: "findMeaning", params: { profileId } });
+		void router.replace({ name: "identify", params: { profileId } });
 	}
 });
 

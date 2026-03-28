@@ -112,7 +112,7 @@ export function getDraggedOutcome(
 	};
 }
 
-export function useFindMeaningRankingInteractionState(): {
+export function useIdentifyRankingInteractionState(): {
 	displayOrder: Ref<number[]>;
 	leastIndex: Ref<number | null>;
 	mostIndex: Ref<number | null>;

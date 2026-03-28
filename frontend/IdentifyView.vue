@@ -3,7 +3,7 @@ import { nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
-import { FindMeaningViewModel } from "./FindMeaningViewModel.ts";
+import { IdentifyViewModel } from "./IdentifyViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { detectProfilePhase } from "./store.ts";
 import AppButton from "./AppButton.vue";
@@ -11,7 +11,7 @@ import SwipeCard from "./SwipeCard.vue";
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
-const vm = new FindMeaningViewModel(profileId);
+const vm = new IdentifyViewModel(profileId);
 
 const swipeCardRef = ref<InstanceType<typeof SwipeCard> | null>(null);
 const endStateRef = ref<HTMLElement | null>(null);
@@ -53,13 +53,13 @@ function continueToNextPhase(): void {
 		return;
 	}
 	if (phase === "prioritize-complete" || phase === "prioritize") {
-		void router.push({ name: "findMeaningPrioritize", params: { profileId } });
+		void router.push({ name: "identifyPrioritize", params: { profileId } });
 		return;
 	}
 
 	vm.finalize();
 	if (vm.requiresPrioritization) {
-		void router.push({ name: "findMeaningPrioritize", params: { profileId } });
+		void router.push({ name: "identifyPrioritize", params: { profileId } });
 	} else {
 		void router.push({ name: "examine", params: { profileId } });
 	}
@@ -69,7 +69,7 @@ function continueToNextPhase(): void {
 <template>
 	<main>
 		<header>
-			<h1>Find meaning</h1>
+			<h1>Identify</h1>
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex === 0 }]">Read each source of meaning and decide if it feels right to you.</p>
 				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex > 0 }]">Keep going — decide if each source of meaning feels right to you.</p>
