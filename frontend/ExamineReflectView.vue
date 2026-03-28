@@ -686,7 +686,8 @@ h1 {
 	pointer-events: auto;
 }
 
-.show-all-btn:hover {
+.has-hover .show-all-btn:hover,
+.show-all-btn:active {
 	color: var(--color-green-600);
 }
 

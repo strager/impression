@@ -367,7 +367,8 @@ label {
 	margin-top: var(--space-1);
 }
 
-.reflect-link-btn:hover {
+.has-hover .reflect-link-btn:hover,
+.reflect-link-btn:active {
 	color: var(--color-green-600);
 }
 

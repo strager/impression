@@ -67,7 +67,8 @@ main {
 	color: var(--color-gray-600);
 }
 
-.back-nav a:hover {
+.has-hover .back-nav a:hover,
+.back-nav a:active {
 	color: var(--color-black);
 }
 

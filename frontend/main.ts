@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { initAnalytics } from "./analytics.ts";
 import "./global.css";
+import { onMatchMedia } from "./on-match-media.ts";
 import ExamineMeaningView from "./ExamineMeaningView.vue";
 import ExamineReflectView from "./ExamineReflectView.vue";
 import ExamineView from "./ExamineView.vue";
@@ -84,6 +85,10 @@ const router = createRouter({
 			component: () => import("./RankingConvergenceView.vue"),
 		},
 	],
+});
+
+onMatchMedia("(hover: hover)", (matches) => {
+	document.documentElement.classList.toggle("has-hover", matches);
 });
 
 initAnalytics(router);

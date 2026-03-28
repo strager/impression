@@ -176,7 +176,8 @@ a {
 	text-decoration-thickness: 1px;
 }
 
-a:hover {
+.has-hover a:hover,
+a:active {
 	color: var(--color-green-700);
 }
 
@@ -191,7 +192,8 @@ nav a {
 	text-decoration: none;
 }
 
-nav a:hover {
+.has-hover nav a:hover,
+nav a:active {
 	text-decoration: underline;
 	text-underline-offset: 3px;
 	text-decoration-thickness: 1px;
@@ -204,7 +206,8 @@ nav a[aria-current="page"] {
 	cursor: default;
 }
 
-nav a[aria-current="page"]:hover {
+.has-hover nav a[aria-current="page"]:hover,
+nav a[aria-current="page"]:active {
 	color: var(--color-black);
 	text-decoration: none;
 }
@@ -234,7 +237,8 @@ button {
 	border: 1px solid var(--color-green-600);
 }
 
-.btn-primary:hover:not(:disabled) {
+.has-hover .btn-primary:hover:not(:disabled),
+.btn-primary:active:not(:disabled) {
 	background: var(--color-green-700);
 	border-color: var(--color-green-700);
 }
@@ -251,7 +255,8 @@ button {
 	border: 1px solid var(--color-green-600);
 }
 
-.btn-secondary:hover:not(:disabled) {
+.has-hover .btn-secondary:hover:not(:disabled),
+.btn-secondary:active:not(:disabled) {
 	background: var(--color-green-50);
 }
 
@@ -267,7 +272,8 @@ button {
 	border: 1px solid var(--color-gray-600);
 }
 
-.btn-neutral:hover:not(:disabled) {
+.has-hover .btn-neutral:hover:not(:disabled),
+.btn-neutral:active:not(:disabled) {
 	background: var(--color-gray-800);
 	border-color: var(--color-gray-800);
 }
@@ -284,7 +290,8 @@ button {
 	border: 1px solid var(--color-gray-400);
 }
 
-.btn-neutral-secondary:hover:not(:disabled) {
+.has-hover .btn-neutral-secondary:hover:not(:disabled),
+.btn-neutral-secondary:active:not(:disabled) {
 	background: var(--color-gray-50);
 }
 
@@ -515,7 +522,8 @@ select:disabled {
 	color: inherit;
 }
 
-.retry-link:hover {
+.has-hover .retry-link:hover,
+.retry-link:active {
 	color: inherit;
 	opacity: 0.8;
 }

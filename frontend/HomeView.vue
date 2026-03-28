@@ -263,11 +263,13 @@ section p {
 	text-decoration-thickness: 1px;
 }
 
-.text-btn:hover {
+.has-hover .text-btn:hover,
+.text-btn:active {
 	color: var(--color-gray-600);
 }
 
-.text-btn-danger:hover {
+.has-hover .text-btn-danger:hover,
+.text-btn-danger:active {
 	color: var(--color-error);
 }
 
@@ -289,7 +291,8 @@ section p {
 	text-decoration-thickness: 1px;
 }
 
-.file-btn:hover {
+.has-hover .file-btn:hover,
+.file-btn:active {
 	color: var(--color-gray-600);
 }
 
@@ -313,7 +316,8 @@ footer {
 	text-decoration: none;
 }
 
-.github-link:hover {
+.has-hover .github-link:hover,
+.github-link:active {
 	color: var(--color-black);
 }
 </style>

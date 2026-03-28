@@ -1,14 +1,11 @@
 import { onBeforeUnmount, ref, type Ref } from "vue";
+import { onMatchMedia } from "./on-match-media.ts";
 
 export function useMatchMedia(query: string): Ref<boolean> {
-	const mediaQuery = window.matchMedia(query);
-	const matches = ref(mediaQuery.matches);
-	function onChange(): void {
-		matches.value = mediaQuery.matches;
-	}
-	mediaQuery.addEventListener("change", onChange);
-	onBeforeUnmount(() => {
-		mediaQuery.removeEventListener("change", onChange);
+	const matches = ref(false);
+	const cleanup = onMatchMedia(query, (v) => {
+		matches.value = v;
 	});
+	onBeforeUnmount(cleanup);
 	return matches;
 }

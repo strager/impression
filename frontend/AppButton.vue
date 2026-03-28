@@ -32,7 +32,7 @@ span {
 	transition: transform 0.06s ease;
 }
 
-button:hover:active span {
+button:active span {
 	transform: translateY(1px);
 }
 

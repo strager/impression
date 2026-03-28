@@ -182,7 +182,8 @@ h1 {
 	opacity: 0.7;
 }
 
-.card-row:hover {
+.has-hover .card-row:hover,
+.card-row:active {
 	opacity: 1;
 }
 
