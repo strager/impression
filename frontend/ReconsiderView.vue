@@ -42,9 +42,11 @@ onMounted(() => {
 				<h3>Agreed</h3>
 				<div class="card-list">
 					<label v-for="card in vm.agreedCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
-						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 						<div class="card-content">
-							<span class="card-source">{{ card.source }}</span>
+							<div class="card-header">
+								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+								<span class="card-source">{{ card.source }}</span>
+							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
 						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
@@ -66,9 +68,11 @@ onMounted(() => {
 				<h3>Unsure</h3>
 				<div class="card-list">
 					<label v-for="card in vm.unsureCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
-						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 						<div class="card-content">
-							<span class="card-source">{{ card.source }}</span>
+							<div class="card-header">
+								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+								<span class="card-source">{{ card.source }}</span>
+							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
 						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
@@ -91,9 +95,11 @@ onMounted(() => {
 				<summary class="expand-link">Show {{ vm.disagreedCards.length }} more</summary>
 				<div class="card-list">
 					<label v-for="card in vm.disagreedCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
-						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 						<div class="card-content">
-							<span class="card-source">{{ card.source }}</span>
+							<div class="card-header">
+								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+								<span class="card-source">{{ card.source }}</span>
+							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
 						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
@@ -114,9 +120,11 @@ onMounted(() => {
 
 		<div v-else class="card-list">
 			<label v-for="card in MEANING_CARDS" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
-				<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 				<div class="card-content">
-					<span class="card-source">{{ card.source }}</span>
+					<div class="card-header">
+						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+						<span class="card-source">{{ card.source }}</span>
+					</div>
 					<span class="card-desc">{{ card.description }}</span>
 				</div>
 				<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
@@ -191,7 +199,7 @@ h1 {
 	position: relative;
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
+	gap: var(--space-3);
 	padding: 0.75rem 1rem;
 	cursor: pointer;
 	transition: background 0.15s;
@@ -213,19 +221,28 @@ h1 {
 }
 
 .card-checkbox {
-	width: 1.15rem;
-	height: 1.15rem;
+	width: var(--checkbox-size);
+	height: var(--checkbox-size);
 	flex-shrink: 0;
 	accent-color: var(--color-green-600);
 	cursor: pointer;
 }
 
 .card-content {
+	--checkbox-size: 1.15rem;
+	--checkbox-gap: var(--space-3);
+	--checkbox-indent: calc(var(--checkbox-size) + var(--checkbox-gap));
 	display: flex;
 	flex-direction: column;
 	gap: 0.15rem;
 	min-width: 0;
 	flex: 1;
+}
+
+.card-header {
+	display: flex;
+	align-items: center;
+	gap: var(--checkbox-gap);
 }
 
 .card-source {
@@ -236,6 +253,7 @@ h1 {
 .card-desc {
 	font-size: 0.85rem;
 	color: var(--color-gray-600);
+	padding-left: var(--checkbox-indent);
 }
 
 .examined-chip {
