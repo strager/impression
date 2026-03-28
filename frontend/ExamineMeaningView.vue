@@ -247,7 +247,7 @@ onMounted(() => {
 			/>
 			<p v-if="entry.submitted && (vm.manualReflectLoading.has(entry.questionId) || (vm.inferring && index === vm.entries.length - 1))" class="hint">Thinking about your answer...</p>
 			<!-- eslint-disable-next-line vue/no-restricted-html-elements -->
-			<button v-else-if="entry.submitted && index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Get feedback</button>
+			<button v-else-if="entry.submitted && index !== vm.editingEntryIndex" class="reflect-link-btn" @click="handleReflectOnEntry(entry.questionId, index)">Help me reflect</button>
 			<template v-if="index === vm.editingEntryIndex">
 				<div v-if="entry.autoFilledPending" class="autofill-actions">
 					<AppButton variant="primary" @click="handleEditAutoFill(entry, index)">Edit answer</AppButton>

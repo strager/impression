@@ -97,7 +97,7 @@ function onLoadFile(): void {
 			<ol class="checkmark-list">
 				<li><strong>Identify</strong> which sources of meaning feel right to you.</li>
 				<li><strong>Examine</strong> what each one means in your life.</li>
-				<li><strong>Refine</strong> your thinking with personalized feedback.</li>
+				<li><strong>Refine</strong> your thinking with personalized reflections.</li>
 			</ol>
 			<p>Finally. A clear, written account of what's meaningful to you.</p>
 			<p>Impression is opinionated and deliberate. It's not for everyone. But if you're willing to sit with the question, Impression will help you answer it.</p>
