@@ -46,10 +46,10 @@ onMounted(() => {
 							<div class="card-header">
 								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 								<span class="card-source">{{ card.source }}</span>
+								<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
-						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
 						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 							<p>This source of meaning has examination answers. Remove it?</p>
@@ -72,10 +72,10 @@ onMounted(() => {
 							<div class="card-header">
 								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 								<span class="card-source">{{ card.source }}</span>
+								<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
-						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
 						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 							<p>This source of meaning has examination answers. Remove it?</p>
@@ -99,10 +99,10 @@ onMounted(() => {
 							<div class="card-header">
 								<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 								<span class="card-source">{{ card.source }}</span>
+								<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 							</div>
 							<span class="card-desc">{{ card.description }}</span>
 						</div>
-						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
 						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 							<p>This source of meaning has examination answers. Remove it?</p>
@@ -124,10 +124,10 @@ onMounted(() => {
 					<div class="card-header">
 						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 						<span class="card-source">{{ card.source }}</span>
+						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 					</div>
 					<span class="card-desc">{{ card.description }}</span>
 				</div>
-				<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
 				<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
 					<p>This source of meaning has examination answers. Remove it?</p>
@@ -257,8 +257,8 @@ h1 {
 }
 
 .examined-chip {
+	margin-left: auto;
 	flex-shrink: 0;
-	margin-left: var(--space-3);
 }
 
 .confirm-overlay {
