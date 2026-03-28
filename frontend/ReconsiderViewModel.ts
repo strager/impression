@@ -1,13 +1,15 @@
 import { ref } from "vue";
 
+import type { MeaningCard, SwipeDirection } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { capture } from "./analytics.ts";
-import { loadChosenCardIds, loadExamineData, saveChosenCardIds } from "./store.ts";
+import { loadChosenCardIds, loadExamineData, loadSwipeProgress, saveChosenCardIds } from "./store.ts";
 
 export class ReconsiderViewModel {
 	private readonly profileId: string;
 	private readonly _chosenIds = ref<Set<string>>(new Set());
 	private readonly _examinedIds = ref<Set<string>>(new Set());
+	private readonly _swipeDirections = ref<Map<string, SwipeDirection>>(new Map());
 	private readonly _confirmingRemove = ref<string | null>(null);
 
 	constructor(profileId: string) {
@@ -30,6 +32,22 @@ export class ReconsiderViewModel {
 		return this._chosenIds.value.size;
 	}
 
+	get hasSwipeData(): boolean {
+		return this._swipeDirections.value.size > 0;
+	}
+
+	get agreedCards(): MeaningCard[] {
+		return MEANING_CARDS.filter((c) => this._swipeDirections.value.get(c.id) === "agree");
+	}
+
+	get unsureCards(): MeaningCard[] {
+		return MEANING_CARDS.filter((c) => this._swipeDirections.value.get(c.id) === "unsure");
+	}
+
+	get disagreedCards(): MeaningCard[] {
+		return MEANING_CARDS.filter((c) => this._swipeDirections.value.get(c.id) === "disagree");
+	}
+
 	initialize(): "ready" | "no-data" {
 		try {
 			const cardIds = loadChosenCardIds(this.profileId);
@@ -46,6 +64,13 @@ export class ReconsiderViewModel {
 					}
 				}
 			}
+			const swipeProgress = loadSwipeProgress(this.profileId);
+			if (swipeProgress !== null) {
+				for (const record of swipeProgress.swipeHistory) {
+					this._swipeDirections.value.set(record.cardId, record.direction);
+				}
+			}
+
 			capture("reconsider_visited", { session_id: this.profileId });
 			return "ready";
 		} catch {

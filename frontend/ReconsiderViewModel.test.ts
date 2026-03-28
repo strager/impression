@@ -7,7 +7,7 @@ import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ReconsiderViewModel } from "./ReconsiderViewModel.ts";
 import type { ExamineData } from "./store.ts";
-import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, saveChosenCardIds, saveExamineData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, saveChosenCardIds, saveExamineData, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -426,5 +426,84 @@ describe("confirmation flow", () => {
 		vm.cancelRemove();
 		expect(vm.confirmingRemove).toBeNull();
 		expect(vm.chosenIds.has(cardIds[0])).toBe(true);
+	});
+});
+
+function setupSwipeProgress(agree: string[], unsure: string[], disagree: string[]): void {
+	const allIds = [...agree, ...unsure, ...disagree];
+	const history = [...agree.map((cardId) => ({ cardId, direction: "agree" as const })), ...unsure.map((cardId) => ({ cardId, direction: "unsure" as const })), ...disagree.map((cardId) => ({ cardId, direction: "disagree" as const }))];
+	saveSwipeProgress(sid(), { shuffledCardIds: allIds, swipeHistory: history });
+}
+
+describe("hasSwipeData", () => {
+	it("is false when no swipe progress exists", () => {
+		setupChosenCards(3);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.hasSwipeData).toBe(false);
+	});
+
+	it("is true when swipe progress exists", () => {
+		const cardIds = setupChosenCards(3);
+		setupSwipeProgress(cardIds, [], []);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.hasSwipeData).toBe(true);
+	});
+});
+
+describe("card grouping", () => {
+	it("returns agreed cards in MEANING_CARDS order", () => {
+		const agree = [MEANING_CARDS[4].id, MEANING_CARDS[1].id];
+		const unsure = [MEANING_CARDS[2].id];
+		const disagree = [MEANING_CARDS[3].id];
+		setupChosenCards(5);
+		setupSwipeProgress(agree, unsure, disagree);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.agreedCards.map((c) => c.id)).toEqual([MEANING_CARDS[1].id, MEANING_CARDS[4].id]);
+	});
+
+	it("returns unsure cards in MEANING_CARDS order", () => {
+		const agree = [MEANING_CARDS[0].id];
+		const unsure = [MEANING_CARDS[5].id, MEANING_CARDS[2].id];
+		const disagree = [MEANING_CARDS[3].id];
+		setupChosenCards(5);
+		setupSwipeProgress(agree, unsure, disagree);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.unsureCards.map((c) => c.id)).toEqual([MEANING_CARDS[2].id, MEANING_CARDS[5].id]);
+	});
+
+	it("returns disagreed cards in MEANING_CARDS order", () => {
+		const agree = [MEANING_CARDS[0].id];
+		const unsure = [MEANING_CARDS[1].id];
+		const disagree = [MEANING_CARDS[6].id, MEANING_CARDS[3].id];
+		setupChosenCards(5);
+		setupSwipeProgress(agree, unsure, disagree);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.disagreedCards.map((c) => c.id)).toEqual([MEANING_CARDS[3].id, MEANING_CARDS[6].id]);
+	});
+
+	it("returns empty arrays when no swipe data exists", () => {
+		setupChosenCards(3);
+
+		const vm = new ReconsiderViewModel(sid());
+		vm.initialize();
+
+		expect(vm.agreedCards).toEqual([]);
+		expect(vm.unsureCards).toEqual([]);
+		expect(vm.disagreedCards).toEqual([]);
 	});
 });

@@ -37,7 +37,82 @@ onMounted(() => {
 			<p class="count">{{ vm.selectedCount }} source{{ vm.selectedCount === 1 ? "" : "s" }} of meaning selected</p>
 		</header>
 
-		<div class="card-list">
+		<template v-if="vm.hasSwipeData">
+			<div v-if="vm.agreedCards.length > 0" class="card-group">
+				<h3>Agreed</h3>
+				<div class="card-list">
+					<label v-for="card in vm.agreedCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
+						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+						<div class="card-content">
+							<span class="card-source">{{ card.source }}</span>
+							<span class="card-desc">{{ card.description }}</span>
+						</div>
+						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
+
+						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
+							<p>This source of meaning has examination answers. Remove it?</p>
+							<!-- eslint-disable vue/no-restricted-html-elements -->
+							<div class="confirm-actions">
+								<button class="confirm-remove" @click="vm.removeCard(card.id, true)">Remove</button>
+								<button class="btn-secondary confirm-cancel" @click="vm.cancelRemove()">Cancel</button>
+							</div>
+							<!-- eslint-enable vue/no-restricted-html-elements -->
+						</div>
+					</label>
+				</div>
+			</div>
+
+			<div v-if="vm.unsureCards.length > 0" class="card-group">
+				<h3>Unsure</h3>
+				<div class="card-list">
+					<label v-for="card in vm.unsureCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
+						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+						<div class="card-content">
+							<span class="card-source">{{ card.source }}</span>
+							<span class="card-desc">{{ card.description }}</span>
+						</div>
+						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
+
+						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
+							<p>This source of meaning has examination answers. Remove it?</p>
+							<!-- eslint-disable vue/no-restricted-html-elements -->
+							<div class="confirm-actions">
+								<button class="confirm-remove" @click="vm.removeCard(card.id, true)">Remove</button>
+								<button class="btn-secondary confirm-cancel" @click="vm.cancelRemove()">Cancel</button>
+							</div>
+							<!-- eslint-enable vue/no-restricted-html-elements -->
+						</div>
+					</label>
+				</div>
+			</div>
+
+			<h3 v-if="vm.disagreedCards.length > 0">Disagreed</h3>
+			<details v-if="vm.disagreedCards.length > 0" class="card-group">
+				<summary class="expand-link">Show {{ vm.disagreedCards.length }} more</summary>
+				<div class="card-list">
+					<label v-for="card in vm.disagreedCards" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
+						<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
+						<div class="card-content">
+							<span class="card-source">{{ card.source }}</span>
+							<span class="card-desc">{{ card.description }}</span>
+						</div>
+						<span v-if="vm.isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
+
+						<div v-if="vm.confirmingRemove === card.id" class="confirm-overlay" @click.stop>
+							<p>This source of meaning has examination answers. Remove it?</p>
+							<!-- eslint-disable vue/no-restricted-html-elements -->
+							<div class="confirm-actions">
+								<button class="confirm-remove" @click="vm.removeCard(card.id, true)">Remove</button>
+								<button class="btn-secondary confirm-cancel" @click="vm.cancelRemove()">Cancel</button>
+							</div>
+							<!-- eslint-enable vue/no-restricted-html-elements -->
+						</div>
+					</label>
+				</div>
+			</details>
+		</template>
+
+		<div v-else class="card-list">
 			<label v-for="card in MEANING_CARDS" :key="card.id" :class="['card-row', { selected: vm.chosenIds.has(card.id), unselected: !vm.chosenIds.has(card.id) }]">
 				<input type="checkbox" :checked="vm.chosenIds.has(card.id)" class="card-checkbox" @change="vm.toggleCard(card.id)" />
 				<div class="card-content">
@@ -82,6 +157,28 @@ h1 {
 	font-size: 0.95rem;
 	color: var(--color-gray-400);
 	margin: 0;
+}
+
+.card-group {
+	margin-bottom: var(--space-6);
+}
+
+.expand-link {
+	list-style: none;
+	color: var(--color-green-600);
+	font-size: var(--text-sm);
+	cursor: pointer;
+	padding: var(--space-2) 0;
+	text-decoration: underline;
+}
+
+.expand-link::-webkit-details-marker {
+	display: none;
+}
+
+.has-hover .expand-link:hover,
+.expand-link:active {
+	color: var(--color-green-700);
 }
 
 .card-list {
