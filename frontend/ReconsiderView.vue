@@ -212,6 +212,9 @@ h1 {
 
 .card-row.unselected {
 	background: var(--color-white);
+}
+
+.card-row.unselected:not(:has(.confirm-overlay)) {
 	opacity: 0.7;
 }
 
