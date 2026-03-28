@@ -3,18 +3,18 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
-import ReportContent from "./ReportContent.vue";
+import ProfileContent from "./ProfileContent.vue";
 import { budgetedFetch } from "./api.ts";
 import { capture } from "./analytics.ts";
 import { useStringParam } from "./route-utils.ts";
 import { exportProfileData, loadPaperSize, savePaperSize } from "./store.ts";
 import type { PaperSize } from "./store.ts";
-import { ReportViewModel } from "./ReportViewModel.ts";
-import reportPageCss from "./report-page.css?inline";
+import { ProfileViewModel } from "./ProfileViewModel.ts";
+import profilePageCss from "./profile-page.css?inline";
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
-const vm = new ReportViewModel(profileId);
+const vm = new ProfileViewModel(profileId);
 
 const paperSize = ref<PaperSize>(loadPaperSize());
 const downloading = ref(false);
@@ -87,7 +87,7 @@ function scheduleDailyLimitClear(retryAfterSeconds: number): void {
 	}, retryAfterMs);
 }
 
-async function downloadReport(endpoint: string, filename: string): Promise<void> {
+async function downloadProfile(endpoint: string, filename: string): Promise<void> {
 	clearDailyLimitStateIfExpired();
 	downloading.value = true;
 	downloadError.value = "";
@@ -126,7 +126,7 @@ async function downloadReport(endpoint: string, filename: string): Promise<void>
 				return;
 			}
 			clearDailyLimitState(false);
-			throw new Error(`Report generation failed (${response.status.toString()})`);
+			throw new Error(`Profile generation failed (${response.status.toString()})`);
 		}
 		clearDailyLimitState(false);
 
@@ -155,11 +155,11 @@ function onPaperSizeChange(event: Event): void {
 async function downloadPdf(): Promise<void> {
 	capture("pdf_download_initiated", { session_id: profileId });
 	const params = new URLSearchParams({ paperSize: paperSize.value });
-	await downloadReport(`/api/report-pdf?${params.toString()}`, "impression-report.pdf");
+	await downloadProfile(`/api/profile-pdf?${params.toString()}`, "impression-profile.pdf");
 }
 
 async function downloadHtml(): Promise<void> {
-	await downloadReport("/api/report-html", "impression-report.html");
+	await downloadProfile("/api/profile-html", "impression-profile.html");
 }
 
 onMounted(() => {
@@ -176,9 +176,9 @@ onBeforeUnmount(() => {
 
 <template>
 	<Teleport to="head">
-		<component :is="'style'">{{ reportPageCss }}</component>
+		<component :is="'style'">{{ profilePageCss }}</component>
 	</Teleport>
-	<ReportContent :reports="vm.reports">
+	<ProfileContent :cards="vm.cards">
 		<template #header-actions>
 			<div class="download-controls">
 				<div class="paper-size-group">
@@ -199,10 +199,10 @@ onBeforeUnmount(() => {
 			<p v-else-if="!dailyLimitReached && pdfDownloadsRemaining !== null" class="download-limit-note">{{ pdfDownloadsRemaining.toString() }} of 3 PDF downloads remaining today.</p>
 			<p v-else-if="!dailyLimitReached" class="download-limit-note">PDF downloads are limited to 3 per day.</p>
 		</template>
-		<template #card-synthesis-error="{ report }">
-			<a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis(report.card.id)" @keydown.enter="vm.retrySynthesis(report.card.id)">Retry</a>
+		<template #card-synthesis-error="{ card }">
+			<a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis(card.card.id)" @keydown.enter="vm.retrySynthesis(card.card.id)">Retry</a>
 		</template>
-	</ReportContent>
+	</ProfileContent>
 </template>
 
 <style scoped>

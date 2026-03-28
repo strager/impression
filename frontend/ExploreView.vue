@@ -25,7 +25,7 @@ const instructionText = computed(() => {
 		return "Tap a source of meaning below to begin exploring what it means to you.";
 	}
 	if (vm.totalAnswered >= vm.totalQuestions) {
-		return "You've explored all your sources of meaning! Review your reflections or download your report.";
+		return "You've explored all your sources of meaning! Review your reflections or download your profile.";
 	}
 	return `You've answered ${String(vm.totalAnswered)} of ${String(vm.totalQuestions)} questions across your sources of meaning. Tap one to continue.`;
 });
@@ -47,9 +47,9 @@ function handleEditSelection(): void {
 	void router.push({ name: "findMeaningManual", params: { profileId } });
 }
 
-function handleOpenReport(source: string): void {
-	vm.onOpenReport(source);
-	void router.push({ name: "report", params: { profileId } });
+function handleOpenProfile(source: string): void {
+	vm.onOpenProfile(source);
+	void router.push({ name: "profile", params: { profileId } });
 }
 </script>
 
@@ -70,7 +70,7 @@ function handleOpenReport(source: string): void {
 		</div>
 
 		<div class="top-actions">
-			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenReport('explore_overview_primary')">Download report</AppButton>
+			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenProfile('explore_overview_primary')">Download profile</AppButton>
 			<AppButton variant="secondary" @click="handleEditSelection">Edit selection</AppButton>
 		</div>
 
@@ -103,7 +103,7 @@ function handleOpenReport(source: string): void {
 			</div>
 		</div>
 
-		<AppButton :variant="vm.allComplete ? 'primary' : 'secondary'" class="report-btn" @click="handleOpenReport('explore_overview_secondary')">Download report</AppButton>
+		<AppButton :variant="vm.allComplete ? 'primary' : 'secondary'" class="profile-btn" @click="handleOpenProfile('explore_overview_secondary')">Download profile</AppButton>
 	</main>
 </template>
 
@@ -199,7 +199,7 @@ h1 {
 	margin-bottom: var(--space-6);
 }
 
-.report-btn {
+.profile-btn {
 	margin-bottom: var(--space-4);
 }
 </style>

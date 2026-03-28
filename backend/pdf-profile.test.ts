@@ -2,10 +2,10 @@ import { http, HttpResponse, passthrough } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { assembleReportData, callDocRaptor } from "./pdf-report.ts";
+import { assembleProfileData, callDocRaptor } from "./pdf-profile.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 
-// --- assembleReportData ---
+// --- assembleProfileData ---
 
 function makeProfileExport(data: Record<string, unknown>): string {
 	return JSON.stringify({
@@ -14,8 +14,8 @@ function makeProfileExport(data: Record<string, unknown>): string {
 	});
 }
 
-describe("assembleReportData", () => {
-	it("builds reports from a valid profile export", () => {
+describe("assembleProfileData", () => {
+	it("builds cards from a valid profile export", () => {
 		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
@@ -29,17 +29,17 @@ describe("assembleReportData", () => {
 			},
 		});
 
-		const reports = assembleReportData(json);
+		const cards = assembleProfileData(json);
 
-		expect(reports).toHaveLength(1);
-		expect(reports[0].card.id).toBe("self-knowledge");
-		expect(reports[0].card.source).toBe("Self-knowledge");
-		expect(reports[0].freeformNote).toBe("My personal notes");
+		expect(cards).toHaveLength(1);
+		expect(cards[0].card.id).toBe("self-knowledge");
+		expect(cards[0].card.source).toBe("Self-knowledge");
+		expect(cards[0].freeformNote).toBe("My personal notes");
 
-		const interpretationQ = reports[0].questions.find((q) => q.topic === "Interpretation");
+		const interpretationQ = cards[0].questions.find((q) => q.topic === "Interpretation");
 		expect(interpretationQ?.answer).toBe("Understanding myself");
 
-		expect(reports[0].questions).toHaveLength(EXPLORE_QUESTIONS.length);
+		expect(cards[0].questions).toHaveLength(EXPLORE_QUESTIONS.length);
 	});
 
 	it("skips unknown card IDs", () => {
@@ -47,9 +47,9 @@ describe("assembleReportData", () => {
 			chosen: ["self-knowledge", "nonexistent-card"],
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports).toHaveLength(1);
-		expect(reports[0].card.id).toBe("self-knowledge");
+		const cards = assembleProfileData(json);
+		expect(cards).toHaveLength(1);
+		expect(cards[0].card.id).toBe("self-knowledge");
 	});
 
 	it("handles missing explore/summaries/freeform gracefully", () => {
@@ -57,31 +57,31 @@ describe("assembleReportData", () => {
 			chosen: ["self-knowledge"],
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports).toHaveLength(1);
-		expect(reports[0].freeformNote).toBe("");
-		for (const q of reports[0].questions) {
+		const cards = assembleProfileData(json);
+		expect(cards).toHaveLength(1);
+		expect(cards[0].freeformNote).toBe("");
+		for (const q of cards[0].questions) {
 			expect(q.answer).toBe("");
 		}
 	});
 
 	it("throws on invalid JSON", () => {
-		expect(() => assembleReportData("not json")).toThrow();
+		expect(() => assembleProfileData("not json")).toThrow();
 	});
 
 	it("throws on wrong version", () => {
-		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v1", sessions: [] }))).toThrow("Invalid profile export format.");
+		expect(() => assembleProfileData(JSON.stringify({ version: "somecam-v1", sessions: [] }))).toThrow("Invalid profile export format.");
 	});
 
 	it("throws on empty sessions array", () => {
-		expect(() => assembleReportData(JSON.stringify({ version: "somecam-v2", sessions: [] }))).toThrow("Invalid profile export format.");
+		expect(() => assembleProfileData(JSON.stringify({ version: "somecam-v2", sessions: [] }))).toThrow("Invalid profile export format.");
 	});
 
 	it("throws when chosen is missing", () => {
-		expect(() => assembleReportData(makeProfileExport({}))).toThrow("Profile has no chosen cards.");
+		expect(() => assembleProfileData(makeProfileExport({}))).toThrow("Profile has no chosen cards.");
 	});
 
-	it("includes selected descriptions in report", () => {
+	it("includes selected descriptions in profile", () => {
 		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 			explore: {
@@ -92,8 +92,8 @@ describe("assembleReportData", () => {
 			},
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports[0].selectedDescriptions).toEqual(["To understand myself and my behaviour is important for me", "Viewing myself critically is important to me"]);
+		const cards = assembleProfileData(json);
+		expect(cards[0].selectedDescriptions).toEqual(["To understand myself and my behaviour is important for me", "Viewing myself critically is important to me"]);
 	});
 
 	it("returns empty selectedDescriptions when descriptions data is missing", () => {
@@ -101,8 +101,8 @@ describe("assembleReportData", () => {
 			chosen: ["self-knowledge"],
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports[0].selectedDescriptions).toEqual([]);
+		const cards = assembleProfileData(json);
+		expect(cards[0].selectedDescriptions).toEqual([]);
 	});
 
 	it("includes synthesis when cached fingerprint matches", () => {
@@ -117,8 +117,8 @@ describe("assembleReportData", () => {
 			},
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports[0].synthesis).toBe("A beautiful synthesis");
+		const cards = assembleProfileData(json);
+		expect(cards[0].synthesis).toBe("A beautiful synthesis");
 	});
 
 	it("returns empty synthesis when fingerprint does not match", () => {
@@ -132,8 +132,8 @@ describe("assembleReportData", () => {
 			},
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports[0].synthesis).toBe("");
+		const cards = assembleProfileData(json);
+		expect(cards[0].synthesis).toBe("");
 	});
 
 	it("returns empty synthesis when no synthesis cache entry exists", () => {
@@ -141,8 +141,8 @@ describe("assembleReportData", () => {
 			chosen: ["self-knowledge"],
 		});
 
-		const reports = assembleReportData(json);
-		expect(reports[0].synthesis).toBe("");
+		const cards = assembleProfileData(json);
+		expect(cards[0].synthesis).toBe("");
 	});
 });
 

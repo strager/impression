@@ -6,10 +6,10 @@
 import { createSSRApp } from "vue";
 import { renderToString } from "vue/server-renderer";
 
-import ReportContent from "./ReportContent.vue";
-import type { CardReport } from "../shared/report-types.ts";
+import ProfileContent from "./ProfileContent.vue";
+import type { CardProfile } from "../shared/profile-types.ts";
 import globalCss from "./global.css?inline";
-import reportPageCss from "./report-page.css?inline";
+import profilePageCss from "./profile-page.css?inline";
 
 function pagedMediaCss(paperSize: string): string {
 	const size = paperSize === "letter" ? "letter" : "A4";
@@ -21,15 +21,15 @@ function pagedMediaCss(paperSize: string): string {
 `;
 }
 
-export async function renderPdfHtml(fontCss: string, componentCss: string, reports: CardReport[], paperSize: string): Promise<string> {
-	const app = createSSRApp(ReportContent, { reports });
+export async function renderPdfHtml(fontCss: string, componentCss: string, cards: CardProfile[], paperSize: string): Promise<string> {
+	const app = createSSRApp(ProfileContent, { cards });
 	const html = await renderToString(app);
 
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Impression Report</title>
+<title>Impression Profile</title>
 <style>
 ${globalCss}
 </style>
@@ -43,7 +43,7 @@ ${componentCss}
 ${pagedMediaCss(paperSize)}
 </style>
 <style>
-${reportPageCss}
+${profilePageCss}
 </style>
 </head>
 <body>

@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { ReportViewModel } from "./ReportViewModel.ts";
+import { ProfileViewModel } from "./ProfileViewModel.ts";
 import type { ExploreData } from "./store.ts";
 import { ensureProfilesInitialized, getActiveProfileId, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
 
@@ -95,7 +95,7 @@ function setupDefaultSynthesizeHandler(): void {
 
 describe("initialize", () => {
 	it("returns 'no-data' when no chosen cards", () => {
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -106,21 +106,21 @@ describe("initialize", () => {
 		const fingerprint = EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
-		expect(vm.reports).toHaveLength(1);
-		expect(vm.reports[0].card.id).toBe(TEST_CARD_ID);
-		expect(vm.reports[0].synthesis).toBe("Cached synthesis");
+		expect(vm.cards).toHaveLength(1);
+		expect(vm.cards[0].card.id).toBe(TEST_CARD_ID);
+		expect(vm.cards[0].synthesis).toBe("Cached synthesis");
 		expect(vm.loading).toBe(false);
 	});
 
-	it("returns 'ready' with empty reports when no explore data", () => {
+	it("returns 'ready' with empty cards when no explore data", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
-		expect(vm.reports).toHaveLength(1);
-		expect(vm.reports[0].synthesis).toBe("");
+		expect(vm.cards).toHaveLength(1);
+		expect(vm.cards[0].synthesis).toBe("");
 	});
 });
 
@@ -130,12 +130,12 @@ describe("synthesis loading", () => {
 		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.reports).toHaveLength(1);
-		expect(vm.reports[0].synthesis).toBe("A test synthesis");
+		expect(vm.cards).toHaveLength(1);
+		expect(vm.cards[0].synthesis).toBe("A test synthesis");
 		expect(vm.loading).toBe(false);
 	});
 
@@ -147,11 +147,11 @@ describe("synthesis loading", () => {
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		// No MSW handler — any fetch would fail
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.reports[0].synthesis).toBe("Cached synthesis");
+		expect(vm.cards[0].synthesis).toBe("Cached synthesis");
 	});
 
 	it("handles fetch failure gracefully with empty synthesis and error flag", async () => {
@@ -163,12 +163,12 @@ describe("synthesis loading", () => {
 			}),
 		);
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.reports[0].synthesis).toBe("");
-		expect(vm.reports[0].synthesisError).toBe(true);
+		expect(vm.cards[0].synthesis).toBe("");
+		expect(vm.cards[0].synthesisError).toBe(true);
 		expect(vm.loading).toBe(false);
 	});
 
@@ -179,11 +179,11 @@ describe("synthesis loading", () => {
 		const fingerprint = [...EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.reports[0].synthesis).toBe("Synthesis with notes");
+		expect(vm.cards[0].synthesis).toBe("Synthesis with notes");
 	});
 
 	it("retrySynthesis retries and populates synthesis after failure", async () => {
@@ -195,11 +195,11 @@ describe("synthesis loading", () => {
 			}),
 		);
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
-		expect(vm.reports[0].synthesisError).toBe(true);
+		expect(vm.cards[0].synthesisError).toBe(true);
 
 		// Swap to a working handler and retry
 		server.use(
@@ -210,11 +210,11 @@ describe("synthesis loading", () => {
 
 		await vm.retrySynthesis(TEST_CARD_ID);
 
-		expect(vm.reports[0].synthesis).toBe("Retried synthesis");
-		expect(vm.reports[0].synthesisError).toBe(false);
+		expect(vm.cards[0].synthesis).toBe("Retried synthesis");
+		expect(vm.cards[0].synthesisError).toBe(false);
 	});
 
-	it("batches all synthesis fetches before populating reports", async () => {
+	it("batches all synthesis fetches before populating cards", async () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveChosenCardIds(sid(), cardIds);
 		saveExploreData(sid(), makeFullExploreData(cardIds));
@@ -251,15 +251,15 @@ describe("synthesis loading", () => {
 			}),
 		);
 
-		const vm = new ReportViewModel(sid());
+		const vm = new ProfileViewModel(sid());
 		vm.initialize();
 
-		// Reports are populated immediately with local data, syntheses loading
-		expect(vm.reports).toHaveLength(2);
-		expect(vm.reports[0].synthesisLoading).toBe(true);
-		expect(vm.reports[1].synthesisLoading).toBe(true);
-		expect(vm.reports[0].synthesis).toBe("");
-		expect(vm.reports[1].synthesis).toBe("");
+		// Cards are populated immediately with local data, syntheses loading
+		expect(vm.cards).toHaveLength(2);
+		expect(vm.cards[0].synthesisLoading).toBe(true);
+		expect(vm.cards[1].synthesisLoading).toBe(true);
+		expect(vm.cards[0].synthesis).toBe("");
+		expect(vm.cards[1].synthesis).toBe("");
 		expect(vm.loading).toBe(true);
 
 		await firstHandlerCalled;
@@ -267,14 +267,14 @@ describe("synthesis loading", () => {
 		// Wait a tick — still waiting for second
 		await secondHandlerCalled;
 		// Syntheses still not populated (batched)
-		expect(vm.reports[0].synthesis).toBe("");
+		expect(vm.cards[0].synthesis).toBe("");
 
 		resolveSecond();
 		await vm.whenReady;
 
-		expect(vm.reports).toHaveLength(2);
-		expect(vm.reports[0].synthesisLoading).toBeFalsy();
-		expect(vm.reports[1].synthesisLoading).toBeFalsy();
+		expect(vm.cards).toHaveLength(2);
+		expect(vm.cards[0].synthesisLoading).toBeFalsy();
+		expect(vm.cards[1].synthesisLoading).toBeFalsy();
 		expect(vm.loading).toBe(false);
 	});
 });

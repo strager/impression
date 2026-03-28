@@ -1,19 +1,19 @@
-<!-- Props-only report component used both by ReportView.vue (browser) and
+<!-- Props-only profile component used both by ProfileView.vue (browser) and
      pdf-entry.ts (server-side rendering for PDF generation). Contains no
      router, localStorage, or analytics dependencies. -->
 
 <script setup lang="ts">
-import type { CardReport } from "../shared/report-types.ts";
+import type { CardProfile } from "../shared/profile-types.ts";
 
 defineProps<{
-	reports: CardReport[];
+	cards: CardProfile[];
 }>();
 </script>
 
 <template>
 	<main>
 		<header>
-			<h1>Impression report</h1>
+			<h1>Impression profile</h1>
 			<h2>Your sources of meaning</h2>
 			<p class="intro">Impression is a tool for mapping and exploring your personal sources of meaning. Based on the Sources of Meaning Card Method (SoMeCaM) and its 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
 			<p class="citation">Based on: la Cour, P. &amp; Schnell, T. (2020). Presentation of the Sources of Meaning Card Method: The SoMeCaM. <cite>Journal of Humanistic Psychology, 60</cite>(1), 20–42. <a href="https://doi.org/10.1177/0022167816669620" target="_blank" rel="noopener">doi:10.1177/0022167816669620</a></p>
@@ -22,37 +22,37 @@ defineProps<{
 
 		<section class="summary-section">
 			<h2>What is meaningful to me?</h2>
-			<div v-for="report in reports" :key="report.card.id" class="report-card">
-				<h4 style="--chip-parent-cap: 1cap">{{ report.card.source }} <span class="chip chip-ai">AI-generated</span></h4>
-				<template v-if="report.synthesis">
-					<p v-for="(paragraph, i) in report.synthesis.split('\n\n')" :key="i" class="synthesis-paragraph">{{ paragraph }}</p>
+			<div v-for="card in cards" :key="card.card.id" class="profile-card">
+				<h4 style="--chip-parent-cap: 1cap">{{ card.card.source }} <span class="chip chip-ai">AI-generated</span></h4>
+				<template v-if="card.synthesis">
+					<p v-for="(paragraph, i) in card.synthesis.split('\n\n')" :key="i" class="synthesis-paragraph">{{ paragraph }}</p>
 				</template>
-				<template v-else-if="report.synthesisError">
+				<template v-else-if="card.synthesisError">
 					<div class="alert alert-error">Could not load summary.</div>
-					<slot name="card-synthesis-error" :report="report" />
+					<slot name="card-synthesis-error" :card="card" />
 				</template>
-				<p v-else-if="report.synthesisLoading" class="summary-loading">Generating summary...</p>
+				<p v-else-if="card.synthesisLoading" class="summary-loading">Generating summary...</p>
 				<p v-else class="qa-unanswered">No self reflections</p>
 			</div>
 		</section>
 
 		<section class="detail-section">
 			<h2>Self reflections</h2>
-			<div v-for="report in reports" :key="report.card.id" class="report-card">
-				<h3>{{ report.card.source }}</h3>
-				<div v-if="report.freeformNote" class="qa-block">
-					<p class="qa-freeform-answer">{{ report.freeformNote }}</p>
+			<div v-for="card in cards" :key="card.card.id" class="profile-card">
+				<h3>{{ card.card.source }}</h3>
+				<div v-if="card.freeformNote" class="qa-block">
+					<p class="qa-freeform-answer">{{ card.freeformNote }}</p>
 				</div>
 				<div class="qa-block">
 					<h4 class="qa-topic">Descriptions that feel right</h4>
-					<ul v-if="report.selectedDescriptions.length > 0">
-						<li v-for="s in report.selectedDescriptions" :key="s">{{ s }}</li>
+					<ul v-if="card.selectedDescriptions.length > 0">
+						<li v-for="s in card.selectedDescriptions" :key="s">{{ s }}</li>
 					</ul>
 					<ul v-else>
-						<li>{{ report.card.description }}</li>
+						<li>{{ card.card.description }}</li>
 					</ul>
 				</div>
-				<div v-for="q in report.questions" :key="q.topic" class="qa-block">
+				<div v-for="q in card.questions" :key="q.topic" class="qa-block">
 					<h4 class="qa-topic">{{ q.question }}</h4>
 					<p v-if="q.answer" class="qa-answer">{{ q.answer }}</p>
 					<p v-else class="qa-unanswered">Not yet answered.</p>
@@ -149,14 +149,14 @@ h4 {
 	color: #737373;
 }
 
-.summary-section .report-card {
+.summary-section .profile-card {
 	margin-top: 32px;
 }
-.detail-section .report-card {
+.detail-section .profile-card {
 	margin-top: 64px;
 }
-.summary-section h2 + .report-card,
-.detail-section h2 + .report-card {
+.summary-section h2 + .profile-card,
+.detail-section h2 + .profile-card {
 	margin-top: 0;
 }
 </style>

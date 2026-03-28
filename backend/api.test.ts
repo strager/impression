@@ -132,7 +132,7 @@ describe("API", () => {
 		app.locals.vite = {
 			ssrLoadModule: (): Promise<unknown> =>
 				Promise.resolve({
-					renderPdfHtml: (): Promise<string> => Promise.resolve("<html><body>Report</body></html>"),
+					renderPdfHtml: (): Promise<string> => Promise.resolve("<html><body>Profile</body></html>"),
 				}),
 			moduleGraph: {
 				getModuleByUrl: (): Promise<undefined> => Promise.resolve(undefined),
@@ -322,9 +322,9 @@ describe("API", () => {
 		);
 	});
 
-	it("returns 500 for POST /api/report-pdf when DOCRAPTOR_API_KEY is not set", async () => {
+	it("returns 500 for POST /api/profile-pdf when DOCRAPTOR_API_KEY is not set", async () => {
 		const token = await obtainSessionToken(baseUrl);
-		const response = await fetch(`${baseUrl}/api/report-pdf`, {
+		const response = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: "some session data",
@@ -343,9 +343,9 @@ describe("API", () => {
 		);
 	});
 
-	it("returns 400 for POST /api/report-html with empty body", async () => {
+	it("returns 400 for POST /api/profile-html with empty body", async () => {
 		const token = await obtainSessionToken(baseUrl);
-		const response = await fetch(`${baseUrl}/api/report-html`, {
+		const response = await fetch(`${baseUrl}/api/profile-html`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: "",
@@ -354,9 +354,9 @@ describe("API", () => {
 		expect(response.headers.get("content-type")).toContain("application/problem+json");
 	});
 
-	it("returns 400 for POST /api/report-html with invalid profile data", async () => {
+	it("returns 400 for POST /api/profile-html with invalid profile data", async () => {
 		const token = await obtainSessionToken(baseUrl);
-		const response = await fetch(`${baseUrl}/api/report-html`, {
+		const response = await fetch(`${baseUrl}/api/profile-html`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: "not valid json",
@@ -368,12 +368,12 @@ describe("API", () => {
 		expect(JSON.stringify(body)).not.toContain("Unexpected");
 	});
 
-	it("returns 400 for POST /api/report-pdf with empty body", async () => {
+	it("returns 400 for POST /api/profile-pdf with empty body", async () => {
 		const token = await obtainSessionToken(baseUrl);
 		const savedKey = process.env.DOCRAPTOR_API_KEY;
 		process.env.DOCRAPTOR_API_KEY = "test-key";
 		try {
-			const response = await fetch(`${baseUrl}/api/report-pdf`, {
+			const response = await fetch(`${baseUrl}/api/profile-pdf`, {
 				method: "POST",
 				headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: "",
@@ -389,12 +389,12 @@ describe("API", () => {
 		}
 	});
 
-	it("returns 400 for POST /api/report-pdf with invalid profile data", async () => {
+	it("returns 400 for POST /api/profile-pdf with invalid profile data", async () => {
 		const token = await obtainSessionToken(baseUrl);
 		const savedKey = process.env.DOCRAPTOR_API_KEY;
 		process.env.DOCRAPTOR_API_KEY = "test-key";
 		try {
-			const response = await fetch(`${baseUrl}/api/report-pdf`, {
+			const response = await fetch(`${baseUrl}/api/profile-pdf`, {
 				method: "POST",
 				headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 				body: "not valid json",
@@ -867,8 +867,8 @@ describe("Rate limiting", () => {
 			}),
 		});
 
-		// Now trigger a challenge from a different endpoint perspective — go get a challenge from /api/report-pdf which costs 100
-		const pdfResponse = await fetch(`${baseUrl}/api/report-pdf`, {
+		// Now trigger a challenge from a different endpoint perspective — go get a challenge from /api/profile-pdf which costs 100
+		const pdfResponse = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: "cap test",
@@ -882,7 +882,7 @@ describe("Rate limiting", () => {
 
 		// Now we should have min(95 + 100, 150) = 150 credits
 		// We should be able to do the PDF now (costs 100)
-		const pdfRetry = await fetch(`${baseUrl}/api/report-pdf`, {
+		const pdfRetry = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: "cap test",
@@ -1083,7 +1083,7 @@ describe("PDF daily limit", () => {
 		app.locals.vite = {
 			ssrLoadModule: (): Promise<unknown> =>
 				Promise.resolve({
-					renderPdfHtml: (): Promise<string> => Promise.resolve("<html><body>Report</body></html>"),
+					renderPdfHtml: (): Promise<string> => Promise.resolve("<html><body>Profile</body></html>"),
 				}),
 			moduleGraph: {
 				getModuleByUrl: (): Promise<undefined> => Promise.resolve(undefined),
@@ -1145,7 +1145,7 @@ describe("PDF daily limit", () => {
 	});
 
 	async function doPdfDownloadAndRefresh(token: string, sessionExport = validSessionExport): Promise<{ response: Response; token: string }> {
-		const response = await fetch(`${baseUrl}/api/report-pdf`, {
+		const response = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${token}`, Origin: TEST_ORIGIN },
 			body: sessionExport,
@@ -1159,7 +1159,7 @@ describe("PDF daily limit", () => {
 			if (isChallengeResponse(body)) {
 				// Budget exhausted — solve challenge and retry
 				const refreshedToken = await solveAndVerify(baseUrl, body, token);
-				const retryResponse = await fetch(`${baseUrl}/api/report-pdf`, {
+				const retryResponse = await fetch(`${baseUrl}/api/profile-pdf`, {
 					method: "POST",
 					headers: { "Content-Type": "text/plain", Authorization: `Bearer ${refreshedToken}`, Origin: TEST_ORIGIN },
 					body: sessionExport,
@@ -1181,7 +1181,7 @@ describe("PDF daily limit", () => {
 			currentToken = result.token;
 		}
 
-		const limitedResponse = await fetch(`${baseUrl}/api/report-pdf`, {
+		const limitedResponse = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: validSessionExport,
@@ -1217,7 +1217,7 @@ describe("PDF daily limit", () => {
 		const token = await obtainSessionToken(baseUrl);
 		let currentToken = token;
 
-		const failedAttempt = await fetch(`${baseUrl}/api/report-pdf`, {
+		const failedAttempt = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: "not valid json",
@@ -1231,7 +1231,7 @@ describe("PDF daily limit", () => {
 			currentToken = result.token;
 		}
 
-		const limitedResponse = await fetch(`${baseUrl}/api/report-pdf`, {
+		const limitedResponse = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: validSessionExport,
@@ -1252,7 +1252,7 @@ describe("PDF daily limit", () => {
 			}),
 		);
 
-		const failedAttempt = await fetch(`${baseUrl}/api/report-pdf`, {
+		const failedAttempt = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: validSessionExport,
@@ -1278,7 +1278,7 @@ describe("PDF daily limit", () => {
 			currentToken = result.token;
 		}
 
-		const limitedResponse = await fetch(`${baseUrl}/api/report-pdf`, {
+		const limitedResponse = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: validSessionExport,
@@ -1300,7 +1300,7 @@ describe("PDF daily limit", () => {
 		}
 
 		// Now try with empty budget — should get daily_limit_exceeded, not challenge_required.
-		const response = await fetch(`${baseUrl}/api/report-pdf`, {
+		const response = await fetch(`${baseUrl}/api/profile-pdf`, {
 			method: "POST",
 			headers: { "Content-Type": "text/plain", Authorization: `Bearer ${currentToken}`, Origin: TEST_ORIGIN },
 			body: validSessionExport,

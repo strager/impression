@@ -4,7 +4,7 @@ This document defines Impression's anonymous session system using proof-of-work 
 
 The same mechanism applies to:
 
-- `POST /api/report-pdf`
+- `POST /api/profile-pdf`
 - `POST /api/summarize`
 - `POST /api/reflect-on-answer`
 - `POST /api/infer-answers`
@@ -67,7 +67,7 @@ The same mechanism applies to:
 
 ### Business endpoints
 
-- `POST /api/report-pdf`
+- `POST /api/profile-pdf`
 - `POST /api/summarize`
 - `POST /api/reflect-on-answer`
 - `POST /api/infer-answers`
@@ -139,7 +139,7 @@ Challenge scope:
   - bootstrap credits when creating a session
   - refresh credits when topping up an existing session
 
-## Report page behavior
+## Profile page behavior
 
 1. Show informational text: "PDF downloads are limited to 3 per day." After a download, show "N of 3 PDF downloads remaining today."
 2. User clicks download.
@@ -155,7 +155,7 @@ PDF downloads are limited to 3 per rolling 24-hour window per session.
 - **Storage:** `pdf_downloads` table (separate from budget model).
 - **Check order:** Daily limit is checked **before** the budget check. This avoids wasting budget credits or forcing a PoW challenge when the limit is already hit.
 - **Counting rule:** The daily limit increments only after a successful PDF generation (`200`). Failed attempts (`400`/`500`/`502`) do not consume the daily download quota.
-- **Headers:** `X-Impression-PDF-Downloads-Remaining` is included on 200, 429 (daily limit), 500, and 502 responses from `/api/report-pdf`. `Retry-After` is included on `daily_limit_exceeded` 429 responses.
+- **Headers:** `X-Impression-PDF-Downloads-Remaining` is included on 200, 429 (daily limit), 500, and 502 responses from `/api/profile-pdf`. `Retry-After` is included on `daily_limit_exceeded` 429 responses.
 - **Circumvention:** Creating a new session resets the daily limit. This is acceptable — the limit prevents casual misuse, not denial-of-service attacks. PoW challenges still provide the DoS protection layer.
 
 ## SQLite schema (proposed)
@@ -230,7 +230,7 @@ Suggested machine-readable codes:
 - initial challenge: +100 credits, high challenge difficulty
 - refresh challenge: +100 credits, high challenge difficulty
 - session has upper limit of 150 credits
-- `/api/report-pdf`: -100 credits (max 3 downloads per rolling 24 hours)
+- `/api/profile-pdf`: -100 credits (max 3 downloads per rolling 24 hours)
 - `/api/summarize`, `/api/reflect-on-answer`, `/api/infer-answers`: -5 credits
 
 ## Risks and tradeoffs

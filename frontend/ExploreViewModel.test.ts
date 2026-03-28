@@ -468,14 +468,14 @@ describe("action methods", () => {
 		}).not.toThrow();
 	});
 
-	it("onOpenReport does not throw", () => {
+	it("onOpenProfile does not throw", () => {
 		const cardIds = setupChosenCards(1);
 		saveExploreData(sid(), makeExploreData(cardIds, 0));
 
 		const vm = new ExploreViewModel(sid());
 		vm.initialize();
 		expect(() => {
-			vm.onOpenReport("test_source");
+			vm.onOpenProfile("test_source");
 		}).not.toThrow();
 	});
 });

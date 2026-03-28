@@ -1,6 +1,6 @@
 import { ref } from "vue";
 
-import type { CardReport, QuestionReport } from "../shared/report-types.ts";
+import type { CardProfile, QuestionProfile } from "../shared/profile-types.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
@@ -12,10 +12,10 @@ const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
 const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
 
-export class ReportViewModel {
+export class ProfileViewModel {
 	private readonly profileId: string;
 
-	private readonly _reports = ref<CardReport[]>([]);
+	private readonly _cards = ref<CardProfile[]>([]);
 	private readonly _loading = ref(true);
 	private _loadingPromise: Promise<void> | null = null;
 
@@ -23,8 +23,8 @@ export class ReportViewModel {
 		this.profileId = profileId;
 	}
 
-	get reports(): CardReport[] {
-		return this._reports.value;
+	get cards(): CardProfile[] {
+		return this._cards.value;
 	}
 
 	get loading(): boolean {
@@ -36,8 +36,8 @@ export class ReportViewModel {
 	}
 
 	async retrySynthesis(cardId: string): Promise<void> {
-		const report = this._reports.value.find((r) => r.card.id === cardId);
-		if (report === undefined) return;
+		const entry = this._cards.value.find((r) => r.card.id === cardId);
+		if (entry === undefined) return;
 
 		const exploreData = loadExploreData(this.profileId) ?? {};
 		if (!(cardId in exploreData)) return;
@@ -56,8 +56,8 @@ export class ReportViewModel {
 		}
 		const fingerprint = fingerprintParts.join("\x00");
 
-		report.synthesisError = false;
-		this._reports.value = [...this._reports.value];
+		entry.synthesisError = false;
+		this._cards.value = [...this._cards.value];
 
 		try {
 			const result = await fetchSynthesis({
@@ -66,12 +66,12 @@ export class ReportViewModel {
 				...(selectedIds.length > 0 ? { selectedDescriptions: selectedIds } : {}),
 				...(freeformNote !== "" ? { freeformNote } : {}),
 			});
-			report.synthesis = result.synthesis;
+			entry.synthesis = result.synthesis;
 			saveCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, synthesis: result.synthesis });
 		} catch {
-			report.synthesisError = true;
+			entry.synthesisError = true;
 		}
-		this._reports.value = [...this._reports.value];
+		this._cards.value = [...this._cards.value];
 	}
 
 	initialize(): "ready" | "no-data" {
@@ -82,7 +82,7 @@ export class ReportViewModel {
 
 		const exploreData = loadExploreData(this.profileId) ?? {};
 
-		const reports: CardReport[] = [];
+		const cards: CardProfile[] = [];
 		const fetchTasks: Promise<void>[] = [];
 
 		for (const cardId of cardIds) {
@@ -92,7 +92,7 @@ export class ReportViewModel {
 			const hasCardData = cardId in exploreData;
 			const entries = hasCardData ? exploreData[cardId].entries : [];
 			const answersByQuestionId = new Map(entries.map((e) => [e.questionId, e.userAnswer]));
-			const questions: QuestionReport[] = [];
+			const questions: QuestionProfile[] = [];
 
 			for (const question of EXPLORE_QUESTIONS) {
 				const answer = answersByQuestionId.get(question.id) ?? "";
@@ -120,8 +120,8 @@ export class ReportViewModel {
 			const cachedSynthesis = lookupCachedSynthesis({ profileId: this.profileId, cardId, fingerprint });
 
 			const needsFetch = cachedSynthesis === null && answered.length > 0;
-			const report: CardReport = { card, questions, selectedDescriptions, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
-			reports.push(report);
+			const cardProfile: CardProfile = { card, questions, selectedDescriptions, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
+			cards.push(cardProfile);
 
 			// If no cached synthesis and there are answered questions, fetch from API
 			if (needsFetch) {
@@ -134,31 +134,31 @@ export class ReportViewModel {
 						...(freeformNote !== "" ? { freeformNote } : {}),
 					})
 						.then((result) => {
-							report.synthesis = result.synthesis;
+							cardProfile.synthesis = result.synthesis;
 							saveCachedSynthesis({ profileId: this.profileId, cardId, fingerprint, synthesis: result.synthesis });
 						})
 						.catch(() => {
-							report.synthesisError = true;
+							cardProfile.synthesisError = true;
 						}),
 				);
 			}
 		}
 
-		this._reports.value = reports;
+		this._cards.value = cards;
 
 		if (fetchTasks.length > 0) {
 			this._loadingPromise = Promise.allSettled(fetchTasks).then(() => {
-				for (const r of reports) {
+				for (const r of cards) {
 					r.synthesisLoading = false;
 				}
-				this._reports.value = [...reports];
+				this._cards.value = [...cards];
 				this._loading.value = false;
 			});
 		} else {
 			this._loading.value = false;
 		}
 
-		capture("report_viewed", { session_id: this.profileId });
+		capture("profile_viewed", { session_id: this.profileId });
 		return "ready";
 	}
 }

@@ -82,7 +82,7 @@ afterAll(() => {
 describe("budgetedFetch", () => {
 	it("returns response on 200", async () => {
 		server.use(
-			http.post("*/api/report-pdf", () => {
+			http.post("*/api/profile-pdf", () => {
 				return new HttpResponse("fake-pdf-content", {
 					status: 200,
 					headers: { "Content-Type": "application/pdf" },
@@ -90,7 +90,7 @@ describe("budgetedFetch", () => {
 			}),
 		);
 
-		const response = await budgetedFetch("/api/report-pdf", {
+		const response = await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "session data",
@@ -106,7 +106,7 @@ describe("budgetedFetch", () => {
 		const challengeBody = await makeChallenge();
 
 		server.use(
-			http.post("*/api/report-pdf", () => {
+			http.post("*/api/profile-pdf", () => {
 				callCount++;
 				if (callCount === 1) {
 					return HttpResponse.json(challengeBody, { status: 429 });
@@ -121,7 +121,7 @@ describe("budgetedFetch", () => {
 			}),
 		);
 
-		const response = await budgetedFetch("/api/report-pdf", {
+		const response = await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "session data",
@@ -135,12 +135,12 @@ describe("budgetedFetch", () => {
 
 	it("returns error response on non-429 failure", async () => {
 		server.use(
-			http.post("*/api/report-pdf", () => {
+			http.post("*/api/profile-pdf", () => {
 				return new HttpResponse("Internal Server Error", { status: 500 });
 			}),
 		);
 
-		const response = await budgetedFetch("/api/report-pdf", {
+		const response = await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "data",
@@ -153,7 +153,7 @@ describe("budgetedFetch", () => {
 		const challengeBody = await makeChallenge();
 
 		server.use(
-			http.post("*/api/report-pdf", () => {
+			http.post("*/api/profile-pdf", () => {
 				return HttpResponse.json(challengeBody, { status: 429 });
 			}),
 			http.post("*/api/session/verify", () => {
@@ -162,7 +162,7 @@ describe("budgetedFetch", () => {
 		);
 
 		await expect(
-			budgetedFetch("/api/report-pdf", {
+			budgetedFetch("/api/profile-pdf", {
 				method: "POST",
 				headers: { "Content-Type": "text/plain" },
 				body: "data",
@@ -174,14 +174,14 @@ describe("budgetedFetch", () => {
 		let capturedAuth: string | null = null;
 
 		server.use(
-			http.post("*/api/report-pdf", ({ request }) => {
+			http.post("*/api/profile-pdf", ({ request }) => {
 				capturedAuth = request.headers.get("Authorization");
 				return new HttpResponse("ok", { status: 200 });
 			}),
 		);
 
 		saveRateLimitToken("existing-token");
-		await budgetedFetch("/api/report-pdf", {
+		await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "data",
@@ -195,7 +195,7 @@ describe("budgetedFetch", () => {
 		const challengeBody = await makeChallenge();
 
 		server.use(
-			http.post("*/api/report-pdf", ({ request }) => {
+			http.post("*/api/profile-pdf", ({ request }) => {
 				callCount++;
 				if (callCount === 1) {
 					return HttpResponse.json(challengeBody, { status: 429 });
@@ -208,7 +208,7 @@ describe("budgetedFetch", () => {
 			}),
 		);
 
-		await budgetedFetch("/api/report-pdf", {
+		await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "data",
@@ -259,14 +259,14 @@ describe("budgetedFetch", () => {
 		let capturedBody: string | null = null;
 
 		server.use(
-			http.post("*/api/report-pdf", async ({ request }) => {
+			http.post("*/api/profile-pdf", async ({ request }) => {
 				capturedContentType = request.headers.get("Content-Type");
 				capturedBody = await request.text();
 				return new HttpResponse("ok", { status: 200 });
 			}),
 		);
 
-		await budgetedFetch("/api/report-pdf", {
+		await budgetedFetch("/api/profile-pdf", {
 			method: "POST",
 			headers: { "Content-Type": "text/plain" },
 			body: "my session data",

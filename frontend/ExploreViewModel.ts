@@ -99,8 +99,8 @@ export class ExploreViewModel {
 		capture("edit_selection_clicked", { session_id: this.profileId });
 	}
 
-	onOpenReport(source: string): void {
-		capture("report_opened", {
+	onOpenProfile(source: string): void {
+		capture("profile_opened", {
 			session_id: this.profileId,
 			source,
 		});

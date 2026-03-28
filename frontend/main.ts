@@ -12,7 +12,7 @@ import FindMeaningRankingView from "./FindMeaningRankingView.vue";
 import FindMeaningView from "./FindMeaningView.vue";
 import HomeView from "./HomeView.vue";
 import PrivacyView from "./PrivacyView.vue";
-import ReportView from "./ReportView.vue";
+import ProfileView from "./ProfileView.vue";
 
 const router = createRouter({
 	history: createWebHistory(),
@@ -49,9 +49,9 @@ const router = createRouter({
 			component: FindMeaningManualView,
 		},
 		{
-			path: "/:profileId/report",
-			name: "report",
-			component: ReportView,
+			path: "/:profileId/profile",
+			name: "profile",
+			component: ProfileView,
 		},
 		{
 			path: "/:profileId/explore/:meaningId",

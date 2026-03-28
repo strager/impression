@@ -157,7 +157,7 @@ Once all five questions have been answered, a free-form textarea labelled
 "Additional notes about this source of meaning" is displayed. This is not a
 structured question — there is no answer reflection. The user can type any extra
 thoughts they want to capture about the source of meaning. The note is saved to localStorage
-and included in the downloadable report above the five Q&A blocks.
+and included in the downloadable profile above the five Q&A blocks.
 
 The user can leave the field empty and click **Finish exploring** to return to
 the sources-of-meaning overview.
@@ -187,7 +187,7 @@ The page displays:
 The call-to-action varies based on progress:
 
 - If more sources remain: a **Keep exploring** button returns to the explore list.
-- If all sources are complete: **Print your report** is the primary action, with
+- If all sources are complete: **Print your profile** is the primary action, with
   **Back to explore list** as a secondary option.
 
 The page is purely presentational — no user input is collected. If accessed

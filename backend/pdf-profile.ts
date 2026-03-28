@@ -1,10 +1,10 @@
-// Loads the Vue SSR entry point (frontend/pdf-entry.ts) and renders report
+// Loads the Vue SSR entry point (frontend/pdf-entry.ts) and renders profile
 // HTML. In dev, uses Vite's ssrLoadModule() for HMR-friendly loading; in
 // production, dynamically imports the pre-built SSR bundle.
 //
 // Also handles calling the DocRaptor API to convert rendered HTML into a PDF,
 // loading/base64-encoding font files for embedding in the HTML document,
-// and assembling report data from profile exports.
+// and assembling profile data from profile exports.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -12,13 +12,13 @@ import { fileURLToPath } from "node:url";
 
 import type { ModuleNode, ViteDevServer } from "vite";
 
-import type { CardReport, QuestionReport } from "../shared/report-types.ts";
+import type { CardProfile, QuestionProfile } from "../shared/profile-types.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 interface PdfEntryModule {
-	renderPdfHtml: (fontCss: string, componentCss: string, reports: CardReport[], paperSize: string) => Promise<string>;
+	renderPdfHtml: (fontCss: string, componentCss: string, cards: CardProfile[], paperSize: string) => Promise<string>;
 }
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -123,13 +123,13 @@ async function loadFontCss(): Promise<string> {
 	return cachedFontCss;
 }
 
-// --- Profile export parsing and report data assembly ---
+// --- Profile export parsing and profile data assembly ---
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function assembleReportData(profileExportJson: string): CardReport[] {
+export function assembleProfileData(profileExportJson: string): CardProfile[] {
 	const parsed: unknown = JSON.parse(profileExportJson);
 	if (!isRecord(parsed) || parsed.version !== "somecam-v2" || !Array.isArray(parsed.sessions) || parsed.sessions.length === 0) {
 		throw new Error("Invalid profile export format.");
@@ -189,7 +189,7 @@ export function assembleReportData(profileExportJson: string): CardReport[] {
 	const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
 
 	const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-	const reports: CardReport[] = [];
+	const cards: CardProfile[] = [];
 
 	for (const cardId of chosenIds) {
 		const card = cardsById.get(cardId);
@@ -203,7 +203,7 @@ export function assembleReportData(profileExportJson: string): CardReport[] {
 			}
 		}
 
-		const questions: QuestionReport[] = [];
+		const questions: QuestionProfile[] = [];
 		for (const q of EXPLORE_QUESTIONS) {
 			const answer = answersByQuestionId.get(q.id) ?? "";
 
@@ -236,17 +236,17 @@ export function assembleReportData(profileExportJson: string): CardReport[] {
 		const cachedSynthesis = summaries.get(`${cardId}:synthesis`);
 		const synthesis = cachedSynthesis?.answer === fingerprint ? cachedSynthesis.summary : "";
 
-		reports.push({ card, questions, selectedDescriptions, freeformNote, synthesis });
+		cards.push({ card, questions, selectedDescriptions, freeformNote, synthesis });
 	}
 
-	return reports;
+	return cards;
 }
 
-export async function renderReportHtml(vite: unknown, profileExportJson: string, paperSize = "a4"): Promise<string> {
-	const reports = assembleReportData(profileExportJson);
+export async function renderProfileHtml(vite: unknown, profileExportJson: string, paperSize = "a4"): Promise<string> {
+	const cards = assembleProfileData(profileExportJson);
 	const { module: ssrModule, componentCss } = await loadSsrModule(vite);
 	const fontCss = await loadFontCss();
-	return ssrModule.renderPdfHtml(fontCss, componentCss, reports, paperSize);
+	return ssrModule.renderPdfHtml(fontCss, componentCss, cards, paperSize);
 }
 
 export async function callDocRaptor(html: string, apiKey: string, testMode: boolean): Promise<Buffer> {

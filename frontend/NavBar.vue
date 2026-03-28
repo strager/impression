@@ -30,8 +30,8 @@ const phaseLabel = computed(() => {
 			return "Explore";
 		case "exploreMeaning":
 			return null; // handled separately with Explore link + card name
-		case "report":
-			return "Report";
+		case "profile":
+			return "Profile";
 		case "llmTest":
 			return "LLM test";
 		case "styleGuide":

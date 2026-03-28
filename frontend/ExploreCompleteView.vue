@@ -454,8 +454,8 @@ function handleKeepExploring(): void {
 	void router.push({ name: "explore", params: { profileId } });
 }
 
-function handleOpenReport(): void {
-	void router.push({ name: "report", params: { profileId } });
+function handleOpenProfile(): void {
+	void router.push({ name: "profile", params: { profileId } });
 }
 </script>
 
@@ -497,7 +497,7 @@ function handleOpenReport(): void {
 
 		<div ref="actionsEl" class="actions">
 			<template v-if="vm.allComplete">
-				<AppButton variant="primary" :class="['action-btn', 'cascading', { visible: primaryActionVisible }]" @click="handleOpenReport">Print your report</AppButton>
+				<AppButton variant="primary" :class="['action-btn', 'cascading', { visible: primaryActionVisible }]" @click="handleOpenProfile">Print your profile</AppButton>
 				<AppButton variant="secondary" :class="['action-btn', 'cascading', { visible: secondaryActionVisible }]" @click="handleKeepExploring">Back to explore list</AppButton>
 			</template>
 			<template v-else>

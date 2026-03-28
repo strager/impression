@@ -148,11 +148,11 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
-  /report-html:
+  /profile-html:
     post:
-      operationId: postReportHtml
+      operationId: postProfileHtml
       x-impression-budget-cost: 5
-      summary: Generate an HTML report
+      summary: Generate an HTML profile
       parameters:
         - name: paperSize
           in: query
@@ -169,7 +169,7 @@ paths:
               minLength: 1
       responses:
         "200":
-          description: Rendered report HTML.
+          description: Rendered profile HTML.
           headers:
             Content-Disposition:
               schema:
@@ -184,11 +184,11 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
-  /report-pdf:
+  /profile-pdf:
     post:
-      operationId: postReportPdf
+      operationId: postProfilePdf
       x-impression-budget-cost: 100
-      summary: Generate a PDF report
+      summary: Generate a PDF profile
       parameters:
         - name: paperSize
           in: query
@@ -205,7 +205,7 @@ paths:
               minLength: 1
       responses:
         "200":
-          description: Report generated successfully.
+          description: Profile generated successfully.
           headers:
             X-Impression-PDF-Downloads-Remaining:
               schema:

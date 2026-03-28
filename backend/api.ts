@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { AppConfig } from "./config.ts";
 import { isAllowedOrigin, shouldCheckOrigin } from "./origin-check.ts";
-import { callDocRaptor, renderReportHtml } from "./pdf-report.ts";
+import { callDocRaptor, renderProfileHtml } from "./pdf-profile.ts";
 import { ChallengeError, MAX_PDF_DOWNLOADS_PER_DAY, type RateLimiter } from "./rate-limit.ts";
 import { createAnthropicCompletion } from "./anthropic-client.ts";
 import { createChatCompletion } from "./xai-client.ts";
@@ -617,7 +617,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			};
 		}
 	},
-	postReportHtml: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
+	postProfileHtml: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
 		const profileExport: unknown = req.body;
 		if (typeof profileExport !== "string" || profileExport === "") {
 			res
@@ -631,7 +631,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, profileExport, paperSize);
+			html = await renderProfileHtml(req.app.locals.vite, profileExport, paperSize);
 		} catch {
 			res
 				.status(400)
@@ -640,9 +640,9 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			return;
 		}
 
-		res.status(200).type("text/html").setHeader("Content-Disposition", 'attachment; filename="impression-report.html"').send(html);
+		res.status(200).type("text/html").setHeader("Content-Disposition", 'attachment; filename="impression-profile.html"').send(html);
 	},
-	postReportPdf: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
+	postProfilePdf: async (context: Context, req: ExpressRequest, res: Response): Promise<void> => {
 		// Daily PDF limit check (before budget, to avoid wasting credits)
 		let pdfRemaining: number | null = null;
 		if (rateLimiter !== undefined) {
@@ -706,7 +706,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 
 		let html: string;
 		try {
-			html = await renderReportHtml(req.app.locals.vite, profileExport, paperSize);
+			html = await renderProfileHtml(req.app.locals.vite, profileExport, paperSize);
 		} catch {
 			const response = res.status(400).type("application/problem+json");
 			if (pdfRemaining !== null) {
@@ -724,7 +724,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			if (rateLimiter !== undefined) {
 				pdfRemaining = rateLimiter.recordPdfDownload(req.headers.authorization);
 			}
-			const response = res.status(200).type("application/pdf").setHeader("Content-Disposition", 'attachment; filename="impression-report.pdf"');
+			const response = res.status(200).type("application/pdf").setHeader("Content-Disposition", 'attachment; filename="impression-profile.pdf"');
 			if (pdfRemaining !== null) {
 				response.setHeader("X-Impression-PDF-Downloads-Remaining", pdfRemaining.toString());
 			}
