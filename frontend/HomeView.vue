@@ -89,22 +89,23 @@ function onLoadFile(): void {
 	<main>
 		<header>
 			<h1>Impression</h1>
-			<p class="subtitle">Examine your sources of meaning</p>
+			<p class="subtitle">A structured path to answering life's biggest question: <br style="user-select: none" />&ldquo;what gives my life meaning?&rdquo;</p>
 		</header>
 
 		<section>
-			<h2>Examine what makes life meaningful</h2>
-			<p>Impression is a tool for mapping and examining your personal sources of meaning. Based on the Sources of Meaning Card Method (SoMeCaM) and its 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
-		</section>
-
-		<section>
-			<h2>Your privacy</h2>
-			<p>Your data is never stored on our servers. Your responses are saved locally in your browser so you can return to them later. <router-link to="/privacy">Learn more</router-link></p>
+			<p>Uncover what makes life meaningful, step by step:</p>
+			<ol class="checkmark-list">
+				<li><strong>Identify</strong> which sources of meaning feel right to you.</li>
+				<li><strong>Examine</strong> what each one means in your life.</li>
+				<li><strong>Refine</strong> your thinking with personalized feedback.</li>
+			</ol>
+			<p>Finally. A clear, written account of what's meaningful to you.</p>
+			<p>Impression is opinionated and deliberate. It's not for everyone. But if you're willing to sit with the question, Impression will help you answer it.</p>
 		</section>
 
 		<section class="profiles">
 			<div v-if="vm.profiles.length === 0" class="cta">
-				<AppButton variant="primary" type="button" @click="onNewProfile">Start identifying meaning</AppButton>
+				<AppButton variant="primary" type="button" @click="onNewProfile">Start my meaning profile</AppButton>
 			</div>
 			<template v-else>
 				<h2>Your profiles</h2>
@@ -128,14 +129,40 @@ function onLoadFile(): void {
 					<AppButton variant="secondary" type="button" @click="onNewProfile">Start new profile</AppButton>
 				</div>
 			</template>
+
+			<div class="file-actions">
+				<!-- eslint-disable vue/no-restricted-html-elements -->
+				<button v-if="vm.profiles.length > 0" type="button" class="file-btn" @click="onExport">Export all profiles</button>
+				<button type="button" class="file-btn" @click="onLoadFile">Import profiles file</button>
+				<!-- eslint-enable vue/no-restricted-html-elements -->
+			</div>
 		</section>
 
-		<div class="file-actions">
-			<!-- eslint-disable vue/no-restricted-html-elements -->
-			<button v-if="vm.profiles.length > 0" type="button" class="file-btn" @click="onExport">Export all profiles</button>
-			<button type="button" class="file-btn" @click="onLoadFile">Import profiles file</button>
-			<!-- eslint-enable vue/no-restricted-html-elements -->
-		</div>
+		<section>
+			<h2>Why Impression?</h2>
+			<p>Most people go their entire lives without being able to answer the question &ldquo;What gives my life meaning?&rdquo;. Not because they don't care, but because the question is too big to know where to start. Life meaning shouldn't require a therapist, a crisis, or a lucky moment of clarity; it should be something anyone can sit down and work through.</p>
+
+			<p>Impression is built on the belief that structure is the answer to overwhelm; the right process, followed patiently, can make even the most complex and existential question answerable.</p>
+		</section>
+
+		<section>
+			<h2>Based on research</h2>
+			<p>Impression is built on the Sources of Meaning Card Method (SoMeCaM), developed by psychologists Tatjana Schnell and Peter la Cour. The method draws on Schnell's research into the structure of meaning in life, which identified 26 distinct sources of meaning, from self-knowledge and creativity to community and care. These aren't arbitrary categories; they come from a 151-item questionnaire validated across thousands of participants across several studies.</p>
+			<p>SoMeCaM was originally designed as a therapeutic tool; it's a structured conversation between a client and a facilitator, using physical cards to guide reflection. The facilitator helps the client sort the cards, examine their top sources, and articulate what matters most. Impression adapts this process into a guided, self-directed experience, with an AI taking the role of the patient facilitator who reads back what you've said and helps you refine your thinking.</p>
+			<p>The method is peer-reviewed and has been tested in clinical settings. It works, but it's not widely known. I believe this research deserves a wider audience. Anyone willing to sit with the question should have access to the structure that makes it answerable.</p>
+		</section>
+
+		<section>
+			<h2>Who built Impression?</h2>
+
+			<p>I'm <a href="https://strager.net/" rel="external">strager</a>, a programmer. I built Impression to help me figure out what comes next in my life. I was (and am) dealing with depression and wanted a structured way to truly understand what actually matters to me. I found the research behind SoMeCaM and immediately got to work.</p>
+			<p>I hope this app can help someone else figure out what matters most to them. In fact, I would say that it would be quite meaningful to me. =]</p>
+		</section>
+
+		<section>
+			<h2>Your privacy</h2>
+			<p>Your data is never stored on our servers. Your profile is saved locally in your browser so you can return to it later. <router-link to="/privacy">Learn more</router-link></p>
+		</section>
 
 		<footer>
 			<p class="citation">
@@ -173,6 +200,7 @@ h1 {
 	font-size: var(--text-lg);
 	font-style: italic;
 	font-weight: 400;
+	line-height: var(--leading-normal);
 	color: var(--color-gray-600);
 	margin: 0;
 }
@@ -184,15 +212,10 @@ h2 {
 }
 
 section {
-	margin-bottom: var(--space-8);
+	margin-bottom: var(--space-10);
 }
 
 section p {
-	line-height: var(--leading-relaxed);
-	margin: 0;
-}
-
-.profiles {
 	margin-bottom: var(--space-4);
 }
 
@@ -250,7 +273,7 @@ section p {
 }
 
 .cta {
-	margin: var(--space-10) 0;
+	margin: var(--space-10) 0 var(--space-2) 0;
 }
 
 .file-actions {
