@@ -6,7 +6,7 @@ import AppButton from "./AppButton.vue";
 import { capture } from "./analytics.ts";
 import { HomeViewModel } from "./HomeViewModel.ts";
 import type { ProgressPhase, ProfileMeta } from "./store.ts";
-import { formatProfileDate } from "./store.ts";
+import { formatProfileDate, isSameDate } from "./store.ts";
 
 const router = useRouter();
 const vm = new HomeViewModel();
@@ -120,7 +120,7 @@ function onLoadFile(): void {
 						</div>
 						<div class="card-meta">
 							<!-- eslint-disable vue/no-restricted-html-elements -->
-							Created {{ formatProfileDate(new Date(profile.createdAt)) }}<template v-if="profile.lastUpdatedAt !== profile.createdAt"> · Updated {{ formatProfileDate(new Date(profile.lastUpdatedAt)) }}</template> · <button type="button" class="text-btn" @click="onStartRename(profile)">Rename</button> · <button type="button" class="text-btn text-btn-danger" @click="onDelete(profile.id)">Delete</button>
+							Created {{ formatProfileDate(new Date(profile.createdAt)) }}<template v-if="!isSameDate(new Date(profile.createdAt), new Date(profile.lastUpdatedAt))"> · Updated {{ formatProfileDate(new Date(profile.lastUpdatedAt)) }}</template> · <button type="button" class="text-btn" @click="onStartRename(profile)">Rename</button> · <button type="button" class="text-btn text-btn-danger" @click="onDelete(profile.id)">Delete</button>
 							<!-- eslint-enable vue/no-restricted-html-elements -->
 						</div>
 					</div>

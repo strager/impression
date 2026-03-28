@@ -103,6 +103,10 @@ export function formatProfileDate(date: Date): string {
 	return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
+export function isSameDate(a: Date, b: Date): boolean {
+	return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 function loadProfilesMeta(): ProfileMeta[] {
 	const parsed = parseJsonFromStorage(SESSIONS_KEY);
 	if (!Array.isArray(parsed)) {
