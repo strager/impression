@@ -96,10 +96,10 @@ function onLoadFile(): void {
 			<p>Uncover what makes life meaningful, step by step:</p>
 			<ol class="checkmark-list">
 				<li><strong>Identify</strong> which sources of meaning feel right to you.</li>
-				<li><strong>Examine</strong> what each one means in your life.</li>
+				<li><strong>Examine</strong> how meaning shows up in your life.</li>
 				<li><strong>Refine</strong> your thinking with personalized reflections.</li>
 			</ol>
-			<p>Finally. A clear, written account of what's meaningful to you.</p>
+			<p>The result: a clear, written account of what's meaningful to you.</p>
 			<p>Impression is opinionated and deliberate. It's not for everyone. But if you're willing to sit with the question, Impression will help you answer it.</p>
 		</section>
 
@@ -140,13 +140,12 @@ function onLoadFile(): void {
 
 		<section>
 			<h2>Why Impression?</h2>
-			<p>Most people go their entire lives without being able to answer the question &ldquo;What gives my life meaning?&rdquo;. Not because they don't care, but because the question is too big to know where to start. Life meaning shouldn't require a therapist, a crisis, or a lucky moment of clarity; it should be something anyone can sit down and work through.</p>
-
+			<p>Most people go their entire lives without being able to answer the question &ldquo;What gives my life meaning?&rdquo;. Not because they don't care, but because the question is too big to know where to start. Answering this question shouldn't require a therapist, a crisis, or a lucky moment of clarity; it should be something anyone can sit down and work through.</p>
 			<p>Impression is built on the belief that structure is the answer to overwhelm; the right process, followed patiently, can make even the most complex and existential question answerable.</p>
 		</section>
 
 		<section>
-			<h2>Based on research</h2>
+			<h2>The research behind Impression</h2>
 			<p>Impression is built on the Sources of Meaning Card Method (SoMeCaM), developed by psychologists Tatjana Schnell and Peter la Cour. The method draws on Schnell's research into the structure of meaning in life, which identified 26 distinct sources of meaning, from self-knowledge and creativity to community and care. These aren't arbitrary categories; they come from a 151-item questionnaire validated across thousands of participants across several studies.</p>
 			<p>SoMeCaM was originally designed as a therapeutic tool; it's a structured conversation between a client and a facilitator, using physical cards to guide reflection. The facilitator helps the client sort the cards, examine their top sources, and articulate what matters most. Impression adapts this process into a guided, self-directed experience, with an AI taking the role of the patient facilitator who reads back what you've said and helps you refine your thinking.</p>
 			<p>The method is peer-reviewed and has been tested in clinical settings. It works, but it's not widely known. I believe this research deserves a wider audience. Anyone willing to sit with the question should have access to the structure that makes it answerable.</p>
@@ -156,12 +155,12 @@ function onLoadFile(): void {
 			<h2>Who built Impression?</h2>
 
 			<p>I'm <a href="https://strager.net/" rel="external">strager</a>, a programmer. I built Impression to help me figure out what comes next in my life. I was (and am) dealing with depression and wanted a structured way to truly understand what actually matters to me. I found the research behind SoMeCaM and immediately got to work.</p>
-			<p>I hope this app can help someone else figure out what matters most to them. In fact, I would say that it would be quite meaningful to me. =]</p>
+			<p>I hope this app can help someone else figure out what matters most to them. In fact, that would be quite meaningful to me. =]</p>
 		</section>
 
 		<section>
 			<h2>Your privacy</h2>
-			<p>Your data is never stored on our servers. Your profile is saved locally in your browser so you can return to it later. <router-link to="/privacy">Learn more</router-link></p>
+			<p>Your data is never stored on my servers. Your profile is saved locally in your browser so you can return to it later. <router-link to="/privacy">Learn more</router-link></p>
 		</section>
 
 		<footer>

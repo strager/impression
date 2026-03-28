@@ -10,7 +10,7 @@
 
 		<section>
 			<h2>Your data stays in your browser</h2>
-			<p>Your choices, answers, and profile data are saved in your browser's local storage. There are no accounts or logins; your data belongs to you. They are never stored permanently on our servers.</p>
+			<p>Your choices, answers, and profile data are saved in your browser's local storage. There are no accounts or logins; your data belongs to you. They are never stored permanently on my servers.</p>
 		</section>
 
 		<section>
@@ -32,10 +32,10 @@
 
 			<h3>DocRaptor</h3>
 			<p><a href="https://docraptor.com/" rel="external">DocRaptor</a> converts your profile into a downloadable PDF. When you download a PDF, the rendered profile HTML is sent to DocRaptor's API for conversion. This includes the source of meaning names and any answers you wrote during examination.</p>
-			<p><b>Storage:</b> DocRaptor does not store your data. We use the "As short as possible" Data Retention Time. "[DocRaptor] will delete your input immediately after it is used. [DocRaptor] will delete your finished document as soon as you download it."</p>
+			<p><b>Storage:</b> DocRaptor does not store your data. I use the "As short as possible" Data Retention Time. "[DocRaptor] will delete your input immediately after it is used. [DocRaptor] will delete your finished document as soon as you download it."</p>
 
 			<h3>PostHog</h3>
-			<p><a href="https://posthog.com/" rel="external">PostHog</a> provides product analytics so we can understand how people use Impression and improve the experience. We collect and store:</p>
+			<p><a href="https://posthog.com/" rel="external">PostHog</a> provides product analytics so I can understand how people use Impression and improve the experience. I collect and store:</p>
 			<ul>
 				<li>Page view events with route names</li>
 				<li>Aggregate counts (e.g. how many sources of meaning were agreed/disagreed, kept/removed)</li>
