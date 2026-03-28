@@ -4,12 +4,12 @@ import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { initAnalytics } from "./analytics.ts";
 import "./global.css";
-import ExamineCompleteView from "./ExamineCompleteView.vue";
 import ExamineMeaningView from "./ExamineMeaningView.vue";
+import ExamineReflectView from "./ExamineReflectView.vue";
 import ExamineView from "./ExamineView.vue";
-import IdentifyManualView from "./IdentifyManualView.vue";
-import IdentifyRankingView from "./IdentifyRankingView.vue";
 import IdentifyView from "./IdentifyView.vue";
+import PrioritizeView from "./PrioritizeView.vue";
+import ReconsiderView from "./ReconsiderView.vue";
 import HomeView from "./HomeView.vue";
 import PrivacyView from "./PrivacyView.vue";
 import ProfileView from "./ProfileView.vue";
@@ -34,19 +34,19 @@ const router = createRouter({
 			component: IdentifyView,
 		},
 		{
-			path: "/:profileId/identify/prioritize",
-			name: "identifyPrioritize",
-			component: IdentifyRankingView,
+			path: "/:profileId/prioritize",
+			name: "prioritize",
+			component: PrioritizeView,
+		},
+		{
+			path: "/:profileId/reconsider",
+			name: "reconsider",
+			component: ReconsiderView,
 		},
 		{
 			path: "/:profileId/examine",
 			name: "examine",
 			component: ExamineView,
-		},
-		{
-			path: "/:profileId/identify/manual",
-			name: "identifyManual",
-			component: IdentifyManualView,
 		},
 		{
 			path: "/:profileId/profile",
@@ -59,9 +59,9 @@ const router = createRouter({
 			component: ExamineMeaningView,
 		},
 		{
-			path: "/:profileId/examine/:meaningId/complete",
-			name: "examineComplete",
-			component: ExamineCompleteView,
+			path: "/:profileId/examine/:meaningId/reflect",
+			name: "examineReflect",
+			component: ExamineReflectView,
 		},
 		{
 			path: "/privacy",

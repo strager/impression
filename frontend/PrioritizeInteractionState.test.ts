@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./IdentifyRankingInteractionState.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./PrioritizeInteractionState.ts";
 
 describe("moveCardToSlot", () => {
 	it("moves a card into the requested slot", () => {

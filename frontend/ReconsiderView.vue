@@ -57,7 +57,7 @@ function removeCard(cardId: string, hadData: boolean): void {
 
 function cancelRemove(): void {
 	if (confirmingRemove.value !== null) {
-		capture("manual_remove_with_data_cancelled", {
+		capture("reconsider_remove_cancelled", {
 			session_id: profileId,
 		});
 	}
@@ -65,7 +65,7 @@ function cancelRemove(): void {
 }
 
 function onDone(): void {
-	capture("manual_selection_completed", {
+	capture("reconsider_completed", {
 		session_id: profileId,
 		card_count: selectedCount.value,
 	});
@@ -89,7 +89,7 @@ onMounted(() => {
 				}
 			}
 		}
-		capture("manual_selection_visited", { session_id: profileId });
+		capture("reconsider_visited", { session_id: profileId });
 	} catch {
 		void router.replace({ name: "identify", params: { profileId } });
 	}
@@ -99,7 +99,7 @@ onMounted(() => {
 <template>
 	<main>
 		<header>
-			<h1>Identify — manual</h1>
+			<h1>Reconsider</h1>
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
 				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>

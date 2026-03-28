@@ -6,13 +6,13 @@ import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { capture } from "./analytics.ts";
 import { hashStrings } from "./deterministic-hash.ts";
 import { fetchSynthesis } from "./api.ts";
-import { hasVisitedExamineComplete, isCardFullyExamined, isExaminePhaseComplete, loadChosenCardIds, loadExamineData, lookupCachedSynthesis, markExamineCompleteVisited, saveCachedSynthesis } from "./store.ts";
+import { hasVisitedExamineReflect, isCardFullyExamined, isExaminePhaseComplete, loadChosenCardIds, loadExamineData, lookupCachedSynthesis, markExamineReflectVisited, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
 const WARM_PHRASES = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your examination", "A snapshot of your thoughts"];
 
-export class ExamineCompleteViewModel {
+export class ExamineReflectViewModel {
 	private readonly profileId: string;
 	private readonly cardId: string;
 
@@ -67,7 +67,7 @@ export class ExamineCompleteViewModel {
 	}
 
 	get hasBeenVisited(): boolean {
-		return hasVisitedExamineComplete(this.profileId, this.cardId);
+		return hasVisitedExamineReflect(this.profileId, this.cardId);
 	}
 
 	get isLoading(): boolean {
@@ -129,7 +129,7 @@ export class ExamineCompleteViewModel {
 
 		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.descriptionSelections, fingerprint);
 
-		capture("examine_complete_viewed", {
+		capture("examine_reflect_viewed", {
 			session_id: this.profileId,
 			card_id: this.cardId,
 			examined_count: examined,
@@ -159,7 +159,7 @@ export class ExamineCompleteViewModel {
 	}
 
 	onAnimationComplete(): void {
-		markExamineCompleteVisited(this.profileId, this.cardId);
+		markExamineReflectVisited(this.profileId, this.cardId);
 	}
 
 	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedDescriptions: string[], fingerprint: string): Promise<void> {

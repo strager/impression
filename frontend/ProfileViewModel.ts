@@ -109,7 +109,7 @@ export class ProfileViewModel {
 			const selectedIds = hasCardData ? exploreData[cardId].descriptionSelections : [];
 			const selectedDescriptions = selectedIds.map((id) => descriptionTextById.get(id)).filter((text): text is string => text !== undefined);
 
-			// Build fingerprint for synthesis cache lookup (same algorithm as ExamineCompleteViewModel)
+			// Build fingerprint for synthesis cache lookup (same algorithm as ExamineReflectViewModel)
 			const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 			const fingerprintParts = answered.map((e) => e.userAnswer);
 			if (freeformNote !== "") {

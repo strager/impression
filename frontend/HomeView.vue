@@ -22,8 +22,8 @@ function phaseRoute(profileId: string, p: ProgressPhase): RouteLocationRaw {
 			return { name: "examine", params: { profileId } };
 		case "prioritize-complete":
 		case "prioritize":
-			return { name: "identifyPrioritize", params: { profileId } };
-		case "swipe":
+			return { name: "prioritize", params: { profileId } };
+		case "identify":
 		case "none":
 			return { name: "identify", params: { profileId } };
 	}

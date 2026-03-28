@@ -44,7 +44,7 @@ function handleExamineCard(cardId: string): void {
 
 function handleEditSelection(): void {
 	vm.onEditSelection();
-	void router.push({ name: "identifyManual", params: { profileId } });
+	void router.push({ name: "reconsider", params: { profileId } });
 }
 
 function handleOpenProfile(source: string): void {

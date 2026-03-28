@@ -96,7 +96,7 @@ export class ExamineViewModel {
 	}
 
 	onEditSelection(): void {
-		capture("edit_selection_clicked", { session_id: this.profileId });
+		capture("reconsider_clicked", { session_id: this.profileId });
 	}
 
 	onOpenProfile(source: string): void {

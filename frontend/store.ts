@@ -619,7 +619,7 @@ export function saveLlmTestState(data: LlmTestState): void {
 
 // --- Progress detection ---
 
-export type ProgressPhase = "examine" | "prioritize-complete" | "prioritize" | "swipe" | "none";
+export type ProgressPhase = "examine" | "prioritize-complete" | "prioritize" | "identify" | "none";
 
 export function detectProfilePhase(id: string): ProgressPhase {
 	const chosenRaw = parseJsonFromStorage(`somecam-${id}-chosen`);
@@ -632,7 +632,7 @@ export function detectProfilePhase(id: string): ProgressPhase {
 	}
 	const progressRaw = parseJsonFromStorage(`somecam-${id}-progress`);
 	if (isObjectRecord(progressRaw) && Array.isArray(progressRaw.swipeHistory) && progressRaw.swipeHistory.length > 0) {
-		return "swipe";
+		return "identify";
 	}
 	return "none";
 }
@@ -825,9 +825,9 @@ export function saveRateLimitToken(token: string): void {
 	localStorage.setItem(RATE_LIMIT_SESSION_KEY, token);
 }
 
-// --- Complete-visited tracking ---
+// --- Reflect-visited tracking ---
 
-export function hasVisitedExamineComplete(profileId: string, cardId: string): boolean {
+export function hasVisitedExamineReflect(profileId: string, cardId: string): boolean {
 	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	if (!isStringArray(parsed)) {
 		return false;
@@ -835,7 +835,7 @@ export function hasVisitedExamineComplete(profileId: string, cardId: string): bo
 	return parsed.includes(cardId);
 }
 
-export function markExamineCompleteVisited(profileId: string, cardId: string): void {
+export function markExamineReflectVisited(profileId: string, cardId: string): void {
 	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	const visited = isStringArray(parsed) ? parsed : [];
 	if (!visited.includes(cardId)) {

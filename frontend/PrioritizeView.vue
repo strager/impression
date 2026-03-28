@@ -2,9 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup, watch } from "vue";
 import { useRouter } from "vue-router";
 
-import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./IdentifyRankingInteractionState.ts";
-import type { SlotRect } from "./IdentifyRankingInteractionState.ts";
-import { IdentifyRankingViewModel } from "./IdentifyRankingViewModel.ts";
+import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./PrioritizeInteractionState.ts";
+import type { SlotRect } from "./PrioritizeInteractionState.ts";
+import { IdentifyRankingViewModel } from "./PrioritizeViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 import AppButton from "./AppButton.vue";
@@ -444,7 +444,7 @@ function handleFinish(): void {
 <template>
 	<main>
 		<header>
-			<h1>Identify — rank</h1>
+			<h1>Prioritize</h1>
 			<div v-if="!vm.isComplete" class="instruction-stack">
 				<p class="instruction active">Select your most and least meaningful sources of meaning, or drag one into one of the three slots.</p>
 			</div>

@@ -3,7 +3,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createProfile, deleteProfile, detectProfilePhase, ensureProfilesInitialized, exportProgressData, formatProfileDate, getActiveProfileId, hasVisitedExamineComplete, importProgressData, listProfiles, loadChosenCardIds, loadExamineData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExamineCompleteVisited, renameProfile, saveCachedSynthesis, saveChosenCardIds, saveExamineData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createProfile, deleteProfile, detectProfilePhase, ensureProfilesInitialized, exportProgressData, formatProfileDate, getActiveProfileId, hasVisitedExamineReflect, importProgressData, listProfiles, loadChosenCardIds, loadExamineData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExamineReflectVisited, renameProfile, saveCachedSynthesis, saveChosenCardIds, saveExamineData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
 	return getActiveProfileId();
@@ -1211,12 +1211,12 @@ describe("detectProfilePhase", () => {
 		expect(detectProfilePhase(sid())).toBe("none");
 	});
 
-	it("returns 'swipe' when swipe progress exists", () => {
+	it("returns 'identify' when swipe progress exists", () => {
 		saveSwipeProgress(sid(), {
 			shuffledCardIds: ["a", "b"],
 			swipeHistory: [{ cardId: "a", direction: "agree" }],
 		});
-		expect(detectProfilePhase(sid())).toBe("swipe");
+		expect(detectProfilePhase(sid())).toBe("identify");
 	});
 
 	it("returns 'prioritize' when ranking data exists and not complete", () => {
@@ -1270,33 +1270,33 @@ describe("formatProfileDate", () => {
 	});
 });
 
-describe("hasVisitedExamineComplete/markExamineCompleteVisited", () => {
+describe("hasVisitedExamineReflect/markExamineReflectVisited", () => {
 	it("returns false when no key exists", () => {
-		expect(hasVisitedExamineComplete(sid(), "self-knowledge")).toBe(false);
+		expect(hasVisitedExamineReflect(sid(), "self-knowledge")).toBe(false);
 	});
 
-	it("returns true after markExamineCompleteVisited", () => {
-		markExamineCompleteVisited(sid(), "self-knowledge");
-		expect(hasVisitedExamineComplete(sid(), "self-knowledge")).toBe(true);
+	it("returns true after markExamineReflectVisited", () => {
+		markExamineReflectVisited(sid(), "self-knowledge");
+		expect(hasVisitedExamineReflect(sid(), "self-knowledge")).toBe(true);
 	});
 
 	it("is idempotent (marking twice does not duplicate)", () => {
-		markExamineCompleteVisited(sid(), "self-knowledge");
-		markExamineCompleteVisited(sid(), "self-knowledge");
+		markExamineReflectVisited(sid(), "self-knowledge");
+		markExamineReflectVisited(sid(), "self-knowledge");
 		const raw = JSON.parse(localStorage.getItem(activeKey("complete-visited"))!);
 		expect(raw).toEqual(["self-knowledge"]);
 	});
 
 	it("tracks multiple cards independently", () => {
-		markExamineCompleteVisited(sid(), "self-knowledge");
-		markExamineCompleteVisited(sid(), "community");
-		expect(hasVisitedExamineComplete(sid(), "self-knowledge")).toBe(true);
-		expect(hasVisitedExamineComplete(sid(), "community")).toBe(true);
-		expect(hasVisitedExamineComplete(sid(), "challenge")).toBe(false);
+		markExamineReflectVisited(sid(), "self-knowledge");
+		markExamineReflectVisited(sid(), "community");
+		expect(hasVisitedExamineReflect(sid(), "self-knowledge")).toBe(true);
+		expect(hasVisitedExamineReflect(sid(), "community")).toBe(true);
+		expect(hasVisitedExamineReflect(sid(), "challenge")).toBe(false);
 	});
 
 	it("is cleaned up by deleteProfile", () => {
-		markExamineCompleteVisited(sid(), "self-knowledge");
+		markExamineReflectVisited(sid(), "self-knowledge");
 		const id = getActiveProfileId();
 		deleteProfile(id);
 		expect(localStorage.getItem(`somecam-${id}-complete-visited`)).toBeNull();
@@ -1304,7 +1304,7 @@ describe("hasVisitedExamineComplete/markExamineCompleteVisited", () => {
 
 	it("round-trips through export/import", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
-		markExamineCompleteVisited(sid(), "self-knowledge");
+		markExamineReflectVisited(sid(), "self-knowledge");
 		const activeId = getActiveProfileId();
 
 		const exported = exportProgressData();
@@ -1313,10 +1313,10 @@ describe("hasVisitedExamineComplete/markExamineCompleteVisited", () => {
 		for (const suffix of ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"]) {
 			localStorage.removeItem(`somecam-${activeId}-${suffix}`);
 		}
-		expect(hasVisitedExamineComplete(sid(), "self-knowledge")).toBe(false);
+		expect(hasVisitedExamineReflect(sid(), "self-knowledge")).toBe(false);
 
 		importProgressData(exported);
 		localStorage.setItem("somecam-active-session", activeId);
-		expect(hasVisitedExamineComplete(sid(), "self-knowledge")).toBe(true);
+		expect(hasVisitedExamineReflect(sid(), "self-knowledge")).toBe(true);
 	});
 });

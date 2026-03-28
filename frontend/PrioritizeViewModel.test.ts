@@ -5,7 +5,7 @@ import { watchSyncEffect } from "vue";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { IdentifyRankingViewModel } from "./IdentifyRankingViewModel.ts";
+import { IdentifyRankingViewModel } from "./PrioritizeViewModel.ts";
 import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, saveRanking, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;

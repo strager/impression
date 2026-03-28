@@ -22,10 +22,10 @@ const phaseLabel = computed(() => {
 	switch (route.name) {
 		case "identify":
 			return "Identify";
-		case "identifyPrioritize":
+		case "prioritize":
 			return "Prioritize";
-		case "identifyManual":
-			return null; // handled as Examine sub-page
+		case "reconsider":
+			return null; // handled as sub-page with breadcrumb
 		case "examine":
 			return "Examine";
 		case "examineMeaning":
@@ -42,7 +42,7 @@ const phaseLabel = computed(() => {
 });
 
 const meaningCardName = computed(() => {
-	if (route.name === "identifyManual") return "Edit selection";
+	if (route.name === "reconsider") return "Reconsider";
 	if (route.name !== "examineMeaning") return null;
 	const meaningId = route.params.meaningId;
 	if (typeof meaningId !== "string") return null;

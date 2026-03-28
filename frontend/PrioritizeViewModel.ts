@@ -108,7 +108,7 @@ export class IdentifyRankingViewModel {
 
 		triggerRef(this._ranking);
 
-		capture("ranking_entered", {
+		capture("prioritize_entered", {
 			session_id: this.profileId,
 			card_count: resolvedCardIds.length,
 			resumed_from_round: resumedFromRound,
@@ -159,7 +159,7 @@ export class IdentifyRankingViewModel {
 		triggerRef(this._ranking);
 
 		const est = this._ranking.value.estimateRemaining();
-		capture("ranking_comparison_made", {
+		capture("prioritize_comparison_made", {
 			session_id: this.profileId,
 			time_on_pair_ms: timeOnTaskMs,
 			comparisons_so_far: this._ranking.value.round,
@@ -179,7 +179,7 @@ export class IdentifyRankingViewModel {
 		triggerRef(this._ranking);
 		this.saveProgress(false);
 
-		capture("ranking_undone", { session_id: this.profileId });
+		capture("prioritize_undone", { session_id: this.profileId });
 		return { bestId, worstId };
 	}
 
@@ -190,7 +190,7 @@ export class IdentifyRankingViewModel {
 		const chosenIds = this._ranking.value.topK;
 		saveChosenCardIds(this.profileId, [...chosenIds]);
 
-		capture("ranking_completed", {
+		capture("prioritize_completed", {
 			session_id: this.profileId,
 			comparisons_made: this._ranking.value.round,
 			stop_reason: this._ranking.value.stopReason ?? "unknown",

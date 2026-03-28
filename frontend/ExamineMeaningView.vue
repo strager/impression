@@ -6,7 +6,7 @@ import AppButton from "./AppButton.vue";
 import ExamineTextarea from "./ExamineTextarea.vue";
 import { ExamineMeaningViewModel } from "./ExamineMeaningViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
-import { hasVisitedExamineComplete } from "./store.ts";
+import { hasVisitedExamineReflect } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 
@@ -160,13 +160,13 @@ const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 function handleFinishExamining(): void {
 	vm.finishExamining();
 	if (vm.allAnswered) {
-		if (prefersReducedMotion.value || hasVisitedExamineComplete(profileId, cardId)) {
-			void router.push({ name: "examineComplete", params: { profileId, meaningId: cardId } });
+		if (prefersReducedMotion.value || hasVisitedExamineReflect(profileId, cardId)) {
+			void router.push({ name: "examineReflect", params: { profileId, meaningId: cardId } });
 		} else {
 			fadingOut.value = true;
 			document.documentElement.classList.add("page-fading-out");
 			fadeTimer = setTimeout(() => {
-				void router.push({ name: "examineComplete", params: { profileId, meaningId: cardId } });
+				void router.push({ name: "examineReflect", params: { profileId, meaningId: cardId } });
 			}, 2000);
 		}
 	} else {

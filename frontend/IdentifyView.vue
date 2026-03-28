@@ -53,13 +53,13 @@ function continueToNextPhase(): void {
 		return;
 	}
 	if (phase === "prioritize-complete" || phase === "prioritize") {
-		void router.push({ name: "identifyPrioritize", params: { profileId } });
+		void router.push({ name: "prioritize", params: { profileId } });
 		return;
 	}
 
 	vm.finalize();
 	if (vm.requiresPrioritization) {
-		void router.push({ name: "identifyPrioritize", params: { profileId } });
+		void router.push({ name: "prioritize", params: { profileId } });
 	} else {
 		void router.push({ name: "examine", params: { profileId } });
 	}

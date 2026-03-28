@@ -7,9 +7,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { ExamineCompleteViewModel } from "./ExamineCompleteViewModel.ts";
+import { ExamineReflectViewModel } from "./ExamineReflectViewModel.ts";
 import type { ExamineData } from "./store.ts";
-import { ensureProfilesInitialized, getActiveProfileId, hasVisitedExamineComplete, saveCachedSynthesis, saveChosenCardIds, saveExamineData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, hasVisitedExamineReflect, saveCachedSynthesis, saveChosenCardIds, saveExamineData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -95,18 +95,18 @@ function setupDefaultSynthesizeHandler(): void {
 
 describe("initialize", () => {
 	it("returns 'no-data' for unknown card ID", () => {
-		const vm = new ExamineCompleteViewModel(sid(), "nonexistent-card");
+		const vm = new ExamineReflectViewModel(sid(), "nonexistent-card");
 		expect(vm.initialize()).toBe("no-data");
 	});
 
 	it("returns 'no-data' when no chosen cards", () => {
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("no-data");
 	});
 
 	it("returns 'no-data' when no examine data", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -114,7 +114,7 @@ describe("initialize", () => {
 		const otherCard = MEANING_CARDS[1].id;
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 		saveExamineData(sid(), makeFullExamineData([otherCard]));
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -140,7 +140,7 @@ describe("initialize", () => {
 			},
 		};
 		saveExamineData(sid(), data);
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -149,7 +149,7 @@ describe("initialize", () => {
 		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.card).toBeDefined();
 		expect(vm.card!.id).toBe(TEST_CARD_ID);
@@ -162,7 +162,7 @@ describe("synthesis loading", () => {
 		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
@@ -178,7 +178,7 @@ describe("synthesis loading", () => {
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		// No MSW handler — any fetch would fail
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
@@ -194,7 +194,7 @@ describe("synthesis loading", () => {
 			}),
 		);
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
@@ -209,7 +209,7 @@ describe("synthesis loading", () => {
 		const fingerprint = [...EXAMINE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
@@ -227,7 +227,7 @@ describe("retrySynthesis", () => {
 			}),
 		);
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.whenReady;
 
@@ -278,7 +278,7 @@ describe("progress", () => {
 		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), cardIds[0]);
+		const vm = new ExamineReflectViewModel(sid(), cardIds[0]);
 		vm.initialize();
 
 		expect(vm.examinedCount).toBe(2);
@@ -292,7 +292,7 @@ describe("progress", () => {
 		saveExamineData(sid(), makeFullExamineData(cardIds));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), cardIds[0]);
+		const vm = new ExamineReflectViewModel(sid(), cardIds[0]);
 		vm.initialize();
 
 		expect(vm.allComplete).toBe(true);
@@ -306,13 +306,13 @@ describe("onAnimationComplete", () => {
 		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		expect(vm.hasBeenVisited).toBe(false);
 		vm.onAnimationComplete();
 		expect(vm.hasBeenVisited).toBe(true);
-		expect(hasVisitedExamineComplete(sid(), TEST_CARD_ID)).toBe(true);
+		expect(hasVisitedExamineReflect(sid(), TEST_CARD_ID)).toBe(true);
 	});
 });
 
@@ -322,7 +322,7 @@ describe("warmPhrase", () => {
 		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		const knownPhrases = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your examination", "A snapshot of your thoughts"];
@@ -334,9 +334,9 @@ describe("warmPhrase", () => {
 		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
-		const vm1 = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm1 = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm1.initialize();
-		const vm2 = new ExamineCompleteViewModel(sid(), TEST_CARD_ID);
+		const vm2 = new ExamineReflectViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
 
 		expect(vm1.warmPhrase).toBe(vm2.warmPhrase);

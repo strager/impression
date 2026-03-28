@@ -3,10 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
-import { ExamineCompleteViewModel } from "./ExamineCompleteViewModel.ts";
+import { ExamineReflectViewModel } from "./ExamineReflectViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { splitSentences } from "./split-sentences.ts";
-import { hasVisitedExamineComplete } from "./store.ts";
+import { hasVisitedExamineReflect } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 
 /**
@@ -244,10 +244,10 @@ const router = useRouter();
 const profileId = useStringParam("profileId");
 const cardId = useStringParam("meaningId");
 
-const vm = new ExamineCompleteViewModel(profileId, cardId);
+const vm = new ExamineReflectViewModel(profileId, cardId);
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExamineComplete(profileId, cardId) : !DEBUG_FORCE_ANIMATE;
+const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExamineReflect(profileId, cardId) : !DEBUG_FORCE_ANIMATE;
 
 const titleVisible = ref(false);
 const warmPhraseVisible = ref(false);

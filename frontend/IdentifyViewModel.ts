@@ -116,7 +116,7 @@ export class IdentifyViewModel {
 		const agreedCount = this._swipeHistory.value.filter((record) => record.direction === "agree").length;
 		const disagreedCount = this._swipeHistory.value.filter((record) => record.direction === "disagree").length;
 		const unsureCount = this._swipeHistory.value.filter((record) => record.direction === "unsure").length;
-		capture("swiping_phase_completed", {
+		capture("identify_phase_completed", {
 			session_id: this.profileId,
 			agreed_count: agreedCount,
 			disagreed_count: disagreedCount,
