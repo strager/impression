@@ -25,6 +25,11 @@
 			<p><b>Storage:</b> Grok stores your data temporarily. "API requests and responses are temporarily stored on our servers for 30 days in case they need to be audited for potential abuse or misuse. This data is automatically deleted after 30 days."</p>
 			<p><b>Training:</b> Grok does not train its AI models on your data.</p>
 
+			<h3>Claude</h3>
+			<p><a href="https://claude.ai/" rel="external">Claude by Anthropic</a> powers the AI-assisted features such as summarization during the examination phase. When you use these features, the prompts and your selected sources of meaning are sent to Claude to generate responses. No other personal data is shared.</p>
+			<p><b>Storage:</b> Anthropic stores your data temporarily. "[Anthropic] automatically [deletes] inputs and outputs on [their] backend within 30 days of receipt or generation."</p>
+			<p><b>Training:</b> Anthropic does not train its AI models on your data. "Retained data is never used for model training [by Anthropic]"</p>
+
 			<h3>DocRaptor</h3>
 			<p><a href="https://docraptor.com/" rel="external">DocRaptor</a> converts your profile into a downloadable PDF. When you download a PDF, the rendered profile HTML is sent to DocRaptor's API for conversion. This includes the source of meaning names and any answers you wrote during examination.</p>
 			<p><b>Storage:</b> DocRaptor does not store your data. We use the "As short as possible" Data Retention Time. "[DocRaptor] will delete your input immediately after it is used. [DocRaptor] will delete your finished document as soon as you download it."</p>
