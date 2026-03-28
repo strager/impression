@@ -3,13 +3,13 @@ import { ref } from "vue";
 import type { CardReport, QuestionReport } from "../shared/report-types.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 import { capture } from "./analytics.ts";
 import { fetchSynthesis } from "./api.ts";
 import { loadChosenCardIds, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-const statementTextById = new Map(MEANING_STATEMENTS.map((s) => [s.id, s.statement]));
+const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
 const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
 
 export class ReportViewModel {
@@ -44,7 +44,7 @@ export class ReportViewModel {
 
 		const entries = exploreData[cardId].entries;
 		const freeformNote = exploreData[cardId].freeformNote;
-		const selectedIds = exploreData[cardId].statementSelections;
+		const selectedIds = exploreData[cardId].descriptionSelections;
 
 		const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 		if (answered.length === 0) return;
@@ -63,7 +63,7 @@ export class ReportViewModel {
 			const result = await fetchSynthesis({
 				cardId,
 				questions: questionsForApi,
-				...(selectedIds.length > 0 ? { selectedStatements: selectedIds } : {}),
+				...(selectedIds.length > 0 ? { selectedDescriptions: selectedIds } : {}),
 				...(freeformNote !== "" ? { freeformNote } : {}),
 			});
 			report.synthesis = result.synthesis;
@@ -106,8 +106,8 @@ export class ReportViewModel {
 
 			const freeformNote = hasCardData ? exploreData[cardId].freeformNote : "";
 
-			const selectedIds = hasCardData ? exploreData[cardId].statementSelections : [];
-			const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
+			const selectedIds = hasCardData ? exploreData[cardId].descriptionSelections : [];
+			const selectedDescriptions = selectedIds.map((id) => descriptionTextById.get(id)).filter((text): text is string => text !== undefined);
 
 			// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
 			const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
@@ -120,7 +120,7 @@ export class ReportViewModel {
 			const cachedSynthesis = lookupCachedSynthesis({ sessionId: this.sessionId, cardId, fingerprint });
 
 			const needsFetch = cachedSynthesis === null && answered.length > 0;
-			const report: CardReport = { card, questions, selectedStatements, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
+			const report: CardReport = { card, questions, selectedDescriptions, freeformNote, synthesis: cachedSynthesis ?? "", synthesisLoading: needsFetch };
 			reports.push(report);
 
 			// If no cached synthesis and there are answered questions, fetch from API
@@ -130,7 +130,7 @@ export class ReportViewModel {
 					fetchSynthesis({
 						cardId,
 						questions: questionsForApi,
-						...(selectedIds.length > 0 ? { selectedStatements: selectedIds } : {}),
+						...(selectedIds.length > 0 ? { selectedDescriptions: selectedIds } : {}),
 						...(freeformNote !== "" ? { freeformNote } : {}),
 					})
 						.then((result) => {

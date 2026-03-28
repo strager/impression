@@ -172,7 +172,7 @@ export class ExploreViewModel {
 			const result = await fetchSynthesis({
 				cardId,
 				questions,
-				...(cardData.statementSelections.length > 0 ? { selectedStatements: cardData.statementSelections } : {}),
+				...(cardData.descriptionSelections.length > 0 ? { selectedDescriptions: cardData.descriptionSelections } : {}),
 				...(cardData.freeformNote !== "" ? { freeformNote: cardData.freeformNote } : {}),
 				short: true,
 			});

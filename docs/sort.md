@@ -7,15 +7,15 @@ process, you prioritize a small handful that matter most to you.
 ## Step 1: Initial sorting
 
 You are shown each of the 26 sources of meaning one at a time, in a
-randomized (shuffled) order. Each one displays a statement — for example,
+randomized (shuffled) order. Each one displays a description — for example,
 _"I intervene when I see injustice being done"_ or _"Freedom is the most
 important thing for me"_. At this stage, you do not see the name of the
-source of meaning; you only see the statement itself.
+source of meaning; you only see the description itself.
 
 For each one, you choose one of three responses:
 
-- **Agree** — this statement feels right to you
-- **Disagree** — this statement does not feel right to you
+- **Agree** — this description feels right to you
+- **Disagree** — this description does not feel right to you
 - **Unsure** — you are not sure
 
 You can swipe (on touch devices) or click the buttons. An undo button lets
@@ -44,8 +44,8 @@ algorithm roughly three times as much information per task compared to
 a simple head-to-head comparison.
 
 An important change happens here: each source of meaning now reveals its
-**name** alongside the original statement. For example,
-you might see the label _"Social commitment"_ above the statement _"I
+**name** alongside the original description. For example,
+you might see the label _"Social commitment"_ above the description _"I
 intervene when I see injustice being done"_. This additional context
 helps you make more deliberate choices.
 

@@ -15,7 +15,7 @@ import type { ModuleNode, ViteDevServer } from "vite";
 import type { CardReport, QuestionReport } from "../shared/report-types.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 interface PdfEntryModule {
 	renderPdfHtml: (fontCss: string, componentCss: string, reports: CardReport[], paperSize: string) => Promise<string>;
@@ -177,16 +177,16 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 		}
 	}
 
-	const statementsRaw: unknown = data.statements;
-	const statementSelections: Record<string, string[]> = {};
-	if (isRecord(statementsRaw)) {
-		for (const [cardId, ids] of Object.entries(statementsRaw)) {
+	const descriptionsRaw: unknown = data.statements;
+	const descriptionSelections: Record<string, string[]> = {};
+	if (isRecord(descriptionsRaw)) {
+		for (const [cardId, ids] of Object.entries(descriptionsRaw)) {
 			if (Array.isArray(ids) && ids.every((id): id is string => typeof id === "string")) {
-				statementSelections[cardId] = ids;
+				descriptionSelections[cardId] = ids;
 			}
 		}
 	}
-	const statementTextById = new Map(MEANING_STATEMENTS.map((s) => [s.id, s.statement]));
+	const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
 
 	const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 	const reports: CardReport[] = [];
@@ -216,8 +216,8 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 
 		const freeformNote = freeform[cardId] ?? "";
 
-		const selectedIds = statementSelections[cardId] ?? [];
-		const selectedStatements = selectedIds.map((id) => statementTextById.get(id)).filter((text): text is string => text !== undefined);
+		const selectedIds = descriptionSelections[cardId] ?? [];
+		const selectedDescriptions = selectedIds.map((id) => descriptionTextById.get(id)).filter((text): text is string => text !== undefined);
 
 		// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
 		const questionOrderMap = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
@@ -236,7 +236,7 @@ export function assembleReportData(sessionExportJson: string): CardReport[] {
 		const cachedSynthesis = summaries.get(`${cardId}:synthesis`);
 		const synthesis = cachedSynthesis?.answer === fingerprint ? cachedSynthesis.summary : "";
 
-		reports.push({ card, questions, selectedStatements, freeformNote, synthesis });
+		reports.push({ card, questions, selectedDescriptions, freeformNote, synthesis });
 	}
 
 	return reports;

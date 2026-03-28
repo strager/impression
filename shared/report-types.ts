@@ -12,7 +12,7 @@ export interface QuestionReport {
 export interface CardReport {
 	card: MeaningCard;
 	questions: QuestionReport[];
-	selectedStatements: string[];
+	selectedDescriptions: string[];
 	freeformNote: string;
 	synthesis: string;
 	synthesisLoading?: boolean;

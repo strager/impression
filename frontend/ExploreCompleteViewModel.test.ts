@@ -79,7 +79,7 @@ function makeFullExploreData(cardIds: string[], freeformNote = ""): ExploreData 
 				autoFilledPending: false,
 			})),
 			freeformNote,
-			statementSelections: [],
+			descriptionSelections: [],
 		};
 	}
 	return data;
@@ -136,7 +136,7 @@ describe("initialize", () => {
 					},
 				],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		};
 		saveExploreData(sid(), data);
@@ -273,7 +273,7 @@ describe("progress", () => {
 				},
 			],
 			freeformNote: "",
-			statementSelections: [],
+			descriptionSelections: [],
 		};
 		saveExploreData(sid(), data);
 		setupDefaultSynthesizeHandler();

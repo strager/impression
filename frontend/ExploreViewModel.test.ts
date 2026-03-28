@@ -83,7 +83,7 @@ function makeExploreData(cardIds: string[], answeredCount: number): ExploreData 
 				autoFilledPending: false,
 			})),
 			freeformNote: "",
-			statementSelections: [],
+			descriptionSelections: [],
 		};
 	}
 	return data;

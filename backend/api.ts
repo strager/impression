@@ -11,7 +11,7 @@ import { createAnthropicCompletion } from "./anthropic-client.ts";
 import { createChatCompletion } from "./xai-client.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 interface ApiProblemDetails {
 	type: string;
@@ -534,11 +534,11 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			}
 		}
 
-		const selectedStatementIds: string[] = [];
-		if ("selectedStatements" in body && Array.isArray(body.selectedStatements)) {
-			for (const s of body.selectedStatements) {
+		const selectedDescriptionIds: string[] = [];
+		if ("selectedDescriptions" in body && Array.isArray(body.selectedDescriptions)) {
+			for (const s of body.selectedDescriptions) {
 				if (typeof s === "string") {
-					selectedStatementIds.push(s);
+					selectedDescriptionIds.push(s);
 				}
 			}
 		}
@@ -568,14 +568,14 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 			}
 		}
 
-		const selectedStatementSet = new Set(selectedStatementIds);
-		const cardStatements = MEANING_STATEMENTS.filter((s) => s.meaningId === cardId);
-		let checkedDescriptions = cardStatements.filter((s) => selectedStatementSet.has(s.id)).map((s) => s.statement);
+		const selectedDescriptionSet = new Set(selectedDescriptionIds);
+		const cardDescriptions = MEANING_DESCRIPTIONS.filter((d) => d.meaningId === cardId);
+		let checkedDescriptions = cardDescriptions.filter((d) => selectedDescriptionSet.has(d.id)).map((d) => d.text);
 		if (checkedDescriptions.length === 0) {
 			checkedDescriptions = [card.description];
 		}
 
-		const topicContext = `The user is reflecting the following statements related to ${card.source.toLowerCase()}:\n${checkedDescriptions.map((d) => `- ${d}`).join("\n")}`;
+		const topicContext = `The user is reflecting on the following descriptions related to ${card.source.toLowerCase()}:\n${checkedDescriptions.map((d) => `- ${d}`).join("\n")}`;
 
 		const answeredPairs: string[] = [];
 		for (const q of questions) {
@@ -594,7 +594,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		const answeredCount = questions.filter((q) => q.answer.trim() !== "").length;
 		const shortBulletRange = answeredCount >= EXPLORE_QUESTIONS.length ? "2-3" : "1-3";
 
-		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail.\n\n" + "Do not refer to 'this statement' or 'my choices'; focus on what the user is conveying.\n\n" + "Do not ask questions.\n\n" + (short ? `IMPORTANT: Return ${shortBulletRange} bullet points. Each bullet point should be a short phrase (fewer than 10 words), not a complete sentence. No periods. Use "- " prefix for each bullet. No other text.` : "IMPORTANT: Write in the first person, as if the user is writing about themselves.\n\nDo not use bullet points or numbered lists — write in flowing prose. Use plain text only.\n\n4 to 7 sentences across 2 or 3 short paragraphs.");
+		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail.\n\n" + "Do not refer to 'this description' or 'my choices'; focus on what the user is conveying.\n\n" + "Do not ask questions.\n\n" + (short ? `IMPORTANT: Return ${shortBulletRange} bullet points. Each bullet point should be a short phrase (fewer than 10 words), not a complete sentence. No periods. Use "- " prefix for each bullet. No other text.` : "IMPORTANT: Write in the first person, as if the user is writing about themselves.\n\nDo not use bullet points or numbered lists — write in flowing prose. Use plain text only.\n\n4 to 7 sentences across 2 or 3 short paragraphs.");
 
 		try {
 			const content = await createAnthropicCompletion({

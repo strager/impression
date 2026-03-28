@@ -79,7 +79,7 @@ function makeFullExploreData(cardIds: string[], freeformNote = ""): ExploreData 
 				autoFilledPending: false,
 			})),
 			freeformNote,
-			statementSelections: [],
+			descriptionSelections: [],
 		};
 	}
 	return data;

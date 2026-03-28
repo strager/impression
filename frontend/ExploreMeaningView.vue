@@ -92,8 +92,8 @@ async function handleSubmitAnswer(): Promise<void> {
 	}
 }
 
-function handleConfirmStatements(): void {
-	vm.confirmStatements();
+function handleConfirmDescriptions(): void {
+	vm.confirmDescriptions();
 	if (hasPhysicalKeyboard()) {
 		void nextTick(() => {
 			freeformTextarea.value?.focus();
@@ -262,17 +262,17 @@ onMounted(() => {
 		</div>
 
 		<div v-if="vm.allAnswered && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
-			<h3 class="statements-heading">Which of these feel right to you?</h3>
-			<div class="statement-list">
-				<label v-for="s in vm.cardStatements" :key="s.id" class="statement-row">
-					<input type="checkbox" :checked="vm.selectedStatementIds.has(s.id)" class="statement-checkbox" @change="vm.toggleStatement(s.id)" />
-					<span class="statement-text">{{ s.statement }}</span>
+			<h3 class="descriptions-heading">Which of these feel right to you?</h3>
+			<div class="description-list">
+				<label v-for="d in vm.cardDescriptions" :key="d.id" class="description-row">
+					<input type="checkbox" :checked="vm.selectedDescriptionIds.has(d.id)" class="description-checkbox" @change="vm.toggleDescription(d.id)" />
+					<span class="description-text">{{ d.text }}</span>
 				</label>
 			</div>
-			<AppButton v-if="!vm.statementsConfirmed" variant="primary" class="submit-btn" @click="handleConfirmStatements">Next</AppButton>
+			<AppButton v-if="!vm.descriptionsConfirmed" variant="primary" class="submit-btn" @click="handleConfirmDescriptions">Next</AppButton>
 		</div>
 
-		<div v-if="vm.allAnswered && vm.statementsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
+		<div v-if="vm.allAnswered && vm.descriptionsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
 			<label for="freeform-notes">Additional notes about this source of meaning</label>
 			<ExploreTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
 		</div>
@@ -395,7 +395,7 @@ label {
 	flex: 1;
 }
 
-.statements-heading {
+.descriptions-heading {
 	font-family: var(--font-heading);
 	font-size: var(--text-lg);
 	font-weight: 500;
@@ -403,13 +403,13 @@ label {
 	margin: 0 0 var(--space-4);
 }
 
-.statement-list {
+.description-list {
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
 }
 
-.statement-row {
+.description-row {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
@@ -419,7 +419,7 @@ label {
 	user-select: none;
 }
 
-.statement-checkbox {
+.description-checkbox {
 	width: 1.15rem;
 	height: 1.15rem;
 	flex-shrink: 0;
@@ -427,7 +427,7 @@ label {
 	cursor: pointer;
 }
 
-.statement-text {
+.description-text {
 	font-size: 0.95rem;
 }
 

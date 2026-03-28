@@ -446,7 +446,7 @@ components:
                 minLength: 1
               answer:
                 type: string
-        selectedStatements:
+        selectedDescriptions:
           type: array
           items:
             type: string

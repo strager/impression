@@ -1,4 +1,4 @@
-import { MEANING_SOURCES, MEANING_STATEMENTS, type MeaningSource, type MeaningStatement } from "./meaning-statements.ts";
+import { MEANING_SOURCES, MEANING_DESCRIPTIONS, type MeaningSource, type MeaningDescription } from "./meaning-descriptions.ts";
 
 export interface MeaningCard {
 	id: string;
@@ -9,13 +9,13 @@ export interface MeaningCard {
 export type SwipeDirection = "agree" | "disagree" | "unsure";
 
 export const MEANING_CARDS: readonly MeaningCard[] = MEANING_SOURCES.map((source: MeaningSource) => {
-	const statement: MeaningStatement | undefined = MEANING_STATEMENTS.find((s: MeaningStatement) => s.isPrimary && s.meaningId === source.id);
-	if (statement === undefined) {
-		throw new Error(`could not find item in MEANING_STATEMENTS for ${source.id}`);
+	const description: MeaningDescription | undefined = MEANING_DESCRIPTIONS.find((d: MeaningDescription) => d.isPrimary && d.meaningId === source.id);
+	if (description === undefined) {
+		throw new Error(`could not find item in MEANING_DESCRIPTIONS for ${source.id}`);
 	}
 	return {
 		id: source.id,
 		source: source.name,
-		description: statement.statement,
+		description: description.text,
 	};
 });

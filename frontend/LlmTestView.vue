@@ -6,7 +6,7 @@ import type { LlmTestState } from "./store.ts";
 import { loadLlmTestState, saveLlmTestState } from "./store.ts";
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 interface QuestionRow {
 	questionId: string;
@@ -45,7 +45,7 @@ function persistState(): void {
 			questionId: row.questionId,
 			answer: row.answer,
 		})),
-		selectedStatements: [...selectedStatements],
+		selectedDescriptions: [...selectedDescriptions],
 		freeformNote: freeformNote.value,
 	});
 }
@@ -61,16 +61,16 @@ function debouncedSave(): void {
 const stored = loadLlmTestState();
 const selectedCardId = ref(stored !== null ? stored.cardId : MEANING_CARDS[0].id);
 const rows = reactive<QuestionRow[]>(stored !== null ? toQuestionRows(stored.rows) : [createRow()]);
-const selectedStatements = reactive<Set<string>>(new Set(stored !== null ? stored.selectedStatements : []));
+const selectedDescriptions = reactive<Set<string>>(new Set(stored !== null ? stored.selectedDescriptions : []));
 const freeformNote = ref(stored !== null ? stored.freeformNote : "");
 
-const cardStatements = computed(() => MEANING_STATEMENTS.filter((s) => s.meaningId === selectedCardId.value));
+const cardDescriptions = computed(() => MEANING_DESCRIPTIONS.filter((d) => d.meaningId === selectedCardId.value));
 
-function toggleStatement(id: string): void {
-	if (selectedStatements.has(id)) {
-		selectedStatements.delete(id);
+function toggleDescription(id: string): void {
+	if (selectedDescriptions.has(id)) {
+		selectedDescriptions.delete(id);
 	} else {
-		selectedStatements.add(id);
+		selectedDescriptions.add(id);
 	}
 	persistState();
 }
@@ -136,12 +136,12 @@ async function synthesize() {
 	synthesizeError.value = null;
 	synthesizeResult.value = null;
 	try {
-		const stmts = [...selectedStatements];
+		const descs = [...selectedDescriptions];
 		const note = freeformNote.value.trim();
 		const result = await fetchSynthesis({
 			cardId: selectedCardId.value,
 			questions: rows.map((r) => ({ questionId: r.questionId, answer: r.answer })),
-			selectedStatements: stmts.length > 0 ? stmts : undefined,
+			selectedDescriptions: descs.length > 0 ? descs : undefined,
 			freeformNote: note !== "" ? note : undefined,
 			short: synthesizeLength.value === "short" ? true : undefined,
 		});
@@ -166,11 +166,11 @@ async function synthesize() {
 			</select>
 		</label>
 
-		<fieldset v-if="cardStatements.length > 0" class="statements-section">
-			<legend>Statements</legend>
-			<label v-for="s in cardStatements" :key="s.id" class="statement-label">
-				<input type="checkbox" :checked="selectedStatements.has(s.id)" @change="toggleStatement(s.id)" />
-				{{ s.statement }}
+		<fieldset v-if="cardDescriptions.length > 0" class="descriptions-section">
+			<legend>Descriptions</legend>
+			<label v-for="d in cardDescriptions" :key="d.id" class="description-label">
+				<input type="checkbox" :checked="selectedDescriptions.has(d.id)" @change="toggleDescription(d.id)" />
+				{{ d.text }}
 			</label>
 		</fieldset>
 
@@ -265,7 +265,7 @@ textarea {
 	padding: 0.5rem;
 }
 
-.statements-section {
+.descriptions-section {
 	border: 1px solid #ccc;
 	padding: 0.75rem;
 	display: flex;
@@ -273,7 +273,7 @@ textarea {
 	gap: 0.25rem;
 }
 
-.statement-label {
+.description-label {
 	flex-direction: row;
 	align-items: center;
 	gap: 0.5rem;

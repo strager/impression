@@ -45,8 +45,8 @@ defineProps<{
 				</div>
 				<div class="qa-block">
 					<h4 class="qa-topic">Descriptions that feel right</h4>
-					<ul v-if="report.selectedStatements.length > 0">
-						<li v-for="s in report.selectedStatements" :key="s">{{ s }}</li>
+					<ul v-if="report.selectedDescriptions.length > 0">
+						<li v-for="s in report.selectedDescriptions" :key="s">{{ s }}</li>
 					</ul>
 					<ul v-else>
 						<li>{{ report.card.description }}</li>

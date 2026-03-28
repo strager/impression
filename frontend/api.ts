@@ -27,7 +27,7 @@ interface InferAnswersResponse {
 interface SynthesizeRequest {
 	cardId: string;
 	questions: { questionId: string; answer: string }[];
-	selectedStatements?: string[];
+	selectedDescriptions?: string[];
 	freeformNote?: string;
 	short?: boolean;
 }

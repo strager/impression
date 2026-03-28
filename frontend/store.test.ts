@@ -195,7 +195,7 @@ describe("loadExploreData/saveExploreData", () => {
 					},
 				],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 
@@ -215,7 +215,7 @@ describe("loadExploreData/saveExploreData", () => {
 					},
 				],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 	});
@@ -251,7 +251,7 @@ describe("loadExploreData/saveExploreData", () => {
 					},
 				],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 	});
@@ -291,7 +291,7 @@ describe("loadExploreData/saveExploreData", () => {
 					},
 				],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 	});
@@ -541,7 +541,7 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: DEFAULT_QUESTION_ID, answer: "" }],
-			selectedStatements: [],
+			selectedDescriptions: [],
 			freeformNote: "",
 		});
 	});
@@ -557,7 +557,7 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: DEFAULT_QUESTION_ID, answer: "answer" }],
-			selectedStatements: [],
+			selectedDescriptions: [],
 			freeformNote: "",
 		});
 	});
@@ -573,7 +573,7 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 		expect(loadLlmTestState()).toEqual({
 			cardId: "self-knowledge",
 			rows: [{ questionId: "interpretation", answer: "" }],
-			selectedStatements: [],
+			selectedDescriptions: [],
 			freeformNote: "",
 		});
 	});
@@ -585,7 +585,7 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 				{ questionId: "interpretation", answer: "answer 1" },
 				{ questionId: "importance", answer: "answer 2" },
 			],
-			selectedStatements: ["3", "5"],
+			selectedDescriptions: ["3", "5"],
 			freeformNote: "some notes",
 		});
 
@@ -595,7 +595,7 @@ describe("loadLlmTestState/saveLlmTestState", () => {
 				{ questionId: "interpretation", answer: "answer 1" },
 				{ questionId: "importance", answer: "answer 2" },
 			],
-			selectedStatements: ["3", "5"],
+			selectedDescriptions: ["3", "5"],
 			freeformNote: "some notes",
 		});
 	});
@@ -632,7 +632,7 @@ describe("freeform notes in ExploreData", () => {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "Some extra thoughts",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 		const result = loadExploreData(sid());
@@ -645,7 +645,7 @@ describe("freeform notes in ExploreData", () => {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 		const result = loadExploreData(sid());
@@ -740,7 +740,7 @@ describe("exportProgressData/importProgressData", () => {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 
@@ -768,7 +768,7 @@ describe("exportProgressData/importProgressData", () => {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 		const currentId = getActiveSessionId();
@@ -812,8 +812,8 @@ describe("exportProgressData/importProgressData", () => {
 	});
 });
 
-describe("statement selections in ExploreData", () => {
-	it("defaults statementSelections to empty array when statements key is absent", () => {
+describe("description selections in ExploreData", () => {
+	it("defaults descriptionSelections to empty array when descriptions key is absent", () => {
 		localStorage.setItem(
 			activeKey("explore"),
 			JSON.stringify({
@@ -822,10 +822,10 @@ describe("statement selections in ExploreData", () => {
 		);
 		const result = loadExploreData(sid());
 		expect(result).not.toBeNull();
-		expect(result!["self-knowledge"].statementSelections).toEqual([]);
+		expect(result!["self-knowledge"].descriptionSelections).toEqual([]);
 	});
 
-	it("defaults statementSelections to empty array for corrupt statements JSON", () => {
+	it("defaults descriptionSelections to empty array for corrupt descriptions JSON", () => {
 		localStorage.setItem(
 			activeKey("explore"),
 			JSON.stringify({
@@ -835,29 +835,29 @@ describe("statement selections in ExploreData", () => {
 		localStorage.setItem(activeKey("statements"), "{bad");
 		const result = loadExploreData(sid());
 		expect(result).not.toBeNull();
-		expect(result!["self-knowledge"].statementSelections).toEqual([]);
+		expect(result!["self-knowledge"].descriptionSelections).toEqual([]);
 	});
 
-	it("round-trips statement selections through ExploreData", () => {
+	it("round-trips description selections through ExploreData", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
-				statementSelections: ["6", "34"],
+				descriptionSelections: ["6", "34"],
 			},
 		});
 		const result = loadExploreData(sid());
 		expect(result).not.toBeNull();
-		expect(result!["self-knowledge"].statementSelections).toEqual(["6", "34"]);
+		expect(result!["self-knowledge"].descriptionSelections).toEqual(["6", "34"]);
 	});
 
-	it("exportProgressData includes statements data", () => {
+	it("exportProgressData includes descriptions data", () => {
 		saveChosenCardIds(sid(), ["self-knowledge"]);
 		saveExploreData(sid(), {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
-				statementSelections: ["6", "34"],
+				descriptionSelections: ["6", "34"],
 			},
 		});
 
@@ -865,7 +865,7 @@ describe("statement selections in ExploreData", () => {
 		expect(exported.sessions[0].data.statements).toEqual({ "self-knowledge": ["6", "34"] });
 	});
 
-	it("importProgressData restores statements data", () => {
+	it("importProgressData restores descriptions data", () => {
 		const currentId = getActiveSessionId();
 		const v2Data = JSON.stringify({
 			version: "somecam-v2",
@@ -888,15 +888,15 @@ describe("statement selections in ExploreData", () => {
 		importProgressData(v2Data);
 		const result = loadExploreData(sid());
 		expect(result).not.toBeNull();
-		expect(result!["self-knowledge"].statementSelections).toEqual(["6", "34"]);
+		expect(result!["self-knowledge"].descriptionSelections).toEqual(["6", "34"]);
 	});
 
-	it("importProgressData clears statements when not present in import", () => {
+	it("importProgressData clears descriptions when not present in import", () => {
 		saveExploreData(sid(), {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "",
-				statementSelections: ["6"],
+				descriptionSelections: ["6"],
 			},
 		});
 		const currentId = getActiveSessionId();
@@ -921,7 +921,7 @@ describe("statement selections in ExploreData", () => {
 		importProgressData(v2Data);
 		const result = loadExploreData(sid());
 		expect(result).not.toBeNull();
-		expect(result!["self-knowledge"].statementSelections).toEqual([]);
+		expect(result!["self-knowledge"].descriptionSelections).toEqual([]);
 	});
 });
 
@@ -1037,7 +1037,7 @@ describe("session data isolation", () => {
 			"self-knowledge": {
 				entries: [{ questionId: "interpretation", userAnswer: "answer", prefilledAnswer: "", submitted: true, guardrailText: "", submittedAfterGuardrail: false, thoughtBubbleText: "", thoughtBubbleAcknowledged: false, autoFilledPending: false }],
 				freeformNote: "notes from session 1",
-				statementSelections: [],
+				descriptionSelections: [],
 			},
 		});
 

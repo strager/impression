@@ -8,7 +8,7 @@ import { isCardFullyExplored, isExplorePhaseComplete, loadExploreData, requestSt
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
@@ -24,8 +24,8 @@ export class ExploreMeaningViewModel {
 	private readonly _awaitingReflection = ref(false);
 	private readonly _pendingInferResult = ref<Map<string, string> | null>(null);
 	private readonly _freeformNote = ref("");
-	private readonly _selectedStatementIds = ref<Set<string>>(new Set());
-	private readonly _statementsConfirmed = ref(false);
+	private readonly _selectedDescriptionIds = ref<Set<string>>(new Set());
+	private readonly _descriptionsConfirmed = ref(false);
 	private readonly _questionStartTimeMs = ref(performance.now());
 	private readonly _submittedAnswerSnapshots = ref<Map<string, string>>(new Map());
 	private readonly _editedAfterSubmit = ref<Set<string>>(new Set());
@@ -63,12 +63,12 @@ export class ExploreMeaningViewModel {
 		this._freeformNote.value = value;
 	}
 
-	get selectedStatementIds(): Set<string> {
-		return this._selectedStatementIds.value;
+	get selectedDescriptionIds(): Set<string> {
+		return this._selectedDescriptionIds.value;
 	}
 
-	get statementsConfirmed(): boolean {
-		return this._statementsConfirmed.value;
+	get descriptionsConfirmed(): boolean {
+		return this._descriptionsConfirmed.value;
 	}
 
 	get manualReflectLoading(): Set<string> {
@@ -104,8 +104,8 @@ export class ExploreMeaningViewModel {
 		return this._entries.value.filter((e) => e.submitted).length;
 	}
 
-	get cardStatements(): (typeof MEANING_STATEMENTS)[number][] {
-		return MEANING_STATEMENTS.filter((s) => s.meaningId === this.cardId);
+	get cardDescriptions(): (typeof MEANING_DESCRIPTIONS)[number][] {
+		return MEANING_DESCRIPTIONS.filter((d) => d.meaningId === this.cardId);
 	}
 
 	// --- Public methods ---
@@ -120,7 +120,7 @@ export class ExploreMeaningViewModel {
 			const data = loadExploreData(this.sessionId) ?? {};
 			if (!(this.cardId in data) || data[this.cardId].entries.length === 0) {
 				if (!(this.cardId in data)) {
-					data[this.cardId] = { entries: [], freeformNote: "", statementSelections: [] };
+					data[this.cardId] = { entries: [], freeformNote: "", descriptionSelections: [] };
 				}
 				const allQuestionIds = EXPLORE_QUESTIONS.map((q) => q.id);
 				const questionId = selectNextQuestion(allQuestionIds, []);
@@ -142,9 +142,9 @@ export class ExploreMeaningViewModel {
 			this._card.value = foundCard;
 			this._entries.value = cardData.entries;
 			this._freeformNote.value = cardData.freeformNote;
-			if (cardData.statementSelections.length > 0) {
-				this._selectedStatementIds.value = new Set(cardData.statementSelections);
-				this._statementsConfirmed.value = true;
+			if (cardData.descriptionSelections.length > 0) {
+				this._selectedDescriptionIds.value = new Set(cardData.descriptionSelections);
+				this._descriptionsConfirmed.value = true;
 			}
 			this._submittedAnswerSnapshots.value = new Map(this._entries.value.filter((entry) => entry.submitted).map((entry) => [entry.questionId, entry.userAnswer]));
 
@@ -426,21 +426,21 @@ export class ExploreMeaningViewModel {
 		});
 	}
 
-	toggleStatement(id: string): void {
-		if (this._selectedStatementIds.value.has(id)) {
-			this._selectedStatementIds.value.delete(id);
+	toggleDescription(id: string): void {
+		if (this._selectedDescriptionIds.value.has(id)) {
+			this._selectedDescriptionIds.value.delete(id);
 		} else {
-			this._selectedStatementIds.value.add(id);
+			this._selectedDescriptionIds.value.add(id);
 		}
-		this._selectedStatementIds.value = new Set(this._selectedStatementIds.value);
-		if (this._statementsConfirmed.value) {
-			this.persistStatements();
+		this._selectedDescriptionIds.value = new Set(this._selectedDescriptionIds.value);
+		if (this._descriptionsConfirmed.value) {
+			this.persistDescriptions();
 		}
 	}
 
-	confirmStatements(): void {
-		this._statementsConfirmed.value = true;
-		this.persistStatements();
+	confirmDescriptions(): void {
+		this._descriptionsConfirmed.value = true;
+		this.persistDescriptions();
 	}
 
 	persistEntries(): void {
@@ -473,7 +473,7 @@ export class ExploreMeaningViewModel {
 		}
 		this.persistEntries();
 		this.persistFreeform();
-		this.persistStatements();
+		this.persistDescriptions();
 		const noteLength = this._freeformNote.value.trim().length;
 		if (noteLength > 0) {
 			capture("freeform_notes_added", {
@@ -594,10 +594,10 @@ export class ExploreMeaningViewModel {
 		this.applyInferAndAdvance(inferredMap, remaining);
 	}
 
-	private persistStatements(): void {
+	private persistDescriptions(): void {
 		const data = loadExploreData(this.sessionId);
 		if (data === null) return;
-		data[this.cardId] = { ...data[this.cardId], statementSelections: [...this._selectedStatementIds.value] };
+		data[this.cardId] = { ...data[this.cardId], descriptionSelections: [...this._selectedDescriptionIds.value] };
 		saveExploreData(this.sessionId, data);
 	}
 

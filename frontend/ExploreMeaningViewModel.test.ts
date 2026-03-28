@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_STATEMENTS } from "../shared/meaning-statements.ts";
+import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
 import type { ExploreData, ExploreEntry } from "./store.ts";
 import { ensureSessionsInitialized, getActiveSessionId, loadExploreData, saveChosenCardIds, saveExploreData } from "./store.ts";
@@ -88,7 +88,7 @@ function makeEntry(questionId: string, answer: string, submitted: boolean): Expl
 
 function setupExploreData(cardId: string, entries: ExploreEntry[]): void {
 	saveChosenCardIds(sid(), [cardId]);
-	const data: ExploreData = { [cardId]: { entries, freeformNote: "", statementSelections: [] } };
+	const data: ExploreData = { [cardId]: { entries, freeformNote: "", descriptionSelections: [] } };
 	saveExploreData(sid(), data);
 }
 
@@ -128,7 +128,7 @@ describe("initialize", () => {
 
 	it("assigns first question when entries are empty", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", statementSelections: [] } });
+		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.entries).toHaveLength(1);
@@ -166,28 +166,28 @@ describe("initialize", () => {
 	it("restores freeform notes from localStorage", () => {
 		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries, freeformNote: "my notes", statementSelections: [] } });
+		saveExploreData(sid(), { [TEST_CARD_ID]: { entries, freeformNote: "my notes", descriptionSelections: [] } });
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.freeformNote).toBe("my notes");
 	});
 
-	it("restores statement selections from localStorage", () => {
+	it("restores description selections from localStorage", () => {
 		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
 		setupExploreData(TEST_CARD_ID, entries);
 
 		const vm1 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm1.initialize();
-		vm1.toggleStatement("3");
-		vm1.toggleStatement("6");
-		vm1.confirmStatements();
+		vm1.toggleDescription("3");
+		vm1.toggleDescription("6");
+		vm1.confirmDescriptions();
 
 		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
-		expect(vm2.selectedStatementIds.has("3")).toBe(true);
-		expect(vm2.selectedStatementIds.has("6")).toBe(true);
-		expect(vm2.statementsConfirmed).toBe(true);
+		expect(vm2.selectedDescriptionIds.has("3")).toBe(true);
+		expect(vm2.selectedDescriptionIds.has("6")).toBe(true);
+		expect(vm2.descriptionsConfirmed).toBe(true);
 	});
 
 	it("resumes with pending guardrail", () => {
@@ -960,7 +960,7 @@ describe("manual reflection", () => {
 	});
 });
 
-describe("statements and freeform", () => {
+describe("descriptions and freeform", () => {
 	it("toggle adds and removes from set", () => {
 		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
 		setupExploreData(TEST_CARD_ID, entries);
@@ -968,32 +968,32 @@ describe("statements and freeform", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const stmtId = MEANING_STATEMENTS.find((s) => s.meaningId === TEST_CARD_ID)?.id;
-		if (stmtId === undefined) return; // skip if no statements for this card
+		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		if (descId === undefined) return; // skip if no descriptions for this card
 
-		vm.toggleStatement(stmtId);
-		expect(vm.selectedStatementIds.has(stmtId)).toBe(true);
+		vm.toggleDescription(descId);
+		expect(vm.selectedDescriptionIds.has(descId)).toBe(true);
 
-		vm.toggleStatement(stmtId);
-		expect(vm.selectedStatementIds.has(stmtId)).toBe(false);
+		vm.toggleDescription(descId);
+		expect(vm.selectedDescriptionIds.has(descId)).toBe(false);
 	});
 
-	it("confirm persists statements to localStorage", () => {
+	it("confirm persists descriptions to localStorage", () => {
 		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
 		setupExploreData(TEST_CARD_ID, entries);
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const stmtId = MEANING_STATEMENTS.find((s) => s.meaningId === TEST_CARD_ID)?.id;
-		if (stmtId === undefined) return;
+		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		if (descId === undefined) return;
 
-		vm.toggleStatement(stmtId);
-		vm.confirmStatements();
+		vm.toggleDescription(descId);
+		vm.confirmDescriptions();
 
-		expect(vm.statementsConfirmed).toBe(true);
+		expect(vm.descriptionsConfirmed).toBe(true);
 		const saved = loadExploreData(sid());
-		expect(saved![TEST_CARD_ID].statementSelections).toContain(stmtId);
+		expect(saved![TEST_CARD_ID].descriptionSelections).toContain(descId);
 	});
 
 	it("toggle persists when already confirmed", () => {
@@ -1003,14 +1003,14 @@ describe("statements and freeform", () => {
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const stmtId = MEANING_STATEMENTS.find((s) => s.meaningId === TEST_CARD_ID)?.id;
-		if (stmtId === undefined) return;
+		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		if (descId === undefined) return;
 
-		vm.confirmStatements();
-		vm.toggleStatement(stmtId);
+		vm.confirmDescriptions();
+		vm.toggleDescription(descId);
 
 		const saved = loadExploreData(sid());
-		expect(saved![TEST_CARD_ID].statementSelections).toContain(stmtId);
+		expect(saved![TEST_CARD_ID].descriptionSelections).toContain(descId);
 	});
 
 	it("freeform persist saves to localStorage", () => {
@@ -1028,7 +1028,7 @@ describe("statements and freeform", () => {
 });
 
 describe("finishExploring", () => {
-	it("persists entries, freeform, and statements", () => {
+	it("persists entries, freeform, and descriptions", () => {
 		const entries = makeAllSubmitted();
 		setupExploreData(TEST_CARD_ID, entries);
 
@@ -1036,9 +1036,9 @@ describe("finishExploring", () => {
 		vm.initialize();
 		vm.freeformNote = "Final notes";
 
-		const stmtId = MEANING_STATEMENTS.find((s) => s.meaningId === TEST_CARD_ID)?.id;
-		if (stmtId !== undefined) {
-			vm.toggleStatement(stmtId);
+		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		if (descId !== undefined) {
+			vm.toggleDescription(descId);
 		}
 
 		vm.finishExploring();
@@ -1046,7 +1046,7 @@ describe("finishExploring", () => {
 		const savedData = loadExploreData(sid());
 		expect(savedData![TEST_CARD_ID].entries).toHaveLength(EXPLORE_QUESTIONS.length);
 		expect(savedData![TEST_CARD_ID].freeformNote).toBe("Final notes");
-		expect(savedData![TEST_CARD_ID].statementSelections).toBeDefined();
+		expect(savedData![TEST_CARD_ID].descriptionSelections).toBeDefined();
 	});
 
 	it("accepts pending reflection if shown", async () => {
@@ -1160,17 +1160,17 @@ describe("derived properties", () => {
 		expect(vm.submittedCount).toBe(2);
 	});
 
-	it("cardStatements returns statements for the card's meaning ID", () => {
+	it("cardDescriptions returns descriptions for the card's meaning ID", () => {
 		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
 		setupExploreData(TEST_CARD_ID, entries);
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const statements = vm.cardStatements;
-		expect(statements.length).toBeGreaterThan(0);
-		for (const s of statements) {
-			expect(s.meaningId).toBe(TEST_CARD_ID);
+		const descriptions = vm.cardDescriptions;
+		expect(descriptions.length).toBeGreaterThan(0);
+		for (const d of descriptions) {
+			expect(d.meaningId).toBe(TEST_CARD_ID);
 		}
 	});
 });
@@ -1218,7 +1218,7 @@ describe("sequential question selection", () => {
 describe("initial question assignment", () => {
 	it("assigns the first question in EXPLORE_QUESTIONS order", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", statementSelections: [] } });
+		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
 
 		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();

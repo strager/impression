@@ -81,7 +81,7 @@ describe("assembleReportData", () => {
 		expect(() => assembleReportData(makeSessionExport({}))).toThrow("Session has no chosen cards.");
 	});
 
-	it("includes selected statements in report", () => {
+	it("includes selected descriptions in report", () => {
 		const json = makeSessionExport({
 			chosen: ["self-knowledge"],
 			explore: {
@@ -93,16 +93,16 @@ describe("assembleReportData", () => {
 		});
 
 		const reports = assembleReportData(json);
-		expect(reports[0].selectedStatements).toEqual(["To understand myself and my behaviour is important for me", "Viewing myself critically is important to me"]);
+		expect(reports[0].selectedDescriptions).toEqual(["To understand myself and my behaviour is important for me", "Viewing myself critically is important to me"]);
 	});
 
-	it("returns empty selectedStatements when statements data is missing", () => {
+	it("returns empty selectedDescriptions when descriptions data is missing", () => {
 		const json = makeSessionExport({
 			chosen: ["self-knowledge"],
 		});
 
 		const reports = assembleReportData(json);
-		expect(reports[0].selectedStatements).toEqual([]);
+		expect(reports[0].selectedDescriptions).toEqual([]);
 	});
 
 	it("includes synthesis when cached fingerprint matches", () => {

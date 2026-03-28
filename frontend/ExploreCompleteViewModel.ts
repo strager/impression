@@ -127,7 +127,7 @@ export class ExploreCompleteViewModel {
 		}
 		const fingerprint = fingerprintParts.join("\x00");
 
-		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.statementSelections, fingerprint);
+		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.descriptionSelections, fingerprint);
 
 		capture("explore_complete_viewed", {
 			session_id: this.sessionId,
@@ -155,14 +155,14 @@ export class ExploreCompleteViewModel {
 		const fingerprint = fingerprintParts.join("\x00");
 
 		this._synthesisError.value = "";
-		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.statementSelections, fingerprint);
+		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.descriptionSelections, fingerprint);
 	}
 
 	onAnimationComplete(): void {
 		markExploreCompleteVisited(this.sessionId, this.cardId);
 	}
 
-	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedStatements: string[], fingerprint: string): Promise<void> {
+	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedDescriptions: string[], fingerprint: string): Promise<void> {
 		const cached = lookupCachedSynthesis({ sessionId: this.sessionId, cardId: this.cardId, fingerprint });
 		if (cached !== null) {
 			this._synthesis.value = cached;
@@ -174,7 +174,7 @@ export class ExploreCompleteViewModel {
 			const result = await fetchSynthesis({
 				cardId: this.cardId,
 				questions,
-				...(selectedStatements.length > 0 ? { selectedStatements } : {}),
+				...(selectedDescriptions.length > 0 ? { selectedDescriptions } : {}),
 				...(freeformNote !== "" ? { freeformNote } : {}),
 			});
 			this._synthesis.value = result.synthesis;

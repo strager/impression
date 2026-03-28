@@ -74,12 +74,12 @@ export interface ExploreEntry {
 export interface CardExploreData {
 	entries: ExploreEntry[];
 	freeformNote: string;
-	statementSelections: string[];
+	descriptionSelections: string[];
 }
 export type ExploreData = Record<string, CardExploreData>;
 type SummaryCache = Record<string, { answer: string; summary: string }>;
 type FreeformNotes = Partial<Record<string, string>>;
-type StatementSelections = Partial<Record<string, string[]>>;
+type DescriptionSelections = Partial<Record<string, string[]>>;
 
 interface LlmTestRow {
 	questionId: string;
@@ -89,7 +89,7 @@ interface LlmTestRow {
 export interface LlmTestState {
 	cardId: string;
 	rows: LlmTestRow[];
-	selectedStatements: string[];
+	selectedDescriptions: string[];
 	freeformNote: string;
 }
 
@@ -274,7 +274,8 @@ function summariesKey(sessionId: string): string {
 function freeformKey(sessionId: string): string {
 	return sessionKey(sessionId, "freeform");
 }
-function statementsKey(sessionId: string): string {
+function descriptionsKey(sessionId: string): string {
+	// localStorage key intentionally kept as "statements" for backward compatibility.
 	return sessionKey(sessionId, "statements");
 }
 function completeVisitedKey(sessionId: string): string {
@@ -455,7 +456,7 @@ export function loadExploreData(sessionId: string): ExploreData | null {
 	}
 
 	const freeformNotes = loadFreeformNotesInternal(sessionId);
-	const statementSelections = loadStatementSelectionsInternal(sessionId);
+	const descriptionSelections = loadDescriptionSelectionsInternal(sessionId);
 
 	const result: ExploreData = {};
 	for (const [cardId, entries] of Object.entries(parsed)) {
@@ -475,7 +476,7 @@ export function loadExploreData(sessionId: string): ExploreData | null {
 		result[cardId] = {
 			entries: nonBlank,
 			freeformNote: freeformNotes[cardId] ?? "",
-			statementSelections: statementSelections[cardId] ?? [],
+			descriptionSelections: descriptionSelections[cardId] ?? [],
 		};
 	}
 
@@ -485,19 +486,19 @@ export function loadExploreData(sessionId: string): ExploreData | null {
 export function saveExploreData(sessionId: string, data: ExploreData): void {
 	const entriesRecord: Record<string, ExploreEntry[]> = {};
 	const freeformRecord: FreeformNotes = {};
-	const statementsRecord: StatementSelections = {};
+	const descriptionsRecord: DescriptionSelections = {};
 	for (const [cardId, cardData] of Object.entries(data)) {
 		entriesRecord[cardId] = cardData.entries;
 		if (cardData.freeformNote !== "") {
 			freeformRecord[cardId] = cardData.freeformNote;
 		}
-		if (cardData.statementSelections.length > 0) {
-			statementsRecord[cardId] = cardData.statementSelections;
+		if (cardData.descriptionSelections.length > 0) {
+			descriptionsRecord[cardId] = cardData.descriptionSelections;
 		}
 	}
 	localStorage.setItem(exploreKey(sessionId), JSON.stringify(entriesRecord));
 	localStorage.setItem(freeformKey(sessionId), JSON.stringify(freeformRecord));
-	localStorage.setItem(statementsKey(sessionId), JSON.stringify(statementsRecord));
+	localStorage.setItem(descriptionsKey(sessionId), JSON.stringify(descriptionsRecord));
 	touchSession(sessionId);
 }
 
@@ -555,7 +556,7 @@ function loadFreeformNotesInternal(sessionId: string): FreeformNotes {
 	return isFreeformNotes(parsed) ? parsed : {};
 }
 
-function isStatementSelections(value: unknown): value is StatementSelections {
+function isDescriptionSelections(value: unknown): value is DescriptionSelections {
 	if (!isObjectRecord(value)) return false;
 	for (const v of Object.values(value)) {
 		if (!isStringArray(v)) return false;
@@ -563,9 +564,9 @@ function isStatementSelections(value: unknown): value is StatementSelections {
 	return true;
 }
 
-function loadStatementSelectionsInternal(sessionId: string): StatementSelections {
-	const parsed = parseJsonFromStorage(statementsKey(sessionId));
-	return isStatementSelections(parsed) ? parsed : {};
+function loadDescriptionSelectionsInternal(sessionId: string): DescriptionSelections {
+	const parsed = parseJsonFromStorage(descriptionsKey(sessionId));
+	return isDescriptionSelections(parsed) ? parsed : {};
 }
 
 // --- Global (non-session-scoped) ---
@@ -595,19 +596,19 @@ export function loadLlmTestState(): LlmTestState | null {
 		};
 	});
 
-	const selectedStatements: string[] = [];
-	if (Array.isArray(parsed.selectedStatements)) {
-		for (const s of parsed.selectedStatements) {
-			if (typeof s === "string") {
-				selectedStatements.push(s);
-			}
+	const selectedDescriptions: string[] = [];
+	// Read from either the new "selectedDescriptions" key or the legacy "selectedStatements" key.
+	const rawDescriptions = Array.isArray(parsed.selectedDescriptions) ? parsed.selectedDescriptions : Array.isArray(parsed.selectedStatements) ? parsed.selectedStatements : [];
+	for (const s of rawDescriptions) {
+		if (typeof s === "string") {
+			selectedDescriptions.push(s);
 		}
 	}
 
 	return {
 		cardId: parsed.cardId,
 		rows,
-		selectedStatements,
+		selectedDescriptions,
 		freeformNote: typeof parsed.freeformNote === "string" ? parsed.freeformNote : "",
 	};
 }
