@@ -2,7 +2,7 @@
 
 Impression presents you with 26 sources of meaning, each representing a
 potential source of meaning in your life. Through a multi-step sorting
-process, you prioritize a small handful that resonate most with you.
+process, you prioritize a small handful that matter most to you.
 
 ## Step 1: Initial sorting
 
@@ -14,8 +14,8 @@ source of meaning; you only see the statement itself.
 
 For each one, you choose one of three responses:
 
-- **Agree** — this statement resonates with you
-- **Disagree** — this statement does not resonate with you
+- **Agree** — this statement feels right to you
+- **Disagree** — this statement does not feel right to you
 - **Unsure** — you are not sure
 
 You can swipe (on touch devices) or click the buttons. An undo button lets
@@ -38,8 +38,8 @@ initial sort to your top 3–5 through a series of MaxDiff (Best-Worst
 Scaling) tasks.
 
 You are shown three sources of meaning at a time. First, you choose
-which one resonates with you **most**. Then, from the remaining two,
-you choose which resonates **least**. This two-phase selection gives the
+which one matters to you **most**. Then, from the remaining two,
+you choose which matters **least**. This two-phase selection gives the
 algorithm roughly three times as much information per task compared to
 a simple head-to-head comparison.
 

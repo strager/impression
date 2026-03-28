@@ -71,8 +71,8 @@ function continueToNextPhase(): void {
 		<header>
 			<h1>Find meaning</h1>
 			<div class="instruction-stack">
-				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex === 0 }]">Read each source of meaning and decide if it resonates with you.</p>
-				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex > 0 }]">Keep going — decide if each source of meaning resonates with you.</p>
+				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex === 0 }]">Read each source of meaning and decide if it feels right to you.</p>
+				<p :class="['instruction', { active: !vm.isComplete && vm.currentIndex > 0 }]">Keep going — decide if each source of meaning feels right to you.</p>
 				<p :class="['instruction', { active: vm.isComplete }]">You've reviewed all {{ vm.totalCards }} sources of meaning. Let's review.</p>
 			</div>
 			<div class="progress">
@@ -93,7 +93,7 @@ function continueToNextPhase(): void {
 			<p style="margin-bottom: var(--space-4)">Here are the sources of meaning that you selected:</p>
 
 			<div v-if="vm.agreedCards.length > 0" class="selection-group">
-				<h3>Resonates with you</h3>
+				<h3>Feels right to you</h3>
 				<ul class="checkmark-list selection-columns">
 					<li v-for="card in vm.agreedCards" :key="card.id">{{ card.description }}</li>
 				</ul>

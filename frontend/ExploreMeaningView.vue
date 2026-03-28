@@ -262,7 +262,7 @@ onMounted(() => {
 		</div>
 
 		<div v-if="vm.allAnswered && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
-			<h3 class="statements-heading">Which of these statements resonate with you?</h3>
+			<h3 class="statements-heading">Which of these feel right to you?</h3>
 			<div class="statement-list">
 				<label v-for="s in vm.cardStatements" :key="s.id" class="statement-row">
 					<input type="checkbox" :checked="vm.selectedStatementIds.has(s.id)" class="statement-checkbox" @change="vm.toggleStatement(s.id)" />

@@ -44,7 +44,7 @@ defineProps<{
 					<p class="qa-freeform-answer">{{ report.freeformNote }}</p>
 				</div>
 				<div class="qa-block">
-					<h4 class="qa-topic">Statements that resonate</h4>
+					<h4 class="qa-topic">Descriptions that feel right</h4>
 					<ul v-if="report.selectedStatements.length > 0">
 						<li v-for="s in report.selectedStatements" :key="s">{{ s }}</li>
 					</ul>

@@ -12,7 +12,7 @@ async function main(): Promise<void> {
 
 	console.log("=== Impression Card Ranking (MaxDiff) ===");
 	console.log(`Ranking ${String(cards.length)} cards to find your top ${String(ranking.effectiveK)}.\n`);
-	console.log("For each set of 3 cards, choose which resonates MOST and LEAST.\n");
+	console.log("For each set of 3 cards, choose which matters MOST and LEAST.\n");
 
 	while (!ranking.stopped) {
 		const { items: task } = ranking.selectTask();
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
 		let best: MeaningCard | null = null;
 		while (best === null) {
-			const answer = await rl.question(`  Which resonates MOST? (1-${String(task.length)}): `);
+			const answer = await rl.question(`  Which matters MOST? (1-${String(task.length)}): `);
 			const idx = parseInt(answer.trim(), 10) - 1;
 			if (idx >= 0 && idx < task.length) {
 				best = task[idx];
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 			remaining.forEach((card, i) => {
 				console.log(`    ${String(i + 1)}: [${card.source}] "${card.description}"`);
 			});
-			const answer = await rl.question(`  Which resonates LEAST? (1-${String(remaining.length)}): `);
+			const answer = await rl.question(`  Which matters LEAST? (1-${String(remaining.length)}): `);
 			const idx = parseInt(answer.trim(), 10) - 1;
 			if (idx >= 0 && idx < remaining.length) {
 				worst = remaining[idx];
