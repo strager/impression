@@ -1,7 +1,7 @@
 # Impression
 
 This is an application for facilitating the Sources of Meaning Card Method,
-helping people discover what is meaningful in their life.
+helping people uncover what is meaningful in their life.
 
 Based on: Presentation of the Sources of Meaning Card Method: The SoMeCaM, by
 Peter la Cour and Tatjana Schnell, 2016
