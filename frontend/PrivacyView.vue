@@ -10,7 +10,7 @@
 
 		<section>
 			<h2>Your data stays in your browser</h2>
-			<p>Your selections, answers, and profile data are saved in your browser's local storage. There are no accounts or logins; your data belongs to you. They are never stored permanently on our servers.</p>
+			<p>Your choices, answers, and profile data are saved in your browser's local storage. There are no accounts or logins; your data belongs to you. They are never stored permanently on our servers.</p>
 		</section>
 
 		<section>

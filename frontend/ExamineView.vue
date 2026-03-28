@@ -71,7 +71,7 @@ function handleOpenProfile(source: string): void {
 
 		<div class="top-actions">
 			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenProfile('examine_overview_primary')">Download profile</AppButton>
-			<AppButton variant="secondary" @click="handleEditSelection">Edit selection</AppButton>
+			<AppButton variant="secondary" @click="handleEditSelection">Edit sources of meaning</AppButton>
 		</div>
 
 		<div class="card-list">

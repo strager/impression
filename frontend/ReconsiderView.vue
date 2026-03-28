@@ -103,7 +103,7 @@ onMounted(() => {
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
 				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>
-				<p :class="['instruction', { active: selectedCount >= 3 && selectedCount <= 5 }]">Good selection! Tap Done when you're ready.</p>
+				<p :class="['instruction', { active: selectedCount >= 3 && selectedCount <= 5 }]">Good choices! Tap Done when you're ready.</p>
 				<p :class="['instruction', { active: selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused examination.</p>
 			</div>
 			<p class="count">{{ selectedCount }} source{{ selectedCount === 1 ? "" : "s" }} of meaning selected</p>

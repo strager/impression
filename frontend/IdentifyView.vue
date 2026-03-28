@@ -107,7 +107,7 @@ function continueToNextPhase(): void {
 			</div>
 
 			<p v-if="vm.requiresPrioritization" class="next-step-hint">Next, you'll narrow these down to the ones that matter most.</p>
-			<p v-else class="next-step-hint">Next, you'll examine what each one means to you. You will also be able to change your selections.</p>
+			<p v-else class="next-step-hint">Next, you'll examine what each one means to you. You will also be able to change your sources of meaning.</p>
 
 			<AppButton variant="primary" @click="continueToNextPhase">
 				<template v-if="vm.requiresPrioritization">Prioritize meaning</template>
