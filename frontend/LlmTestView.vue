@@ -167,7 +167,7 @@ async function synthesize() {
 		</label>
 
 		<fieldset v-if="cardDescriptions.length > 0" class="descriptions-section">
-			<legend>Descriptions</legend>
+			<legend>Expressions</legend>
 			<label v-for="d in cardDescriptions" :key="d.id" class="description-label">
 				<input type="checkbox" :checked="selectedDescriptions.has(d.id)" @change="toggleDescription(d.id)" />
 				{{ d.text }}

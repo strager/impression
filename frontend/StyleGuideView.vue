@@ -583,7 +583,7 @@ import AppButton from "./AppButton.vue";
 
 			<div class="sg-subsection">
 				<div class="sg-subsection-title">Terminology</div>
-				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Avoid the word "card" in user-facing text. Use the source of meaning's name directly, or say "source of meaning" if a generic term is needed.</p>
+				<p style="color: var(--color-gray-800); max-width: 600px; margin-bottom: var(--space-4)">Avoid the word "card" in user-facing text. Say "source of meaning" when referring to a category (e.g. "social commitment"), or "expression" when referring to a card statement (e.g. "I intervene when I see injustice being done").</p>
 			</div>
 		</div>
 

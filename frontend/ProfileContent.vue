@@ -44,7 +44,7 @@ defineProps<{
 					<p class="qa-freeform-answer">{{ card.freeformNote }}</p>
 				</div>
 				<div class="qa-block">
-					<h4 class="qa-topic">Descriptions that feel right</h4>
+					<h4 class="qa-topic">Expressions that feel right</h4>
 					<ul v-if="card.selectedDescriptions.length > 0">
 						<li v-for="s in card.selectedDescriptions" :key="s">{{ s }}</li>
 					</ul>
