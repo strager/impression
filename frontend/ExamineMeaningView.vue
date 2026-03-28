@@ -3,26 +3,26 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
-import ExploreTextarea from "./ExploreTextarea.vue";
-import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
+import ExamineTextarea from "./ExamineTextarea.vue";
+import { ExamineMeaningViewModel } from "./ExamineMeaningViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
-import { hasVisitedExploreComplete } from "./store.ts";
+import { hasVisitedExamineComplete } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 
 const router = useRouter();
 
-const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+const questionsById = new Map(EXAMINE_QUESTIONS.map((q) => [q.id, q]));
 
 const profileId = useStringParam("profileId");
 const cardId = useStringParam("meaningId");
 
-const vm = new ExploreMeaningViewModel(profileId, cardId);
+const vm = new ExamineMeaningViewModel(profileId, cardId);
 
-const activeTextarea = ref<InstanceType<typeof ExploreTextarea> | null>(null);
-const entryTextareas: (InstanceType<typeof ExploreTextarea> | null)[] = [];
+const activeTextarea = ref<InstanceType<typeof ExamineTextarea> | null>(null);
+const entryTextareas: (InstanceType<typeof ExamineTextarea> | null)[] = [];
 const entryCards: (HTMLElement | null)[] = [];
-const freeformTextarea = ref<InstanceType<typeof ExploreTextarea> | null>(null);
+const freeformTextarea = ref<InstanceType<typeof ExamineTextarea> | null>(null);
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -149,7 +149,7 @@ function onKeydown(index: number | null, event: KeyboardEvent): void {
 			freeformTextarea.value?.focus();
 		}
 	} else {
-		handleFinishExploring();
+		handleFinishExamining();
 	}
 }
 
@@ -157,20 +157,20 @@ const fadingOut = ref(false);
 let fadeTimer: ReturnType<typeof setTimeout> | undefined;
 const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 
-function handleFinishExploring(): void {
-	vm.finishExploring();
+function handleFinishExamining(): void {
+	vm.finishExamining();
 	if (vm.allAnswered) {
-		if (prefersReducedMotion.value || hasVisitedExploreComplete(profileId, cardId)) {
-			void router.push({ name: "exploreComplete", params: { profileId, meaningId: cardId } });
+		if (prefersReducedMotion.value || hasVisitedExamineComplete(profileId, cardId)) {
+			void router.push({ name: "examineComplete", params: { profileId, meaningId: cardId } });
 		} else {
 			fadingOut.value = true;
 			document.documentElement.classList.add("page-fading-out");
 			fadeTimer = setTimeout(() => {
-				void router.push({ name: "exploreComplete", params: { profileId, meaningId: cardId } });
+				void router.push({ name: "examineComplete", params: { profileId, meaningId: cardId } });
 			}, 2000);
 		}
 	} else {
-		void router.push({ name: "explore", params: { profileId } });
+		void router.push({ name: "examine", params: { profileId } });
 	}
 }
 
@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "explore", params: { profileId } });
+		void router.replace({ name: "examine", params: { profileId } });
 	}
 });
 </script>
@@ -190,7 +190,7 @@ onMounted(() => {
 <template>
 	<main v-if="vm.card" :class="{ 'fading-out': fadingOut }">
 		<header>
-			<h1>Explore meaning</h1>
+			<h1>Examine meaning</h1>
 
 			<h2 class="description">
 				&ldquo;{{ vm.card.description }}&rdquo; <span class="source">({{ vm.card.source }})</span>
@@ -198,8 +198,8 @@ onMounted(() => {
 
 			<div class="instruction-stack">
 				<p :class="['instruction', { active: !vm.allAnswered && vm.submittedCount === 0 }]">Reflect on what this source of meaning means to you. Answer each question thoughtfully.</p>
-				<p :class="['instruction', { active: !vm.allAnswered && vm.submittedCount > 0 }]">Question {{ vm.submittedCount + 1 }} of {{ EXPLORE_QUESTIONS.length }} — keep reflecting on this source of meaning.</p>
-				<p :class="['instruction', { active: vm.allAnswered }]">You've answered all questions. Add any additional notes, or finish exploring this source of meaning.</p>
+				<p :class="['instruction', { active: !vm.allAnswered && vm.submittedCount > 0 }]">Question {{ vm.submittedCount + 1 }} of {{ EXAMINE_QUESTIONS.length }} — keep reflecting on this source of meaning.</p>
+				<p :class="['instruction', { active: vm.allAnswered }]">You've answered all questions. Add any additional notes, or finish examining this source of meaning.</p>
 			</div>
 		</header>
 
@@ -228,7 +228,7 @@ onMounted(() => {
 					<p v-else class="manual-reflect-positive"><em>Your answer looks good!</em></p>
 				</template>
 			</template>
-			<ExploreTextarea
+			<ExamineTextarea
 				:id="`q-${entry.questionId}`"
 				:ref="
 					(el: any) => {
@@ -274,10 +274,10 @@ onMounted(() => {
 
 		<div v-if="vm.allAnswered && vm.descriptionsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
 			<label for="freeform-notes">Additional notes about this source of meaning</label>
-			<ExploreTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
+			<ExamineTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
 		</div>
 
-		<AppButton variant="secondary" class="finish-btn" @click="handleFinishExploring">Finish exploring</AppButton>
+		<AppButton variant="secondary" class="finish-btn" @click="handleFinishExamining">Finish examining</AppButton>
 	</main>
 </template>
 

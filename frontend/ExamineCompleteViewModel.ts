@@ -2,17 +2,17 @@ import { ref } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { capture } from "./analytics.ts";
 import { hashStrings } from "./deterministic-hash.ts";
 import { fetchSynthesis } from "./api.ts";
-import { hasVisitedExploreComplete, isCardFullyExplored, isExplorePhaseComplete, loadChosenCardIds, loadExploreData, lookupCachedSynthesis, markExploreCompleteVisited, saveCachedSynthesis } from "./store.ts";
+import { hasVisitedExamineComplete, isCardFullyExamined, isExaminePhaseComplete, loadChosenCardIds, loadExamineData, lookupCachedSynthesis, markExamineCompleteVisited, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
-const WARM_PHRASES = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your exploration", "A snapshot of your thoughts"];
+const WARM_PHRASES = ["Here's what you reflected on", "A look at what came up for you", "Your reflections, distilled", "What emerged from your examination", "A snapshot of your thoughts"];
 
-export class ExploreCompleteViewModel {
+export class ExamineCompleteViewModel {
 	private readonly profileId: string;
 	private readonly cardId: string;
 
@@ -22,7 +22,7 @@ export class ExploreCompleteViewModel {
 	private readonly _synthesisLoading = ref(false);
 	private readonly _synthesisError = ref("");
 	private readonly _allComplete = ref(false);
-	private readonly _exploredCount = ref(0);
+	private readonly _examinedCount = ref(0);
 	private _loadingPromise: Promise<void> | null = null;
 
 	constructor(profileId: string, cardId: string) {
@@ -54,8 +54,8 @@ export class ExploreCompleteViewModel {
 		return this._allComplete.value;
 	}
 
-	get exploredCount(): number {
-		return this._exploredCount.value;
+	get examinedCount(): number {
+		return this._examinedCount.value;
 	}
 
 	get totalCount(): number {
@@ -67,7 +67,7 @@ export class ExploreCompleteViewModel {
 	}
 
 	get hasBeenVisited(): boolean {
-		return hasVisitedExploreComplete(this.profileId, this.cardId);
+		return hasVisitedExamineComplete(this.profileId, this.cardId);
 	}
 
 	get isLoading(): boolean {
@@ -89,35 +89,35 @@ export class ExploreCompleteViewModel {
 			return "no-data";
 		}
 
-		const exploreData = loadExploreData(this.profileId);
-		if (exploreData === null) {
+		const examineData = loadExamineData(this.profileId);
+		if (examineData === null) {
 			return "no-data";
 		}
 
-		if (!(this.cardId in exploreData)) {
+		if (!(this.cardId in examineData)) {
 			return "no-data";
 		}
 
-		const cardData = exploreData[this.cardId];
-		if (!isCardFullyExplored(cardData.entries)) {
+		const cardData = examineData[this.cardId];
+		if (!isCardFullyExamined(cardData.entries)) {
 			return "no-data";
 		}
 
 		this._card.value = foundCard;
 		this._chosenCardIds.value = chosenCardIds;
 
-		let explored = 0;
+		let examined = 0;
 		for (const id of chosenCardIds) {
-			if (!(id in exploreData)) continue;
-			if (isCardFullyExplored(exploreData[id].entries)) {
-				explored++;
+			if (!(id in examineData)) continue;
+			if (isCardFullyExamined(examineData[id].entries)) {
+				examined++;
 			}
 		}
-		this._exploredCount.value = explored;
+		this._examinedCount.value = examined;
 
-		this._allComplete.value = isExplorePhaseComplete(this.profileId);
+		this._allComplete.value = isExaminePhaseComplete(this.profileId);
 
-		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		const questionOrder = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 
 		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
@@ -129,10 +129,10 @@ export class ExploreCompleteViewModel {
 
 		this._loadingPromise = this.loadSynthesis(questions, cardData.freeformNote, cardData.descriptionSelections, fingerprint);
 
-		capture("explore_complete_viewed", {
+		capture("examine_complete_viewed", {
 			session_id: this.profileId,
 			card_id: this.cardId,
-			explored_count: explored,
+			examined_count: examined,
 			total_count: chosenCardIds.length,
 			all_complete: this._allComplete.value,
 		});
@@ -141,11 +141,11 @@ export class ExploreCompleteViewModel {
 	}
 
 	retrySynthesis(): void {
-		const exploreData = loadExploreData(this.profileId);
-		if (exploreData === null || !(this.cardId in exploreData)) return;
-		const cardData = exploreData[this.cardId];
+		const examineData = loadExamineData(this.profileId);
+		if (examineData === null || !(this.cardId in examineData)) return;
+		const cardData = examineData[this.cardId];
 
-		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		const questionOrder = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
 		const fingerprintParts = answered.map((e) => e.userAnswer);
@@ -159,7 +159,7 @@ export class ExploreCompleteViewModel {
 	}
 
 	onAnimationComplete(): void {
-		markExploreCompleteVisited(this.profileId, this.cardId);
+		markExamineCompleteVisited(this.profileId, this.cardId);
 	}
 
 	private async loadSynthesis(questions: { questionId: string; answer: string }[], freeformNote: string, selectedDescriptions: string[], fingerprint: string): Promise<void> {

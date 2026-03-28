@@ -102,7 +102,7 @@ onMounted(() => {
 		return;
 	}
 	if (result === "skip") {
-		void router.replace({ name: "explore", params: { profileId } });
+		void router.replace({ name: "examine", params: { profileId } });
 		return;
 	}
 	const redo = vm.pendingRedo;
@@ -437,7 +437,7 @@ function handleUndo(): void {
 
 function handleFinish(): void {
 	vm.finalize();
-	void router.push({ name: "explore", params: { profileId } });
+	void router.push({ name: "examine", params: { profileId } });
 }
 </script>
 
@@ -506,10 +506,10 @@ function handleFinish(): void {
 					<strong>{{ card.source }}</strong> — {{ card.description }}
 				</li>
 			</ul>
-			<p class="next-step-hint">Next, you'll explore what each one means to you.</p>
+			<p class="next-step-hint">Next, you'll examine what each one means to you.</p>
 			<div class="button-row">
 				<AppButton variant="secondary" emphasis="muted" :disabled="!vm.canUndo" @click="handleUndo">Back</AppButton>
-				<AppButton variant="primary" @click="handleFinish">Explore meaning</AppButton>
+				<AppButton variant="primary" @click="handleFinish">Examine meaning</AppButton>
 			</div>
 		</div>
 	</main>

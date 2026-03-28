@@ -377,7 +377,7 @@ import AppButton from "./AppButton.vue";
 				<h4 class="sg-group-label">Success</h4>
 				<div class="sg-chip-row">
 					<span class="chip chip-success">Complete</span>
-					<span class="chip chip-success">Explored</span>
+					<span class="chip chip-success">Examined</span>
 				</div>
 				<h4 class="sg-group-label">Warning</h4>
 				<div class="sg-chip-row">

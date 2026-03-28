@@ -5,13 +5,13 @@ import { useRouter } from "vue-router";
 import AppButton from "./AppButton.vue";
 import { capture } from "./analytics.ts";
 import { useStringParam } from "./route-utils.ts";
-import { loadChosenCardIds, loadExploreData, saveChosenCardIds } from "./store.ts";
+import { loadChosenCardIds, loadExamineData, saveChosenCardIds } from "./store.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
 const chosenIds = ref<Set<string>>(new Set());
-const exploredIds = ref<Set<string>>(new Set());
+const examinedIds = ref<Set<string>>(new Set());
 const confirmingRemove = ref<string | null>(null);
 
 const selectedCount = computed(() => chosenIds.value.size);
@@ -21,13 +21,13 @@ function saveChosenIds(): void {
 	saveChosenCardIds(profileId, ordered);
 }
 
-function isExplored(cardId: string): boolean {
-	return exploredIds.value.has(cardId);
+function isExamined(cardId: string): boolean {
+	return examinedIds.value.has(cardId);
 }
 
 function toggleCard(cardId: string): void {
 	if (chosenIds.value.has(cardId)) {
-		if (isExplored(cardId)) {
+		if (isExamined(cardId)) {
 			confirmingRemove.value = cardId;
 			return;
 		}
@@ -69,7 +69,7 @@ function onDone(): void {
 		session_id: profileId,
 		card_count: selectedCount.value,
 	});
-	void router.push({ name: "explore", params: { profileId } });
+	void router.push({ name: "examine", params: { profileId } });
 }
 
 onMounted(() => {
@@ -81,11 +81,11 @@ onMounted(() => {
 		}
 		chosenIds.value = new Set(cardIds);
 
-		const exploreData = loadExploreData(profileId);
-		if (exploreData !== null) {
-			for (const [cardId, cardData] of Object.entries(exploreData)) {
+		const examineData = loadExamineData(profileId);
+		if (examineData !== null) {
+			for (const [cardId, cardData] of Object.entries(examineData)) {
 				if (cardData.entries.some((e) => e.userAnswer !== "")) {
-					exploredIds.value.add(cardId);
+					examinedIds.value.add(cardId);
 				}
 			}
 		}
@@ -101,10 +101,10 @@ onMounted(() => {
 		<header>
 			<h1>Find meaning — manual</h1>
 			<div class="instruction-stack">
-				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to explore.</p>
-				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to explore (aim for 3–5).</p>
+				<p :class="['instruction', { active: selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
+				<p :class="['instruction', { active: selectedCount >= 1 && selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>
 				<p :class="['instruction', { active: selectedCount >= 3 && selectedCount <= 5 }]">Good selection! Tap Done when you're ready.</p>
-				<p :class="['instruction', { active: selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused exploration.</p>
+				<p :class="['instruction', { active: selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused examination.</p>
 			</div>
 			<p class="count">{{ selectedCount }} source{{ selectedCount === 1 ? "" : "s" }} of meaning selected</p>
 		</header>
@@ -116,10 +116,10 @@ onMounted(() => {
 					<span class="card-source">{{ card.source }}</span>
 					<span class="card-desc">{{ card.description }}</span>
 				</div>
-				<span v-if="isExplored(card.id)" class="chip chip-success explored-chip">Explored</span>
+				<span v-if="isExamined(card.id)" class="chip chip-success examined-chip">Examined</span>
 
 				<div v-if="confirmingRemove === card.id" class="confirm-overlay" @click.stop>
-					<p>This source of meaning has exploration answers. Remove it?</p>
+					<p>This source of meaning has examination answers. Remove it?</p>
 					<!-- eslint-disable vue/no-restricted-html-elements -->
 					<div class="confirm-actions">
 						<button class="confirm-remove" @click="removeCard(card.id, true)">Remove</button>
@@ -212,7 +212,7 @@ h1 {
 	color: var(--color-gray-600);
 }
 
-.explored-chip {
+.examined-chip {
 	flex-shrink: 0;
 	margin-left: var(--space-3);
 }

@@ -3,10 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
-import { ExploreCompleteViewModel } from "./ExploreCompleteViewModel.ts";
+import { ExamineCompleteViewModel } from "./ExamineCompleteViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { splitSentences } from "./split-sentences.ts";
-import { hasVisitedExploreComplete } from "./store.ts";
+import { hasVisitedExamineComplete } from "./store.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 
 /**
@@ -244,15 +244,15 @@ const router = useRouter();
 const profileId = useStringParam("profileId");
 const cardId = useStringParam("meaningId");
 
-const vm = new ExploreCompleteViewModel(profileId, cardId);
+const vm = new ExamineCompleteViewModel(profileId, cardId);
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExploreComplete(profileId, cardId) : !DEBUG_FORCE_ANIMATE;
+const skipAnimations = DEBUG_FORCE_ANIMATE === null ? hasVisitedExamineComplete(profileId, cardId) : !DEBUG_FORCE_ANIMATE;
 
 const titleVisible = ref(false);
 const warmPhraseVisible = ref(false);
 const progressSquaresVisible = ref(false);
-const animatedExploredCount = ref(0);
+const animatedExaminedCount = ref(0);
 const latestSquareIndex = ref(-1);
 const synthesisVisible = ref(false);
 const countSwapActive = ref(false);
@@ -350,7 +350,7 @@ function scrollIntoView(el: HTMLElement | null | undefined): void {
 async function runCascade(signal: AbortSignal): Promise<void> {
 	try {
 		document.documentElement.classList.add("nav-hidden");
-		animatedExploredCount.value = Math.max(0, vm.exploredCount - 1);
+		animatedExaminedCount.value = Math.max(0, vm.examinedCount - 1);
 
 		await animationDelay(visibilityGaps.initial, signal);
 		titleVisible.value = true;
@@ -359,12 +359,12 @@ async function runCascade(signal: AbortSignal): Promise<void> {
 		progressSquaresVisible.value = true;
 		scrollIntoView(progressSquaresEl.value);
 
-		if (vm.exploredCount > 0) {
+		if (vm.examinedCount > 0) {
 			await animationDelay(visibilityGaps.progressStart, signal);
 			countSwapActive.value = true;
-			animatedExploredCount.value = vm.exploredCount;
+			animatedExaminedCount.value = vm.examinedCount;
 			if (!prefersReducedMotion.value) {
-				latestSquareIndex.value = vm.exploredCount - 1;
+				latestSquareIndex.value = vm.examinedCount - 1;
 				pulseAnimation.play(pulseCanvases.value[latestSquareIndex.value]);
 			}
 		}
@@ -415,7 +415,7 @@ async function runCascade(signal: AbortSignal): Promise<void> {
 onMounted(() => {
 	const status = vm.initialize();
 	if (status === "no-data") {
-		void router.replace({ name: "explore", params: { profileId } });
+		void router.replace({ name: "examine", params: { profileId } });
 		return;
 	}
 
@@ -425,7 +425,7 @@ onMounted(() => {
 		synthesisVisible.value = true;
 		revealedSentenceCount.value = Infinity;
 		progressSquaresVisible.value = true;
-		animatedExploredCount.value = vm.exploredCount;
+		animatedExaminedCount.value = vm.examinedCount;
 		primaryActionVisible.value = true;
 		secondaryActionVisible.value = true;
 		return;
@@ -450,8 +450,8 @@ function handleShowAll(): void {
 	vm.onAnimationComplete();
 }
 
-function handleKeepExploring(): void {
-	void router.push({ name: "explore", params: { profileId } });
+function handleKeepExamining(): void {
+	void router.push({ name: "examine", params: { profileId } });
 }
 
 function handleOpenProfile(): void {
@@ -466,15 +466,15 @@ function handleOpenProfile(): void {
 		</header>
 
 		<div ref="progressSquaresEl" :class="['progress-squares', 'cascading', { visible: progressSquaresVisible }]">
-			<span v-for="(id, index) in vm.chosenCardIds" :key="id" :class="['square', { filled: index < animatedExploredCount, latest: index === latestSquareIndex }]">
+			<span v-for="(id, index) in vm.chosenCardIds" :key="id" :class="['square', { filled: index < animatedExaminedCount, latest: index === latestSquareIndex }]">
 				<canvas ref="pulseCanvases" class="pulse-canvas"></canvas>
 			</span>
 			<span class="progress-text"
-				><span class="explored-count-wrapper"
-					><span v-if="!skipAnimations" :class="['explored-count', 'count-old', { 'count-leaving': countSwapActive }]">{{ Math.max(0, vm.exploredCount - 1) }}</span
-					><span :class="['explored-count', { 'count-new': !skipAnimations, 'count-entering': countSwapActive }]">{{ vm.exploredCount }}</span></span
+				><span class="examined-count-wrapper"
+					><span v-if="!skipAnimations" :class="['examined-count', 'count-old', { 'count-leaving': countSwapActive }]">{{ Math.max(0, vm.examinedCount - 1) }}</span
+					><span :class="['examined-count', { 'count-new': !skipAnimations, 'count-entering': countSwapActive }]">{{ vm.examinedCount }}</span></span
 				>
-				of {{ vm.totalCount }} explored</span
+				of {{ vm.totalCount }} examined</span
 			>
 		</div>
 
@@ -498,10 +498,10 @@ function handleOpenProfile(): void {
 		<div ref="actionsEl" class="actions">
 			<template v-if="vm.allComplete">
 				<AppButton variant="primary" :class="['action-btn', 'cascading', { visible: primaryActionVisible }]" @click="handleOpenProfile">Print your profile</AppButton>
-				<AppButton variant="secondary" :class="['action-btn', 'cascading', { visible: secondaryActionVisible }]" @click="handleKeepExploring">Back to explore list</AppButton>
+				<AppButton variant="secondary" :class="['action-btn', 'cascading', { visible: secondaryActionVisible }]" @click="handleKeepExamining">Back to examine list</AppButton>
 			</template>
 			<template v-else>
-				<AppButton variant="primary" :class="['action-btn', 'cascading', { visible: primaryActionVisible }]" @click="handleKeepExploring">Keep exploring</AppButton>
+				<AppButton variant="primary" :class="['action-btn', 'cascading', { visible: primaryActionVisible }]" @click="handleKeepExamining">Keep examining</AppButton>
 			</template>
 		</div>
 	</main>
@@ -590,12 +590,12 @@ h1 {
 	margin-left: var(--space-2);
 }
 
-.explored-count-wrapper {
+.examined-count-wrapper {
 	position: relative;
 	display: inline-block;
 }
 
-.explored-count {
+.examined-count {
 	display: inline-block;
 }
 

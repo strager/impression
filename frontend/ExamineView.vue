@@ -2,16 +2,16 @@
 import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import AppButton from "./AppButton.vue";
-import { ExploreViewModel, parseBullets } from "./ExploreViewModel.ts";
+import { ExamineViewModel, parseBullets } from "./ExamineViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 
-const questionsPerCard = EXPLORE_QUESTIONS.length;
+const questionsPerCard = EXAMINE_QUESTIONS.length;
 
 const router = useRouter();
 const profileId = useStringParam("profileId");
-const vm = new ExploreViewModel(profileId);
+const vm = new ExamineViewModel(profileId);
 
 onMounted(() => {
 	const status = vm.initialize();
@@ -22,24 +22,24 @@ onMounted(() => {
 
 const instructionText = computed(() => {
 	if (vm.totalAnswered === 0) {
-		return "Tap a source of meaning below to begin exploring what it means to you.";
+		return "Tap a source of meaning below to begin examining what it means to you.";
 	}
 	if (vm.totalAnswered >= vm.totalQuestions) {
-		return "You've explored all your sources of meaning! Review your reflections or download your profile.";
+		return "You've examined all your sources of meaning! Review your reflections or download your profile.";
 	}
 	return `You've answered ${String(vm.totalAnswered)} of ${String(vm.totalQuestions)} questions across your sources of meaning. Tap one to continue.`;
 });
 
-function exploreButtonLabel(cardId: string): string {
+function examineButtonLabel(cardId: string): string {
 	const status = vm.cardStatus(cardId);
 	if (status === "complete") return "Review";
 	if (status === "partial") return "Continue";
-	return "Explore";
+	return "Examine";
 }
 
-function handleExploreCard(cardId: string): void {
-	vm.onExploreCard(cardId);
-	void router.push({ name: "exploreMeaning", params: { profileId, meaningId: cardId } });
+function handleExamineCard(cardId: string): void {
+	vm.onExamineCard(cardId);
+	void router.push({ name: "examineMeaning", params: { profileId, meaningId: cardId } });
 }
 
 function handleEditSelection(): void {
@@ -56,7 +56,7 @@ function handleOpenProfile(source: string): void {
 <template>
 	<main>
 		<header>
-			<h1>Explore</h1>
+			<h1>Examine</h1>
 			<div v-if="vm.chosenCards.length > 0" class="instruction-stack">
 				<p class="instruction active">{{ instructionText }}</p>
 			</div>
@@ -70,7 +70,7 @@ function handleOpenProfile(source: string): void {
 		</div>
 
 		<div class="top-actions">
-			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenProfile('explore_overview_primary')">Download profile</AppButton>
+			<AppButton v-if="vm.allComplete" variant="primary" @click="handleOpenProfile('examine_overview_primary')">Download profile</AppButton>
 			<AppButton variant="secondary" @click="handleEditSelection">Edit selection</AppButton>
 		</div>
 
@@ -99,11 +99,11 @@ function handleOpenProfile(source: string): void {
 					<p v-else class="card-synthesis" style="--chip-parent-cap: 1cap">{{ vm.cardSynthesis[card.id]!.text }} <span class="chip chip-ai">AI-generated</span></p>
 				</template>
 				<div v-else-if="vm.cardSynthesis[card.id]?.error" class="alert alert-error">Could not load summary. <a class="retry-link" role="button" tabindex="0" @click="vm.retrySynthesis(card.id)" @keydown.enter="vm.retrySynthesis(card.id)">Retry</a></div>
-				<AppButton :variant="vm.cardStatus(card.id) !== 'complete' ? 'primary' : 'secondary'" class="explore-btn" @click="handleExploreCard(card.id)">{{ exploreButtonLabel(card.id) }}</AppButton>
+				<AppButton :variant="vm.cardStatus(card.id) !== 'complete' ? 'primary' : 'secondary'" class="examine-btn" @click="handleExamineCard(card.id)">{{ examineButtonLabel(card.id) }}</AppButton>
 			</div>
 		</div>
 
-		<AppButton :variant="vm.allComplete ? 'primary' : 'secondary'" class="profile-btn" @click="handleOpenProfile('explore_overview_secondary')">Download profile</AppButton>
+		<AppButton :variant="vm.allComplete ? 'primary' : 'secondary'" class="profile-btn" @click="handleOpenProfile('examine_overview_secondary')">Download profile</AppButton>
 	</main>
 </template>
 
@@ -175,7 +175,7 @@ h1 {
 	margin-top: var(--space-3);
 }
 
-.explore-btn {
+.examine-btn {
 	margin-top: var(--space-3);
 }
 

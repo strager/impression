@@ -1,4 +1,4 @@
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
 import { capture } from "./analytics.ts";
 
@@ -11,7 +11,7 @@ const PAPER_SIZE_KEY = "somecam-paper-size";
 
 const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"] as const;
 
-const DEFAULT_QUESTION_ID = EXPLORE_QUESTIONS[0]?.id ?? "";
+const DEFAULT_QUESTION_ID = EXAMINE_QUESTIONS[0]?.id ?? "";
 
 export interface ImportProgressStats {
 	profiles: number;
@@ -59,7 +59,7 @@ export interface RankingProgress {
 	complete: boolean;
 }
 
-export interface ExploreEntry {
+export interface ExamineEntry {
 	questionId: string;
 	userAnswer: string;
 	prefilledAnswer: string;
@@ -71,12 +71,12 @@ export interface ExploreEntry {
 	autoFilledPending: boolean;
 }
 
-export interface CardExploreData {
-	entries: ExploreEntry[];
+export interface CardExamineData {
+	entries: ExamineEntry[];
 	freeformNote: string;
 	descriptionSelections: string[];
 }
-export type ExploreData = Record<string, CardExploreData>;
+export type ExamineData = Record<string, CardExamineData>;
 type SummaryCache = Record<string, { answer: string; summary: string }>;
 type FreeformNotes = Partial<Record<string, string>>;
 type DescriptionSelections = Partial<Record<string, string[]>>;
@@ -315,7 +315,7 @@ function isSwipeRecord(value: unknown): value is SwipeRecord {
 	return typeof value.cardId === "string" && isSwipeDirection(value.direction);
 }
 
-function toExploreEntry(value: unknown): ExploreEntry | null {
+function toExamineEntry(value: unknown): ExamineEntry | null {
 	if (!isObjectRecord(value)) {
 		return null;
 	}
@@ -449,7 +449,7 @@ export function needsPrioritization(profileId: string): boolean {
 	return selectCandidateCards(profileId).length > 5;
 }
 
-export function loadExploreData(profileId: string): ExploreData | null {
+export function loadExamineData(profileId: string): ExamineData | null {
 	const parsed = parseJsonFromStorage(exploreKey(profileId));
 	if (!isObjectRecord(parsed)) {
 		return null;
@@ -458,15 +458,15 @@ export function loadExploreData(profileId: string): ExploreData | null {
 	const freeformNotes = loadFreeformNotesInternal(profileId);
 	const descriptionSelections = loadDescriptionSelectionsInternal(profileId);
 
-	const result: ExploreData = {};
+	const result: ExamineData = {};
 	for (const [cardId, entries] of Object.entries(parsed)) {
 		if (!Array.isArray(entries)) {
 			return null;
 		}
 
-		const validEntries: ExploreEntry[] = [];
+		const validEntries: ExamineEntry[] = [];
 		for (const entry of entries) {
-			const validEntry = toExploreEntry(entry);
+			const validEntry = toExamineEntry(entry);
 			if (validEntry === null) {
 				return null;
 			}
@@ -483,8 +483,8 @@ export function loadExploreData(profileId: string): ExploreData | null {
 	return result;
 }
 
-export function saveExploreData(profileId: string, data: ExploreData): void {
-	const entriesRecord: Record<string, ExploreEntry[]> = {};
+export function saveExamineData(profileId: string, data: ExamineData): void {
+	const entriesRecord: Record<string, ExamineEntry[]> = {};
 	const freeformRecord: FreeformNotes = {};
 	const descriptionsRecord: DescriptionSelections = {};
 	for (const [cardId, cardData] of Object.entries(data)) {
@@ -503,17 +503,17 @@ export function saveExploreData(profileId: string, data: ExploreData): void {
 }
 
 export function selectNextQuestion(allowedQuestionIds: string[], priorityQuestionIds: string[]): string {
-	for (const q of EXPLORE_QUESTIONS) {
+	for (const q of EXAMINE_QUESTIONS) {
 		if (allowedQuestionIds.includes(q.id) && priorityQuestionIds.includes(q.id)) {
 			return q.id;
 		}
 	}
-	for (const q of EXPLORE_QUESTIONS) {
+	for (const q of EXAMINE_QUESTIONS) {
 		if (allowedQuestionIds.includes(q.id)) {
 			return q.id;
 		}
 	}
-	throw new Error("no allowed question found in EXPLORE_QUESTIONS");
+	throw new Error("no allowed question found in EXAMINE_QUESTIONS");
 }
 
 function isSummaryCache(value: unknown): value is SummaryCache {
@@ -619,12 +619,12 @@ export function saveLlmTestState(data: LlmTestState): void {
 
 // --- Progress detection ---
 
-export type ProgressPhase = "explore" | "prioritize-complete" | "prioritize" | "swipe" | "none";
+export type ProgressPhase = "examine" | "prioritize-complete" | "prioritize" | "swipe" | "none";
 
 export function detectProfilePhase(id: string): ProgressPhase {
 	const chosenRaw = parseJsonFromStorage(`somecam-${id}-chosen`);
 	if (isStringArray(chosenRaw) && chosenRaw.length > 0) {
-		return "explore";
+		return "examine";
 	}
 	const narrowRaw = parseJsonFromStorage(`somecam-${id}-narrowdown`);
 	if (isObjectRecord(narrowRaw) && isStringArray(narrowRaw.cardIds) && narrowRaw.cardIds.length > 0 && Array.isArray(narrowRaw.comparisons) && typeof narrowRaw.complete === "boolean") {
@@ -637,20 +637,20 @@ export function detectProfilePhase(id: string): ProgressPhase {
 	return "none";
 }
 
-export function isCardFullyExplored(entries: readonly ExploreEntry[]): boolean {
-	return entries.length === EXPLORE_QUESTIONS.length && entries.every((entry) => entry.submitted);
+export function isCardFullyExamined(entries: readonly ExamineEntry[]): boolean {
+	return entries.length === EXAMINE_QUESTIONS.length && entries.every((entry) => entry.submitted);
 }
 
-export function isExplorePhaseComplete(profileId: string): boolean {
+export function isExaminePhaseComplete(profileId: string): boolean {
 	const chosenCardIds = loadChosenCardIds(profileId);
-	const data = loadExploreData(profileId);
+	const data = loadExamineData(profileId);
 	if (chosenCardIds === null || data === null) {
 		return false;
 	}
 
 	return chosenCardIds.every((chosenId) => {
 		if (!(chosenId in data)) return false;
-		return isCardFullyExplored(data[chosenId].entries);
+		return isCardFullyExamined(data[chosenId].entries);
 	});
 }
 
@@ -827,7 +827,7 @@ export function saveRateLimitToken(token: string): void {
 
 // --- Complete-visited tracking ---
 
-export function hasVisitedExploreComplete(profileId: string, cardId: string): boolean {
+export function hasVisitedExamineComplete(profileId: string, cardId: string): boolean {
 	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	if (!isStringArray(parsed)) {
 		return false;
@@ -835,7 +835,7 @@ export function hasVisitedExploreComplete(profileId: string, cardId: string): bo
 	return parsed.includes(cardId);
 }
 
-export function markExploreCompleteVisited(profileId: string, cardId: string): void {
+export function markExamineCompleteVisited(profileId: string, cardId: string): void {
 	const parsed = parseJsonFromStorage(completeVisitedKey(profileId));
 	const visited = isStringArray(parsed) ? parsed : [];
 	if (!visited.includes(cardId)) {

@@ -7,7 +7,7 @@ The app supports multiple profiles so users can track separate sets of meaning s
 - Each profile stores its own source of meaning choices, answers, summaries, and freeform notes.
 - Profiles are identified by a UUID and stored entirely in the browser's localStorage.
 - When a profile is created, it is auto-named with the current date (e.g. "February 13, 2026"). Users can rename profiles at any time.
-- The profile UUID is embedded in the URL (e.g. `/:profileId/explore`). Each browser tab operates on the profile identified by its URL, so multiple profiles can be open simultaneously in separate tabs without interference.
+- The profile UUID is embedded in the URL (e.g. `/:profileId/examine`). Each browser tab operates on the profile identified by its URL, so multiple profiles can be open simultaneously in separate tabs without interference.
 
 ## Profile actions
 

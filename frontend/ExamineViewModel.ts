@@ -2,11 +2,11 @@ import { ref } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { capture } from "./analytics.ts";
 import { fetchSynthesis } from "./api.ts";
-import { isCardFullyExplored, loadChosenCardIds, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveExploreData } from "./store.ts";
-import type { CardExploreData } from "./store.ts";
+import { isCardFullyExamined, loadChosenCardIds, loadExamineData, lookupCachedSynthesis, saveCachedSynthesis, saveExamineData } from "./store.ts";
+import type { CardExamineData } from "./store.ts";
 
 export function parseBullets(text: string): string[] | null {
 	const bullets = text
@@ -23,9 +23,9 @@ interface CardSynthesisState {
 	error: string;
 }
 
-const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+const questionsById = new Map(EXAMINE_QUESTIONS.map((q) => [q.id, q]));
 
-export class ExploreViewModel {
+export class ExamineViewModel {
 	private readonly profileId: string;
 	private readonly _chosenCards = ref<MeaningCard[]>([]);
 	private readonly _cardAnswerCounts = ref<Record<string, number>>({});
@@ -49,7 +49,7 @@ export class ExploreViewModel {
 	}
 
 	get totalQuestions(): number {
-		return this._chosenCards.value.length * EXPLORE_QUESTIONS.length;
+		return this._chosenCards.value.length * EXAMINE_QUESTIONS.length;
 	}
 
 	get totalAnswered(): number {
@@ -77,8 +77,8 @@ export class ExploreViewModel {
 	}
 
 	cardStatus(cardId: string): "untouched" | "partial" | "complete" {
-		const exploreData = loadExploreData(this.profileId);
-		if (exploreData !== null && cardId in exploreData && isCardFullyExplored(exploreData[cardId].entries)) {
+		const examineData = loadExamineData(this.profileId);
+		if (examineData !== null && cardId in examineData && isCardFullyExamined(examineData[cardId].entries)) {
 			return "complete";
 		}
 		const count = this._cardAnswerCounts.value[cardId] ?? 0;
@@ -86,12 +86,12 @@ export class ExploreViewModel {
 		return "partial";
 	}
 
-	onExploreCard(cardId: string): void {
+	onExamineCard(cardId: string): void {
 		const answered = this._cardAnswerCounts.value[cardId] ?? 0;
-		capture("card_exploration_started", {
+		capture("card_examination_started", {
 			session_id: this.profileId,
 			card_id: cardId,
-			question_number: Math.min(answered + 1, EXPLORE_QUESTIONS.length),
+			question_number: Math.min(answered + 1, EXAMINE_QUESTIONS.length),
 		});
 	}
 
@@ -115,14 +115,14 @@ export class ExploreViewModel {
 			const chosenSet = new Set(cardIds);
 			this._chosenCards.value = MEANING_CARDS.filter((c) => chosenSet.has(c.id));
 
-			let exploreData = loadExploreData(this.profileId);
-			if (exploreData === null) {
-				exploreData = {};
-				saveExploreData(this.profileId, exploreData);
+			let examineData = loadExamineData(this.profileId);
+			if (examineData === null) {
+				examineData = {};
+				saveExamineData(this.profileId, examineData);
 			}
 			const promises: Promise<void>[] = [];
 
-			for (const [cardId, cardData] of Object.entries(exploreData)) {
+			for (const [cardId, cardData] of Object.entries(examineData)) {
 				const entries = cardData.entries;
 				const answered = entries.filter((e) => e.userAnswer !== "" && !e.autoFilledPending);
 				this._cardAnswerCounts.value[cardId] = answered.length;
@@ -134,7 +134,7 @@ export class ExploreViewModel {
 			if (promises.length > 0) {
 				this._loadingPromise = Promise.all(promises).then(() => undefined);
 			}
-			capture("explore_overview_visited", { session_id: this.profileId });
+			capture("examine_overview_visited", { session_id: this.profileId });
 			return "ready";
 		} catch {
 			return "no-data";
@@ -142,13 +142,13 @@ export class ExploreViewModel {
 	}
 
 	retrySynthesis(cardId: string): void {
-		const exploreData = loadExploreData(this.profileId);
-		if (exploreData === null || !(cardId in exploreData)) return;
-		this._loadingPromise = this.loadCardSynthesis(cardId, exploreData[cardId]);
+		const examineData = loadExamineData(this.profileId);
+		if (examineData === null || !(cardId in examineData)) return;
+		this._loadingPromise = this.loadCardSynthesis(cardId, examineData[cardId]);
 	}
 
-	private async loadCardSynthesis(cardId: string, cardData: CardExploreData): Promise<void> {
-		const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+	private async loadCardSynthesis(cardId: string, cardData: CardExamineData): Promise<void> {
+		const questionOrder = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionsById.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 
 		if (answered.length === 0) return;

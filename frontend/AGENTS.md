@@ -19,4 +19,4 @@
 - When validation fails, focus the relevant input field.
 - Don't rely on color alone to indicate state — pair with icons or other visual cues.
 - Batch async UI updates: if loading multiple items, wait until all are ready before showing them (avoid items popping in one by one).
-- When displaying lists of cards, use `MEANING_CARDS` order. When displaying question-related data, use `EXPLORE_QUESTIONS` order.
+- When displaying lists of cards, use `MEANING_CARDS` order. When displaying question-related data, use `EXAMINE_QUESTIONS` order.

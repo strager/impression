@@ -5,11 +5,11 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { ProfileViewModel } from "./ProfileViewModel.ts";
-import type { ExploreData } from "./store.ts";
-import { ensureProfilesInitialized, getActiveProfileId, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
+import type { ExamineData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, saveCachedSynthesis, saveChosenCardIds, saveExamineData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -63,11 +63,11 @@ afterAll(() => {
 
 const TEST_CARD_ID = MEANING_CARDS[0].id;
 
-function makeFullExploreData(cardIds: string[], freeformNote = ""): ExploreData {
-	const data: ExploreData = {};
+function makeFullExamineData(cardIds: string[], freeformNote = ""): ExamineData {
+	const data: ExamineData = {};
 	for (const cardId of cardIds) {
 		data[cardId] = {
-			entries: EXPLORE_QUESTIONS.map((q) => ({
+			entries: EXAMINE_QUESTIONS.map((q) => ({
 				questionId: q.id,
 				userAnswer: `Answer for ${q.id}`,
 				prefilledAnswer: "",
@@ -101,9 +101,9 @@ describe("initialize", () => {
 
 	it("returns 'ready' with valid data and cached synthesis", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 
-		const fingerprint = EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
+		const fingerprint = EXAMINE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		const vm = new ProfileViewModel(sid());
@@ -114,7 +114,7 @@ describe("initialize", () => {
 		expect(vm.loading).toBe(false);
 	});
 
-	it("returns 'ready' with empty cards when no explore data", () => {
+	it("returns 'ready' with empty cards when no examine data", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
 
 		const vm = new ProfileViewModel(sid());
@@ -127,7 +127,7 @@ describe("initialize", () => {
 describe("synthesis loading", () => {
 	it("fetches synthesis from API on cache miss", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		setupDefaultSynthesizeHandler();
 
 		const vm = new ProfileViewModel(sid());
@@ -141,9 +141,9 @@ describe("synthesis loading", () => {
 
 	it("uses cached synthesis without API call", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 
-		const fingerprint = EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
+		const fingerprint = EXAMINE_QUESTIONS.map((q) => `Answer for ${q.id}`).join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Cached synthesis" });
 
 		// No MSW handler — any fetch would fail
@@ -156,7 +156,7 @@ describe("synthesis loading", () => {
 
 	it("handles fetch failure gracefully with empty synthesis and error flag", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		server.use(
 			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
@@ -174,9 +174,9 @@ describe("synthesis loading", () => {
 
 	it("includes freeform note in fingerprint", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID], "My notes"));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID], "My notes"));
 
-		const fingerprint = [...EXPLORE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
+		const fingerprint = [...EXAMINE_QUESTIONS.map((q) => `Answer for ${q.id}`), "My notes"].join("\x00");
 		saveCachedSynthesis({ profileId: sid(), cardId: TEST_CARD_ID, fingerprint, synthesis: "Synthesis with notes" });
 
 		const vm = new ProfileViewModel(sid());
@@ -188,7 +188,7 @@ describe("synthesis loading", () => {
 
 	it("retrySynthesis retries and populates synthesis after failure", async () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), makeFullExploreData([TEST_CARD_ID]));
+		saveExamineData(sid(), makeFullExamineData([TEST_CARD_ID]));
 		server.use(
 			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
@@ -217,7 +217,7 @@ describe("synthesis loading", () => {
 	it("batches all synthesis fetches before populating cards", async () => {
 		const cardIds = MEANING_CARDS.slice(0, 2).map((c) => c.id);
 		saveChosenCardIds(sid(), cardIds);
-		saveExploreData(sid(), makeFullExploreData(cardIds));
+		saveExamineData(sid(), makeFullExamineData(cardIds));
 
 		let resolveFirst!: () => void;
 		let resolveSecond!: () => void;

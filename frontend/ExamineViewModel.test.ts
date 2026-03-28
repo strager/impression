@@ -5,11 +5,11 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { ExploreViewModel, parseBullets } from "./ExploreViewModel.ts";
-import type { ExploreData } from "./store.ts";
-import { ensureProfilesInitialized, getActiveProfileId, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ExamineViewModel, parseBullets } from "./ExamineViewModel.ts";
+import type { ExamineData } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadExamineData, lookupCachedSynthesis, saveCachedSynthesis, saveChosenCardIds, saveExamineData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -67,11 +67,11 @@ function setupChosenCards(count: number): string[] {
 	return cardIds;
 }
 
-function makeExploreData(cardIds: string[], answeredCount: number): ExploreData {
-	const data: ExploreData = {};
+function makeExamineData(cardIds: string[], answeredCount: number): ExamineData {
+	const data: ExamineData = {};
 	for (const cardId of cardIds) {
 		data[cardId] = {
-			entries: EXPLORE_QUESTIONS.map((q, i) => ({
+			entries: EXAMINE_QUESTIONS.map((q, i) => ({
 				questionId: q.id,
 				userAnswer: i < answeredCount ? `Answer for ${q.id}` : "",
 				prefilledAnswer: "",
@@ -99,7 +99,7 @@ function setupDefaultSynthesizeHandler(): void {
 
 describe("initialize", () => {
 	it("returns 'no-data' when no chosen cards in localStorage", () => {
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -107,7 +107,7 @@ describe("initialize", () => {
 		setupChosenCards(3);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.chosenCards).toHaveLength(3);
 	});
@@ -117,115 +117,115 @@ describe("initialize", () => {
 		saveChosenCardIds(sid(), cardIds);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
 		expect(vm.chosenCards.map((c) => c.id)).toEqual([MEANING_CARDS[0].id, MEANING_CARDS[1].id, MEANING_CARDS[2].id]);
 	});
 
-	it("creates and saves explore data when none exists", () => {
+	it("creates and saves examine data when none exists", () => {
 		setupChosenCards(3);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved).not.toBeNull();
 	});
 
-	it("reuses existing explore data when present", () => {
+	it("reuses existing examine data when present", () => {
 		const cardIds = setupChosenCards(2);
-		const exploreData = makeExploreData(cardIds, EXPLORE_QUESTIONS.length);
-		saveExploreData(sid(), exploreData);
+		const examineData = makeExamineData(cardIds, EXAMINE_QUESTIONS.length);
+		saveExamineData(sid(), examineData);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
-		const saved = loadExploreData(sid());
-		expect(saved).toEqual(exploreData);
+		const saved = loadExamineData(sid());
+		expect(saved).toEqual(examineData);
 	});
 
 	it("returns 'no-data' on corrupt data", () => {
 		localStorage.setItem(`somecam:${sid()}:chosen-card-ids`, "not-valid-json{{{");
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 });
 
 describe("progress tracking", () => {
-	it("totalQuestions equals cards * EXPLORE_QUESTIONS.length", () => {
+	it("totalQuestions equals cards * EXAMINE_QUESTIONS.length", () => {
 		const cardIds = setupChosenCards(3);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
-		expect(vm.totalQuestions).toBe(3 * EXPLORE_QUESTIONS.length);
+		expect(vm.totalQuestions).toBe(3 * EXAMINE_QUESTIONS.length);
 	});
 
 	it("totalAnswered counts answered entries across cards", () => {
 		const cardIds = setupChosenCards(2);
-		const data = makeExploreData(cardIds, 0);
+		const data = makeExamineData(cardIds, 0);
 		data[cardIds[0]].entries[0].userAnswer = "answer 1";
 		data[cardIds[0]].entries[1].userAnswer = "answer 2";
 		data[cardIds[1]].entries[0].userAnswer = "answer 3";
-		saveExploreData(sid(), data);
+		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.totalAnswered).toBe(3);
 	});
 
 	it("does not count auto-filled pending answers as answered", () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 1);
+		const data = makeExamineData(cardIds, 1);
 		// Second entry has text but is auto-filled and unconfirmed
 		data[cardIds[0]].entries[1].userAnswer = "auto-filled answer";
 		data[cardIds[0]].entries[1].autoFilledPending = true;
-		saveExploreData(sid(), data);
+		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.totalAnswered).toBe(1);
 	});
 
 	it("overallPercent computes correctly", () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 2);
-		saveExploreData(sid(), data);
+		const data = makeExamineData(cardIds, 2);
+		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
-		expect(vm.overallPercent).toBe(Math.round((2 / EXPLORE_QUESTIONS.length) * 100));
+		expect(vm.overallPercent).toBe(Math.round((2 / EXAMINE_QUESTIONS.length) * 100));
 	});
 
 	it("overallPercent is 0 when no cards", () => {
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.overallPercent).toBe(0);
 	});
 
 	it("allComplete is true when all questions answered", () => {
 		const cardIds = setupChosenCards(2);
-		saveExploreData(sid(), makeExploreData(cardIds, EXPLORE_QUESTIONS.length));
+		saveExamineData(sid(), makeExamineData(cardIds, EXAMINE_QUESTIONS.length));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.allComplete).toBe(true);
 	});
 
 	it("allComplete is false when some unanswered", () => {
 		const cardIds = setupChosenCards(2);
-		saveExploreData(sid(), makeExploreData(cardIds, 1));
+		saveExamineData(sid(), makeExamineData(cardIds, 1));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.allComplete).toBe(false);
 	});
@@ -234,29 +234,29 @@ describe("progress tracking", () => {
 describe("cardStatus", () => {
 	it("returns 'untouched' when no answers for card", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.cardStatus(cardIds[0])).toBe("untouched");
 	});
 
 	it("returns 'partial' when some but not all answered", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 2));
+		saveExamineData(sid(), makeExamineData(cardIds, 2));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.cardStatus(cardIds[0])).toBe("partial");
 	});
 
 	it("returns 'complete' when all questions answered", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, EXPLORE_QUESTIONS.length));
+		saveExamineData(sid(), makeExamineData(cardIds, EXAMINE_QUESTIONS.length));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(vm.cardStatus(cardIds[0])).toBe("complete");
 	});
@@ -265,18 +265,18 @@ describe("cardStatus", () => {
 describe("sortedCards", () => {
 	it("places completed cards last", () => {
 		const cardIds = setupChosenCards(3);
-		const data = makeExploreData(cardIds, 0);
+		const data = makeExamineData(cardIds, 0);
 		// Card 0: complete, Card 1: untouched, Card 2: partial
-		for (let i = 0; i < EXPLORE_QUESTIONS.length; i++) {
+		for (let i = 0; i < EXAMINE_QUESTIONS.length; i++) {
 			data[cardIds[0]].entries[i].userAnswer = `answer ${String(i)}`;
 			data[cardIds[0]].entries[i].submitted = true;
 		}
 		data[cardIds[2]].entries[0].userAnswer = "partial answer";
 		data[cardIds[2]].entries[0].submitted = true;
-		saveExploreData(sid(), data);
+		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
 		const sortedIds = vm.sortedCards.map((c) => c.id);
@@ -285,9 +285,9 @@ describe("sortedCards", () => {
 
 	it("preserves MEANING_CARDS order among non-complete cards", () => {
 		const cardIds = setupChosenCards(3);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
 		expect(vm.sortedCards.map((c) => c.id)).toEqual(cardIds);
@@ -297,10 +297,10 @@ describe("sortedCards", () => {
 describe("synthesis loading", () => {
 	it("loads synthesis from API for cards with answered questions", async () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 2));
+		saveExamineData(sid(), makeExamineData(cardIds, 2));
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -313,7 +313,7 @@ describe("synthesis loading", () => {
 
 	it("sends short: true in the synthesis request", async () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 1));
+		saveExamineData(sid(), makeExamineData(cardIds, 1));
 
 		let capturedBody: unknown = null;
 		server.use(
@@ -323,7 +323,7 @@ describe("synthesis loading", () => {
 			}),
 		);
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -332,14 +332,14 @@ describe("synthesis loading", () => {
 
 	it("uses cached short synthesis instead of fetching", async () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 1);
-		saveExploreData(sid(), data);
+		const data = makeExamineData(cardIds, 1);
+		saveExamineData(sid(), data);
 
 		const answer = data[cardIds[0]].entries[0].userAnswer;
 		saveCachedSynthesis({ profileId: sid(), cardId: cardIds[0], fingerprint: answer, synthesis: "Cached synthesis", short: true });
 
 		// No MSW handler — any fetch would fail with onUnhandledRequest: "error"
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -348,14 +348,14 @@ describe("synthesis loading", () => {
 
 	it("sets error on fetch failure", async () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 1));
+		saveExamineData(sid(), makeExamineData(cardIds, 1));
 		server.use(
 			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -366,9 +366,9 @@ describe("synthesis loading", () => {
 
 	it("does not create synthesis for untouched cards", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 
 		expect(vm.cardSynthesis[cardIds[0]]).toBeUndefined();
@@ -376,11 +376,11 @@ describe("synthesis loading", () => {
 
 	it("saves fetched synthesis to cache with short: true", async () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 1);
-		saveExploreData(sid(), data);
+		const data = makeExamineData(cardIds, 1);
+		saveExamineData(sid(), data);
 		setupDefaultSynthesizeHandler();
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -391,8 +391,8 @@ describe("synthesis loading", () => {
 
 	it("does not collide with normal synthesis cache", async () => {
 		const cardIds = setupChosenCards(1);
-		const data = makeExploreData(cardIds, 1);
-		saveExploreData(sid(), data);
+		const data = makeExamineData(cardIds, 1);
+		saveExamineData(sid(), data);
 
 		const answer = data[cardIds[0]].entries[0].userAnswer;
 		// Save a normal (non-short) synthesis
@@ -400,7 +400,7 @@ describe("synthesis loading", () => {
 
 		// Short cache should miss
 		setupDefaultSynthesizeHandler();
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -414,14 +414,14 @@ describe("synthesis loading", () => {
 describe("retrySynthesis", () => {
 	it("retries after initial failure and loads synthesis", async () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 1));
+		saveExamineData(sid(), makeExamineData(cardIds, 1));
 		server.use(
 			http.post("*/api/synthesize", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		await vm.whenReady;
 
@@ -446,22 +446,22 @@ describe("retrySynthesis", () => {
 });
 
 describe("action methods", () => {
-	it("onExploreCard does not throw", () => {
+	it("onExamineCard does not throw", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(() => {
-			vm.onExploreCard(cardIds[0]);
+			vm.onExamineCard(cardIds[0]);
 		}).not.toThrow();
 	});
 
 	it("onEditSelection does not throw", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(() => {
 			vm.onEditSelection();
@@ -470,9 +470,9 @@ describe("action methods", () => {
 
 	it("onOpenProfile does not throw", () => {
 		const cardIds = setupChosenCards(1);
-		saveExploreData(sid(), makeExploreData(cardIds, 0));
+		saveExamineData(sid(), makeExamineData(cardIds, 0));
 
-		const vm = new ExploreViewModel(sid());
+		const vm = new ExamineViewModel(sid());
 		vm.initialize();
 		expect(() => {
 			vm.onOpenProfile("test_source");

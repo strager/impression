@@ -21,12 +21,12 @@
 			<p><a href="https://www.vultr.com/" rel="external">Vultr</a> provides the server infrastructure that hosts Impression.</p>
 
 			<h3>Grok</h3>
-			<p><a href="https://x.ai/" rel="external">Grok by xAI</a> powers the AI-assisted features such as summarization during the exploration phase. When you use these features, the prompts and your selected sources of meaning are sent to Grok to generate responses. No other personal data is shared.</p>
+			<p><a href="https://x.ai/" rel="external">Grok by xAI</a> powers the AI-assisted features such as summarization during the examination phase. When you use these features, the prompts and your selected sources of meaning are sent to Grok to generate responses. No other personal data is shared.</p>
 			<p><b>Storage:</b> Grok stores your data temporarily. "API requests and responses are temporarily stored on our servers for 30 days in case they need to be audited for potential abuse or misuse. This data is automatically deleted after 30 days."</p>
 			<p><b>Training:</b> Grok does not train its AI models on your data.</p>
 
 			<h3>DocRaptor</h3>
-			<p><a href="https://docraptor.com/" rel="external">DocRaptor</a> converts your profile into a downloadable PDF. When you download a PDF, the rendered profile HTML is sent to DocRaptor's API for conversion. This includes the source of meaning names and any answers you wrote during exploration.</p>
+			<p><a href="https://docraptor.com/" rel="external">DocRaptor</a> converts your profile into a downloadable PDF. When you download a PDF, the rendered profile HTML is sent to DocRaptor's API for conversion. This includes the source of meaning names and any answers you wrote during examination.</p>
 			<p><b>Storage:</b> DocRaptor does not store your data. We use the "As short as possible" Data Retention Time. "[DocRaptor] will delete your input immediately after it is used. [DocRaptor] will delete your finished document as soon as you download it."</p>
 
 			<h3>PostHog</h3>

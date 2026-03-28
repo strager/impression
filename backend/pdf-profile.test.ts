@@ -3,7 +3,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { assembleProfileData, callDocRaptor } from "./pdf-profile.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 
 // --- assembleProfileData ---
 
@@ -39,7 +39,7 @@ describe("assembleProfileData", () => {
 		const interpretationQ = cards[0].questions.find((q) => q.topic === "Interpretation");
 		expect(interpretationQ?.answer).toBe("Understanding myself");
 
-		expect(cards[0].questions).toHaveLength(EXPLORE_QUESTIONS.length);
+		expect(cards[0].questions).toHaveLength(EXAMINE_QUESTIONS.length);
 	});
 
 	it("skips unknown card IDs", () => {
@@ -52,7 +52,7 @@ describe("assembleProfileData", () => {
 		expect(cards[0].card.id).toBe("self-knowledge");
 	});
 
-	it("handles missing explore/summaries/freeform gracefully", () => {
+	it("handles missing examine/summaries/freeform gracefully", () => {
 		const json = makeProfileExport({
 			chosen: ["self-knowledge"],
 		});

@@ -4,9 +4,9 @@ import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { initAnalytics } from "./analytics.ts";
 import "./global.css";
-import ExploreCompleteView from "./ExploreCompleteView.vue";
-import ExploreMeaningView from "./ExploreMeaningView.vue";
-import ExploreView from "./ExploreView.vue";
+import ExamineCompleteView from "./ExamineCompleteView.vue";
+import ExamineMeaningView from "./ExamineMeaningView.vue";
+import ExamineView from "./ExamineView.vue";
 import FindMeaningManualView from "./FindMeaningManualView.vue";
 import FindMeaningRankingView from "./FindMeaningRankingView.vue";
 import FindMeaningView from "./FindMeaningView.vue";
@@ -39,9 +39,9 @@ const router = createRouter({
 			component: FindMeaningRankingView,
 		},
 		{
-			path: "/:profileId/explore",
-			name: "explore",
-			component: ExploreView,
+			path: "/:profileId/examine",
+			name: "examine",
+			component: ExamineView,
 		},
 		{
 			path: "/:profileId/find-meaning/manual",
@@ -54,14 +54,14 @@ const router = createRouter({
 			component: ProfileView,
 		},
 		{
-			path: "/:profileId/explore/:meaningId",
-			name: "exploreMeaning",
-			component: ExploreMeaningView,
+			path: "/:profileId/examine/:meaningId",
+			name: "examineMeaning",
+			component: ExamineMeaningView,
 		},
 		{
-			path: "/:profileId/explore/:meaningId/complete",
-			name: "exploreComplete",
-			component: ExploreCompleteView,
+			path: "/:profileId/examine/:meaningId/complete",
+			name: "examineComplete",
+			component: ExamineCompleteView,
 		},
 		{
 			path: "/privacy",

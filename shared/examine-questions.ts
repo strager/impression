@@ -1,11 +1,11 @@
-export interface ExploreQuestion {
+export interface ExamineQuestion {
 	id: string;
 	topic: string;
 	text: string;
 	questionFirstPerson: string;
 }
 
-export const EXPLORE_QUESTIONS: readonly ExploreQuestion[] = [
+export const EXAMINE_QUESTIONS: readonly ExamineQuestion[] = [
 	{
 		id: "interpretation",
 		topic: "Interpretation",

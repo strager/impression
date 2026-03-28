@@ -4,7 +4,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { fetchReflectOnAnswer, fetchInferredAnswers, fetchSynthesis } from "./api.ts";
 import type { LlmTestState } from "./store.ts";
 import { loadLlmTestState, saveLlmTestState } from "./store.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
@@ -18,7 +18,7 @@ interface QuestionRow {
 
 function createRow(): QuestionRow {
 	return {
-		questionId: EXPLORE_QUESTIONS[0].id,
+		questionId: EXAMINE_QUESTIONS[0].id,
 		answer: "",
 		depthLoading: false,
 		depthResult: null,
@@ -179,7 +179,7 @@ async function synthesize() {
 				<label>
 					Question
 					<select v-model="row.questionId" @change="persistState()">
-						<option v-for="q in EXPLORE_QUESTIONS" :key="q.id" :value="q.id">{{ q.topic }}: {{ q.text }}</option>
+						<option v-for="q in EXAMINE_QUESTIONS" :key="q.id" :value="q.id">{{ q.topic }}: {{ q.text }}</option>
 					</select>
 				</label>
 				<button v-if="rows.length > 1" class="remove-btn" @click="removeRow(i)">Remove</button>

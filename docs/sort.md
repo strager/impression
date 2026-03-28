@@ -57,7 +57,7 @@ tasks are left.
 
 ## Step 3: Editing your selection
 
-From the Explore page, you can click **Edit selection** to revisit your
+From the Examine page, you can click **Edit selection** to revisit your
 choices at any time. The edit page shows all 26 sources of meaning in a
 checklist. Selected ones are highlighted with a green border and a checked
 checkbox; unselected ones are dimmed.
@@ -66,15 +66,15 @@ You can:
 
 - **Check** any source of meaning to add it to your selection.
 - **Uncheck** any source of meaning to remove it. If you have already
-  explored one (answered reflection questions about it), you will be asked
-  to confirm before removing it, since your exploration answers would no
+  examined one (answered reflection questions about it), you will be asked
+  to confirm before removing it, since your examination answers would no
   longer appear on the results page.
 
-Click **Done** to save your changes and return to the Explore page with
+Click **Done** to save your changes and return to the Examine page with
 your updated selection.
 
 ## Convergence analysis
 
-Visit `/ranking-convergence` to interactively explore how many rounds
+Visit `/ranking-convergence` to interactively see how many rounds
 the ranking algorithm needs to reach confidence under various oracle
 scenarios and parameter settings.

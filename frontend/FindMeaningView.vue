@@ -48,8 +48,8 @@ function handleUndo(): void {
 
 function continueToNextPhase(): void {
 	const phase = detectProfilePhase(profileId);
-	if (phase === "explore") {
-		void router.push({ name: "explore", params: { profileId } });
+	if (phase === "examine") {
+		void router.push({ name: "examine", params: { profileId } });
 		return;
 	}
 	if (phase === "prioritize-complete" || phase === "prioritize") {
@@ -61,7 +61,7 @@ function continueToNextPhase(): void {
 	if (vm.requiresPrioritization) {
 		void router.push({ name: "findMeaningPrioritize", params: { profileId } });
 	} else {
-		void router.push({ name: "explore", params: { profileId } });
+		void router.push({ name: "examine", params: { profileId } });
 	}
 }
 </script>
@@ -107,11 +107,11 @@ function continueToNextPhase(): void {
 			</div>
 
 			<p v-if="vm.requiresPrioritization" class="next-step-hint">Next, you'll narrow these down to the ones that matter most.</p>
-			<p v-else class="next-step-hint">Next, you'll explore what each one means to you. You will also be able to change your selections.</p>
+			<p v-else class="next-step-hint">Next, you'll examine what each one means to you. You will also be able to change your selections.</p>
 
 			<AppButton variant="primary" @click="continueToNextPhase">
 				<template v-if="vm.requiresPrioritization">Prioritize meaning</template>
-				<template v-else>Explore meaning</template>
+				<template v-else>Examine meaning</template>
 			</AppButton>
 		</div>
 

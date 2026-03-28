@@ -55,7 +55,7 @@ Vite runs in middleware mode and is attached by `backend/main.ts`.
 ## Shared Data
 
 - Both frontend and backend import from `shared/`.
-- `shared/meaning-cards.ts` and `shared/explore-questions.ts` are the source of truth for cards and questions.
+- `shared/meaning-cards.ts` and `shared/examine-questions.ts` are the source of truth for cards and questions.
 
 ## Notes for Future Changes
 

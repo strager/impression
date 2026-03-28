@@ -5,12 +5,12 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
-import { ExploreMeaningViewModel } from "./ExploreMeaningViewModel.ts";
-import type { ExploreData, ExploreEntry } from "./store.ts";
-import { ensureProfilesInitialized, getActiveProfileId, loadExploreData, saveChosenCardIds, saveExploreData } from "./store.ts";
+import { ExamineMeaningViewModel } from "./ExamineMeaningViewModel.ts";
+import type { ExamineData, ExamineEntry } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadExamineData, saveChosenCardIds, saveExamineData } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -72,7 +72,7 @@ afterAll(() => {
 
 const TEST_CARD_ID = MEANING_CARDS[0].id;
 
-function makeEntry(questionId: string, answer: string, submitted: boolean): ExploreEntry {
+function makeEntry(questionId: string, answer: string, submitted: boolean): ExamineEntry {
 	return {
 		questionId,
 		userAnswer: answer,
@@ -86,18 +86,18 @@ function makeEntry(questionId: string, answer: string, submitted: boolean): Expl
 	};
 }
 
-function setupExploreData(cardId: string, entries: ExploreEntry[]): void {
+function setupExamineData(cardId: string, entries: ExamineEntry[]): void {
 	saveChosenCardIds(sid(), [cardId]);
-	const data: ExploreData = { [cardId]: { entries, freeformNote: "", descriptionSelections: [] } };
-	saveExploreData(sid(), data);
+	const data: ExamineData = { [cardId]: { entries, freeformNote: "", descriptionSelections: [] } };
+	saveExamineData(sid(), data);
 }
 
-function makeSubmittedEntries(count: number): ExploreEntry[] {
-	return EXPLORE_QUESTIONS.slice(0, count).map((q) => makeEntry(q.id, `Answer for ${q.id}`, true));
+function makeSubmittedEntries(count: number): ExamineEntry[] {
+	return EXAMINE_QUESTIONS.slice(0, count).map((q) => makeEntry(q.id, `Answer for ${q.id}`, true));
 }
 
-function makeAllSubmitted(): ExploreEntry[] {
-	return makeSubmittedEntries(EXPLORE_QUESTIONS.length);
+function makeAllSubmitted(): ExamineEntry[] {
+	return makeSubmittedEntries(EXAMINE_QUESTIONS.length);
 }
 
 function setupDefaultHandlers(): void {
@@ -113,13 +113,13 @@ function setupDefaultHandlers(): void {
 
 describe("initialize", () => {
 	it("returns 'no-data' when card not found", () => {
-		const vm = new ExploreMeaningViewModel(sid(), "nonexistent-card");
+		const vm = new ExamineMeaningViewModel(sid(), "nonexistent-card");
 		expect(vm.initialize()).toBe("no-data");
 	});
 
 	it("assigns first question when entries are missing", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.entries).toHaveLength(1);
 		expect(vm.entries[0].submitted).toBe(false);
@@ -128,8 +128,8 @@ describe("initialize", () => {
 
 	it("assigns first question when entries are empty", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		saveExamineData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.entries).toHaveLength(1);
 		expect(vm.entries[0].submitted).toBe(false);
@@ -138,24 +138,24 @@ describe("initialize", () => {
 
 	it("discards submitted entry with empty answer and restarts from first question", () => {
 		setupDefaultHandlers();
-		const entry1 = makeEntry(EXPLORE_QUESTIONS[0].id, "", true);
+		const entry1 = makeEntry(EXAMINE_QUESTIONS[0].id, "", true);
 		entry1.guardrailText = "Could you share more?";
 		entry1.submittedAfterGuardrail = true;
-		const entry2 = makeEntry(EXPLORE_QUESTIONS[1].id, "", false);
-		setupExploreData(TEST_CARD_ID, [entry1, entry2]);
+		const entry2 = makeEntry(EXAMINE_QUESTIONS[1].id, "", false);
+		setupExamineData(TEST_CARD_ID, [entry1, entry2]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.entries).toHaveLength(1);
-		expect(vm.entries[0].questionId).toBe(EXPLORE_QUESTIONS[0].id);
+		expect(vm.entries[0].questionId).toBe(EXAMINE_QUESTIONS[0].id);
 		expect(vm.entries[0].submitted).toBe(false);
 	});
 
 	it("returns 'ready' and loads entries on normal load", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "test answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "test answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.card).toBeDefined();
 		expect(vm.card!.id).toBe(TEST_CARD_ID);
@@ -164,26 +164,26 @@ describe("initialize", () => {
 	});
 
 	it("restores freeform notes from localStorage", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries, freeformNote: "my notes", descriptionSelections: [] } });
+		saveExamineData(sid(), { [TEST_CARD_ID]: { entries, freeformNote: "my notes", descriptionSelections: [] } });
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.freeformNote).toBe("my notes");
 	});
 
 	it("restores description selections from localStorage", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm1 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm1 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm1.initialize();
 		vm1.toggleDescription("3");
 		vm1.toggleDescription("6");
 		vm1.confirmDescriptions();
 
-		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm2 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
 		expect(vm2.selectedDescriptionIds.has("3")).toBe(true);
 		expect(vm2.selectedDescriptionIds.has("6")).toBe(true);
@@ -191,53 +191,53 @@ describe("initialize", () => {
 	});
 
 	it("resumes with pending guardrail", () => {
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "short", true);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "short", true);
 		entry.guardrailText = "Please elaborate";
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
 	});
 
 	it("resumes with pending thought bubble", () => {
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "good answer", true);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "good answer", true);
 		entry.thoughtBubbleText = "Nice insight!";
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Nice insight!");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.message).toBe("Nice insight!");
 	});
 
 	it("does not resume guardrail if already submitted after guardrail", () => {
 		setupDefaultHandlers();
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "my answer", true);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "my answer", true);
 		entry.guardrailText = "Please elaborate";
 		entry.submittedAfterGuardrail = true;
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 	});
 
 	it("does not resume thought bubble if already acknowledged", () => {
 		setupDefaultHandlers();
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "my answer", true);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "my answer", true);
 		entry.thoughtBubbleText = "Nice insight!";
 		entry.thoughtBubbleAcknowledged = true;
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 	});
 
 	it("restores prefilled answer state", async () => {
-		const nextQId = EXPLORE_QUESTIONS[1].id;
+		const nextQId = EXAMINE_QUESTIONS[1].id;
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -248,10 +248,10 @@ describe("initialize", () => {
 				});
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm1 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm1 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm1.initialize();
 		await vm1.submitAnswer();
 
@@ -259,14 +259,14 @@ describe("initialize", () => {
 		expect(vm1.entries[1].userAnswer).toBe("suggested answer\n");
 
 		// Q2 entry now exists with prefilled answer persisted
-		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm2 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
 		expect(vm2.entries[1].autoFilledPending).toBe(true);
 		expect(vm2.entries[1].userAnswer).toBe("suggested answer\n");
 	});
 
 	it("acceptAutoFill clears pending flag and persists", async () => {
-		const nextQId = EXPLORE_QUESTIONS[1].id;
+		const nextQId = EXAMINE_QUESTIONS[1].id;
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -277,10 +277,10 @@ describe("initialize", () => {
 				});
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -289,12 +289,12 @@ describe("initialize", () => {
 		expect(vm.entries[1].autoFilledPending).toBe(false);
 		expect(vm.entries[1].userAnswer).toBe("suggested answer");
 
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries[1].autoFilledPending).toBe(false);
 	});
 
 	it("clearAutoFill clears answer and pending flag and persists", async () => {
-		const nextQId = EXPLORE_QUESTIONS[1].id;
+		const nextQId = EXAMINE_QUESTIONS[1].id;
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -305,10 +305,10 @@ describe("initialize", () => {
 				});
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -317,15 +317,15 @@ describe("initialize", () => {
 		expect(vm.entries[1].autoFilledPending).toBe(false);
 		expect(vm.entries[1].userAnswer).toBe("");
 
-		// loadExploreData drops blank active entries when non-blank answers exist,
+		// loadExamineData drops blank active entries when non-blank answers exist,
 		// so the cleared entry is not present in persisted data
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
 		expect(saved![TEST_CARD_ID].entries[0].submitted).toBe(true);
 	});
 
 	it("clear then refresh discards blank question and regenerates", async () => {
-		const nextQId = EXPLORE_QUESTIONS[1].id;
+		const nextQId = EXAMINE_QUESTIONS[1].id;
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -336,10 +336,10 @@ describe("initialize", () => {
 				});
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -347,9 +347,9 @@ describe("initialize", () => {
 		vm.clearAutoFill(vm.entries[1]);
 		expect(vm.entries[1].userAnswer).toBe("");
 
-		// Simulate reload — loadExploreData drops blank active entries when non-blank answers exist.
+		// Simulate reload — loadExamineData drops blank active entries when non-blank answers exist.
 		// The reload sees only 1 submitted entry, so initialize() triggers async inferAndAdvance().
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries).toHaveLength(1);
 		expect(saved![TEST_CARD_ID].entries[0].submitted).toBe(true);
 	});
@@ -358,10 +358,10 @@ describe("initialize", () => {
 describe("submitAnswer", () => {
 	it("does nothing when answer is empty", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -370,10 +370,10 @@ describe("submitAnswer", () => {
 
 	it("does nothing when answer is whitespace only", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "   ", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "   ", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -382,26 +382,26 @@ describe("submitAnswer", () => {
 
 	it("marks answer as submitted and persists", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My thoughtful answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My thoughtful answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
 		expect(vm.entries[0].submitted).toBe(true);
 		expect(vm.entries[0].userAnswer).toBe("My thoughtful answer");
 
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries[0].submitted).toBe(true);
 	});
 
 	it("trims answer text before submission", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "  My answer  ", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "  My answer  ", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -410,10 +410,10 @@ describe("submitAnswer", () => {
 
 	it("detects original answer source", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		// prefilledAnswer is "" so source should be "original" — just verify no crash
 		await vm.submitAnswer();
@@ -422,11 +422,11 @@ describe("submitAnswer", () => {
 
 	it("detects inferred-accepted answer source", async () => {
 		setupDefaultHandlers();
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "inferred text", false);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "inferred text", false);
 		entry.prefilledAnswer = "inferred text";
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 		expect(vm.entries[0].submitted).toBe(true);
@@ -434,11 +434,11 @@ describe("submitAnswer", () => {
 
 	it("detects inferred-edited answer source", async () => {
 		setupDefaultHandlers();
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "edited text", false);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "edited text", false);
 		entry.prefilledAnswer = "inferred text";
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 		expect(vm.entries[0].submitted).toBe(true);
@@ -453,15 +453,15 @@ describe("submitAnswer", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.message).toBe("Please elaborate");
 		expect(vm.entries[0].guardrailText).toBe("Please elaborate");
 	});
 
@@ -474,29 +474,29 @@ describe("submitAnswer", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My detailed answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My detailed answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Great insight!");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.message).toBe("Great insight!");
 		expect(vm.entries[0].thoughtBubbleText).toBe("Great insight!");
 		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(false);
 	});
 
 	it("advances to next question when reflect returns none", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[1].submitted).toBe(false);
 	});
@@ -510,19 +510,19 @@ describe("submitAnswer", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
 	it("pre-fills next question from infer results", async () => {
-		const nextQId = EXPLORE_QUESTIONS[1].id;
+		const nextQId = EXAMINE_QUESTIONS[1].id;
 		server.use(
 			http.post("*/api/reflect-on-answer", () => {
 				return HttpResponse.json({ type: "none", message: "" });
@@ -533,10 +533,10 @@ describe("submitAnswer", () => {
 				});
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -555,16 +555,16 @@ describe("submitAnswer", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[1].prefilledAnswer).toBe("");
-		expect(vm.entries[1].questionId).toBe(EXPLORE_QUESTIONS[1].id);
+		expect(vm.entries[1].questionId).toBe(EXAMINE_QUESTIONS[1].id);
 	});
 
 	it("picks next sequential question when infer fails mid-sequence", async () => {
@@ -577,24 +577,24 @@ describe("submitAnswer", () => {
 			}),
 		);
 		const entries = makeSubmittedEntries(2);
-		entries.push(makeEntry(EXPLORE_QUESTIONS[2].id, "My answer", false));
-		setupExploreData(TEST_CARD_ID, entries);
+		entries.push(makeEntry(EXAMINE_QUESTIONS[2].id, "My answer", false));
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
 		expect(vm.entries).toHaveLength(4);
-		expect(vm.entries[3].questionId).toBe(EXPLORE_QUESTIONS[3].id);
+		expect(vm.entries[3].questionId).toBe(EXAMINE_QUESTIONS[3].id);
 	});
 
 	it("sets allAnswered when last question answered", async () => {
 		setupDefaultHandlers();
-		const entries = makeSubmittedEntries(EXPLORE_QUESTIONS.length - 1);
-		entries.push(makeEntry(EXPLORE_QUESTIONS[EXPLORE_QUESTIONS.length - 1].id, "Last answer", false));
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = makeSubmittedEntries(EXAMINE_QUESTIONS.length - 1);
+		entries.push(makeEntry(EXAMINE_QUESTIONS[EXAMINE_QUESTIONS.length - 1].id, "Last answer", false));
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -603,10 +603,10 @@ describe("submitAnswer", () => {
 
 	it("does not advance while awaiting reflection", async () => {
 		setupDefaultHandlers();
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		// Simulate being in awaiting state by calling submit during another submit
@@ -631,19 +631,19 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Now dismiss (no edit, so not in editedAfterSubmit)
 		setupDefaultHandlers();
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 		expect(vm.entries[0].submittedAfterGuardrail).toBe(true);
 	});
@@ -662,13 +662,13 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Edit the answer
 		vm.entries[0].userAnswer = "much more detailed answer now";
@@ -678,7 +678,7 @@ describe("dismissing reflection", () => {
 		await vm.submitAnswer();
 
 		expect(callCount).toBe(2);
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
@@ -696,10 +696,10 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -710,8 +710,8 @@ describe("dismissing reflection", () => {
 		// Dismiss with edit
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.message).toBe("Interesting point");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.message).toBe("Interesting point");
 	});
 
 	it("second reflect thought bubble is resumed and cleared correctly", async () => {
@@ -728,10 +728,10 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
 
@@ -740,7 +740,7 @@ describe("dismissing reflection", () => {
 		vm.onActiveEntryInput(vm.entries[0]);
 		await vm.submitAnswer();
 
-		const qId = EXPLORE_QUESTIONS[0].id;
+		const qId = EXAMINE_QUESTIONS[0].id;
 
 		// Verify entry state after second reflect
 		expect(vm.entries[0].guardrailText).not.toBe("");
@@ -749,18 +749,18 @@ describe("dismissing reflection", () => {
 		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(false);
 
 		// Recreate ViewModel from persisted state — thought bubble should resume
-		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm2 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
 		expect(vm2.manualReflectResult.get(qId)?.type).toBe("thought_bubble");
 		expect(vm2.editingEntryIndex).toBe(0);
 
-		// Finish exploring dismisses the thought bubble
-		vm2.finishExploring();
-		const saved = loadExploreData(sid());
+		// Finish examining dismisses the thought bubble
+		vm2.finishExamining();
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries[0].thoughtBubbleAcknowledged).toBe(true);
 
 		// Recreate again — thought bubble should not resume
-		const vm3 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm3 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm3.initialize();
 		expect(vm3.manualReflectResult.get(qId)).toBeUndefined();
 	});
@@ -774,13 +774,13 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("guardrail");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("guardrail");
 
 		// Edit the answer and resubmit — second call also returns guardrail,
 		// but suppressGuardrail + the client-side thought_bubble gate means
@@ -789,7 +789,7 @@ describe("dismissing reflection", () => {
 		vm.onActiveEntryInput(vm.entries[0]);
 		await vm.submitAnswer();
 
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 		expect(vm.entries).toHaveLength(2);
 	});
 
@@ -802,30 +802,30 @@ describe("dismissing reflection", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)?.type).toBe("thought_bubble");
 
 		// Dismiss
 		setupDefaultHandlers();
 		await vm.submitAnswer();
 
 		expect(vm.entries[0].thoughtBubbleAcknowledged).toBe(true);
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeUndefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeUndefined();
 	});
 });
 
 describe("entry input and blur", () => {
 	it("tracks edit-after-submit for active entry", () => {
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "original", true);
-		const entries = [entry, makeEntry(EXPLORE_QUESTIONS[1].id, "pending", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "original", true);
+		const entries = [entry, makeEntry(EXAMINE_QUESTIONS[1].id, "pending", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		// The active entry is index 1, but let's test with the submitted entry
@@ -837,11 +837,11 @@ describe("entry input and blur", () => {
 	});
 
 	it("blur on edited answered entry persists and re-snapshots", () => {
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "original answer", true);
-		const entries = [entry, makeEntry(EXPLORE_QUESTIONS[1].id, "pending", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "original answer", true);
+		const entries = [entry, makeEntry(EXAMINE_QUESTIONS[1].id, "pending", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		// Edit the submitted entry
@@ -850,7 +850,7 @@ describe("entry input and blur", () => {
 		vm.onAnsweredEntryBlur(vm.entries[0]);
 
 		// Verify persisted
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].entries[0].userAnswer).toBe("edited answer");
 	});
 });
@@ -858,17 +858,17 @@ describe("entry input and blur", () => {
 describe("manual reflection", () => {
 	it("returns guardrail result for empty answer without API call", async () => {
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		// Clear answer after init so the entry exists but has empty text
 		vm.entries[0].userAnswer = "";
 
-		await vm.reflectOnEntry(EXPLORE_QUESTIONS[0].id);
+		await vm.reflectOnEntry(EXAMINE_QUESTIONS[0].id);
 
-		const result = vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id);
+		const result = vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id);
 		expect(result).toBeDefined();
 		expect(result!.type).toBe("guardrail");
 		expect(result!.message).toBe("Please write something first");
@@ -881,14 +881,14 @@ describe("manual reflection", () => {
 			}),
 		);
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		await vm.reflectOnEntry(EXPLORE_QUESTIONS[0].id);
+		await vm.reflectOnEntry(EXAMINE_QUESTIONS[0].id);
 
-		const result = vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id);
+		const result = vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id);
 		expect(result).toBeDefined();
 		expect(result!.type).toBe("thought_bubble");
 		expect(result!.message).toBe("Good point!");
@@ -906,18 +906,18 @@ describe("manual reflection", () => {
 			}),
 		);
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const promise = vm.reflectOnEntry(EXPLORE_QUESTIONS[0].id);
-		expect(vm.manualReflectLoading.has(EXPLORE_QUESTIONS[0].id)).toBe(true);
+		const promise = vm.reflectOnEntry(EXAMINE_QUESTIONS[0].id);
+		expect(vm.manualReflectLoading.has(EXAMINE_QUESTIONS[0].id)).toBe(true);
 
 		resolve!();
 		await promise;
 
-		expect(vm.manualReflectLoading.has(EXPLORE_QUESTIONS[0].id)).toBe(false);
+		expect(vm.manualReflectLoading.has(EXAMINE_QUESTIONS[0].id)).toBe(false);
 	});
 
 	it("fails open on API error", async () => {
@@ -927,14 +927,14 @@ describe("manual reflection", () => {
 			}),
 		);
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		await vm.reflectOnEntry(EXPLORE_QUESTIONS[0].id);
+		await vm.reflectOnEntry(EXAMINE_QUESTIONS[0].id);
 
-		const result = vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id);
+		const result = vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id);
 		expect(result).toBeDefined();
 		expect(result!.type).toBe("none");
 	});
@@ -946,15 +946,15 @@ describe("manual reflection", () => {
 			}),
 		);
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		await vm.reflectOnEntry(EXPLORE_QUESTIONS[0].id);
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeDefined();
+		await vm.reflectOnEntry(EXAMINE_QUESTIONS[0].id);
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeDefined();
 
 		// Create a second VM from the same persisted state
-		const vm2 = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm2 = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm2.initialize();
 		expect(vm2.manualReflectResult.size).toBe(0);
 	});
@@ -962,10 +962,10 @@ describe("manual reflection", () => {
 
 describe("descriptions and freeform", () => {
 	it("toggle adds and removes from set", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
@@ -979,10 +979,10 @@ describe("descriptions and freeform", () => {
 	});
 
 	it("confirm persists descriptions to localStorage", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
@@ -992,15 +992,15 @@ describe("descriptions and freeform", () => {
 		vm.confirmDescriptions();
 
 		expect(vm.descriptionsConfirmed).toBe(true);
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].descriptionSelections).toContain(descId);
 	});
 
 	it("toggle persists when already confirmed", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
@@ -1009,30 +1009,30 @@ describe("descriptions and freeform", () => {
 		vm.confirmDescriptions();
 		vm.toggleDescription(descId);
 
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].descriptionSelections).toContain(descId);
 	});
 
 	it("freeform persist saves to localStorage", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		vm.freeformNote = "My additional thoughts";
 		vm.persistFreeform();
 
-		const saved = loadExploreData(sid());
+		const saved = loadExamineData(sid());
 		expect(saved![TEST_CARD_ID].freeformNote).toBe("My additional thoughts");
 	});
 });
 
-describe("finishExploring", () => {
+describe("finishExamining", () => {
 	it("persists entries, freeform, and descriptions", () => {
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		vm.freeformNote = "Final notes";
 
@@ -1041,10 +1041,10 @@ describe("finishExploring", () => {
 			vm.toggleDescription(descId);
 		}
 
-		vm.finishExploring();
+		vm.finishExamining();
 
-		const savedData = loadExploreData(sid());
-		expect(savedData![TEST_CARD_ID].entries).toHaveLength(EXPLORE_QUESTIONS.length);
+		const savedData = loadExamineData(sid());
+		expect(savedData![TEST_CARD_ID].entries).toHaveLength(EXAMINE_QUESTIONS.length);
 		expect(savedData![TEST_CARD_ID].freeformNote).toBe("Final notes");
 		expect(savedData![TEST_CARD_ID].descriptionSelections).toBeDefined();
 	});
@@ -1058,113 +1058,113 @@ describe("finishExploring", () => {
 				return HttpResponse.json({ inferredAnswers: [] });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "short", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "short", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		await vm.submitAnswer();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeDefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeDefined();
 
-		vm.finishExploring();
+		vm.finishExamining();
 
 		expect(vm.entries[0].submittedAfterGuardrail).toBe(true);
 	});
 
 	it("does not throw when no reflection is shown", () => {
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		expect(() => {
-			vm.finishExploring();
+			vm.finishExamining();
 		}).not.toThrow();
 	});
 });
 
 describe("derived properties", () => {
 	it("activeIndex is 0 for no submitted entries", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "pending", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "pending", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.activeIndex).toBe(0);
 	});
 
 	it("activeIndex points to first non-submitted entry", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "a", true), makeEntry(EXPLORE_QUESTIONS[1].id, "b", true), makeEntry(EXPLORE_QUESTIONS[2].id, "pending", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "a", true), makeEntry(EXAMINE_QUESTIONS[1].id, "b", true), makeEntry(EXAMINE_QUESTIONS[2].id, "pending", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.activeIndex).toBe(2);
 	});
 
 	it("activeIndex equals entries.length when all submitted", () => {
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.activeIndex).toBe(EXPLORE_QUESTIONS.length);
+		expect(vm.activeIndex).toBe(EXAMINE_QUESTIONS.length);
 	});
 
 	it("editingEntryIndex during reflection is last submitted entry", () => {
-		const entry = makeEntry(EXPLORE_QUESTIONS[0].id, "my answer", true);
+		const entry = makeEntry(EXAMINE_QUESTIONS[0].id, "my answer", true);
 		entry.guardrailText = "elaborate";
-		setupExploreData(TEST_CARD_ID, [entry]);
+		setupExamineData(TEST_CARD_ID, [entry]);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
-		expect(vm.manualReflectResult.get(EXPLORE_QUESTIONS[0].id)).toBeDefined();
+		expect(vm.manualReflectResult.get(EXAMINE_QUESTIONS[0].id)).toBeDefined();
 		expect(vm.editingEntryIndex).toBe(0);
 	});
 
 	it("editingEntryIndex during normal state is active entry", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "a", true), makeEntry(EXPLORE_QUESTIONS[1].id, "pending answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "a", true), makeEntry(EXAMINE_QUESTIONS[1].id, "pending answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.editingEntryIndex).toBe(1);
 	});
 
 	it("allAnswered is false with partial entries", () => {
 		const entries = makeSubmittedEntries(2);
-		entries.push(makeEntry(EXPLORE_QUESTIONS[2].id, "pending", false));
-		setupExploreData(TEST_CARD_ID, entries);
+		entries.push(makeEntry(EXAMINE_QUESTIONS[2].id, "pending", false));
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.allAnswered).toBe(false);
 	});
 
 	it("allAnswered is true when all questions submitted", () => {
 		const entries = makeAllSubmitted();
-		setupExploreData(TEST_CARD_ID, entries);
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.allAnswered).toBe(true);
 	});
 
 	it("submittedCount reflects number of submitted entries", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "a", true), makeEntry(EXPLORE_QUESTIONS[1].id, "b", true), makeEntry(EXPLORE_QUESTIONS[2].id, "pending", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "a", true), makeEntry(EXAMINE_QUESTIONS[1].id, "b", true), makeEntry(EXAMINE_QUESTIONS[2].id, "pending", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 		expect(vm.submittedCount).toBe(2);
 	});
 
 	it("cardDescriptions returns descriptions for the card's meaning ID", () => {
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
 		const descriptions = vm.cardDescriptions;
@@ -1185,13 +1185,13 @@ describe("sequential question selection", () => {
 				return new HttpResponse(null, { status: 500 });
 			}),
 		);
-		const entries = [makeEntry(EXPLORE_QUESTIONS[0].id, "My answer", false)];
-		setupExploreData(TEST_CARD_ID, entries);
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "My answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		for (let i = 0; i < EXPLORE_QUESTIONS.length; i++) {
+		for (let i = 0; i < EXAMINE_QUESTIONS.length; i++) {
 			const idx = vm.activeIndex;
 			if (idx >= vm.entries.length) break;
 			vm.entries[idx].userAnswer = `Answer ${String(i)}`;
@@ -1204,25 +1204,25 @@ describe("sequential question selection", () => {
 	it("selects all questions without duplicates", async () => {
 		const questionIds = await submitAllQuestions();
 
-		expect(questionIds).toHaveLength(EXPLORE_QUESTIONS.length);
-		expect(new Set(questionIds).size).toBe(EXPLORE_QUESTIONS.length);
+		expect(questionIds).toHaveLength(EXAMINE_QUESTIONS.length);
+		expect(new Set(questionIds).size).toBe(EXAMINE_QUESTIONS.length);
 	});
 
-	it("asks questions in EXPLORE_QUESTIONS list order", async () => {
+	it("asks questions in EXAMINE_QUESTIONS list order", async () => {
 		const questionIds = await submitAllQuestions();
 
-		expect(questionIds).toEqual(EXPLORE_QUESTIONS.map((q) => q.id));
+		expect(questionIds).toEqual(EXAMINE_QUESTIONS.map((q) => q.id));
 	});
 });
 
 describe("initial question assignment", () => {
-	it("assigns the first question in EXPLORE_QUESTIONS order", () => {
+	it("assigns the first question in EXAMINE_QUESTIONS order", () => {
 		saveChosenCardIds(sid(), [TEST_CARD_ID]);
-		saveExploreData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
+		saveExamineData(sid(), { [TEST_CARD_ID]: { entries: [], freeformNote: "", descriptionSelections: [] } });
 
-		const vm = new ExploreMeaningViewModel(sid(), TEST_CARD_ID);
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		expect(vm.entries[0].questionId).toBe(EXPLORE_QUESTIONS[0].id);
+		expect(vm.entries[0].questionId).toBe(EXAMINE_QUESTIONS[0].id);
 	});
 });

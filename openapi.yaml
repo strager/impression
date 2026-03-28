@@ -98,7 +98,7 @@ paths:
     post:
       operationId: postInferAnswers
       x-impression-budget-cost: 5
-      summary: Infer answers to unanswered exploration questions from existing answers
+      summary: Infer answers to unanswered examination questions from existing answers
       requestBody:
         required: true
         content:
@@ -315,7 +315,7 @@ paths:
     post:
       operationId: postReflectOnAnswer
       x-impression-budget-cost: 5
-      summary: Reflect on an exploration answer to provide guardrails or thought bubbles
+      summary: Reflect on an examination answer to provide guardrails or thought bubbles
       requestBody:
         required: true
         content:

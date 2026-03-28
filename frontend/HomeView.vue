@@ -18,8 +18,8 @@ onMounted(() => {
 
 function phaseRoute(profileId: string, p: ProgressPhase): RouteLocationRaw {
 	switch (p) {
-		case "explore":
-			return { name: "explore", params: { profileId } };
+		case "examine":
+			return { name: "examine", params: { profileId } };
 		case "prioritize-complete":
 		case "prioritize":
 			return { name: "findMeaningPrioritize", params: { profileId } };
@@ -89,12 +89,12 @@ function onLoadFile(): void {
 	<main>
 		<header>
 			<h1>Impression</h1>
-			<p class="subtitle">Explore your sources of meaning</p>
+			<p class="subtitle">Examine your sources of meaning</p>
 		</header>
 
 		<section>
-			<h2>Explore what makes life meaningful</h2>
-			<p>Impression is a tool for mapping and exploring your personal sources of meaning. Based on the Sources of Meaning Card Method (SoMeCaM) and its 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
+			<h2>Examine what makes life meaningful</h2>
+			<p>Impression is a tool for mapping and examining your personal sources of meaning. Based on the Sources of Meaning Card Method (SoMeCaM) and its 26 identified sources of meaning across five dimensions — self-transcendence, self-actualization, order, well-being, and relatedness — the method helps you reflect on what matters most in your life.</p>
 		</section>
 
 		<section>

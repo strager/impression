@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { ModuleNode, ViteDevServer } from "vite";
 
 import type { CardProfile, QuestionProfile } from "../shared/profile-types.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
@@ -147,12 +147,12 @@ export function assembleProfileData(profileExportJson: string): CardProfile[] {
 	}
 	const chosenIds = chosenRaw.filter((id): id is string => typeof id === "string");
 
-	const exploreRaw: unknown = data.explore;
-	const explore: Record<string, unknown[]> = {};
-	if (isRecord(exploreRaw)) {
-		for (const [cardId, entries] of Object.entries(exploreRaw)) {
+	const examineRaw: unknown = data.explore;
+	const examine: Record<string, unknown[]> = {};
+	if (isRecord(examineRaw)) {
+		for (const [cardId, entries] of Object.entries(examineRaw)) {
 			if (Array.isArray(entries)) {
-				explore[cardId] = entries;
+				examine[cardId] = entries;
 			}
 		}
 	}
@@ -195,7 +195,7 @@ export function assembleProfileData(profileExportJson: string): CardProfile[] {
 		const card = cardsById.get(cardId);
 		if (card === undefined) continue;
 
-		const entries = explore[cardId] ?? [];
+		const entries = examine[cardId] ?? [];
 		const answersByQuestionId = new Map<string, string>();
 		for (const entry of entries) {
 			if (isRecord(entry) && typeof entry.questionId === "string" && typeof entry.userAnswer === "string") {
@@ -204,7 +204,7 @@ export function assembleProfileData(profileExportJson: string): CardProfile[] {
 		}
 
 		const questions: QuestionProfile[] = [];
-		for (const q of EXPLORE_QUESTIONS) {
+		for (const q of EXAMINE_QUESTIONS) {
 			const answer = answersByQuestionId.get(q.id) ?? "";
 
 			questions.push({
@@ -219,8 +219,8 @@ export function assembleProfileData(profileExportJson: string): CardProfile[] {
 		const selectedIds = descriptionSelections[cardId] ?? [];
 		const selectedDescriptions = selectedIds.map((id) => descriptionTextById.get(id)).filter((text): text is string => text !== undefined);
 
-		// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
-		const questionOrderMap = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+		// Build fingerprint for synthesis cache lookup (same algorithm as ExamineCompleteViewModel)
+		const questionOrderMap = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answeredPairs: { questionId: string; userAnswer: string }[] = [];
 		for (const entry of entries) {
 			if (isRecord(entry) && typeof entry.questionId === "string" && typeof entry.userAnswer === "string" && entry.submitted === true && entry.userAnswer.trim() !== "" && questionOrderMap.has(entry.questionId)) {

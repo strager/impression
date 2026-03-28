@@ -10,7 +10,7 @@ import { ChallengeError, MAX_PDF_DOWNLOADS_PER_DAY, type RateLimiter } from "./r
 import { createAnthropicCompletion } from "./anthropic-client.ts";
 import { createChatCompletion } from "./xai-client.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 interface ApiProblemDetails {
@@ -284,7 +284,7 @@ api.register({
 		}
 
 		const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-		const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+		const questionsById = new Map(EXAMINE_QUESTIONS.map((q) => [q.id, q]));
 
 		const card = cardsById.get(cardId);
 		if (card === undefined) {
@@ -309,7 +309,7 @@ api.register({
 
 		const answeredQuestions: { questionId: string; topic: string; text: string; answer: string }[] = [];
 		const unansweredQuestions: { questionId: string; topic: string; text: string }[] = [];
-		for (const q of EXPLORE_QUESTIONS) {
+		for (const q of EXAMINE_QUESTIONS) {
 			const answer = answeredById.get(q.id);
 			if (answer !== undefined) {
 				answeredQuestions.push({ questionId: q.id, topic: q.topic, text: q.text, answer });
@@ -324,7 +324,7 @@ api.register({
 			const content = await createAnthropicCompletion({
 				apiKey: appConfig.anthropicApiKey,
 				model: "claude-haiku-4-5-20251001",
-				system: "You are a reflective coach helping someone explore their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + 'The user will provide a JSON object with two arrays: "answeredQuestions" (questions the user has already answered) and "unansweredQuestions" (questions that have not been answered yet). ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include unanswered questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
+				system: "You are a reflective coach helping someone examine their sources of meaning. " + `The user is reflecting on a source of meaning in their life: "${card.source}" — ${card.description}. ` + 'The user will provide a JSON object with two arrays: "answeredQuestions" (questions the user has already answered) and "unansweredQuestions" (questions that have not been answered yet). ' + "Determine which unanswered questions are already addressed by the user's existing answers. " + "For each addressed question, write a short answer (1-3 sentences) mimicking the user's writing style. " + 'Return a JSON array of objects with "questionId" and "answer" fields. ' + "Only include unanswered questions that are clearly addressed. If none are addressed, return an empty array. " + "Return ONLY the JSON array, no other text.",
 				messages: [
 					{
 						role: "user",
@@ -350,7 +350,7 @@ api.register({
 					}
 				}
 				const inferredAnswers: { questionId: string; answer: string }[] = [];
-				for (const q of EXPLORE_QUESTIONS) {
+				for (const q of EXAMINE_QUESTIONS) {
 					const answer = inferredById.get(q.id);
 					if (answer !== undefined) {
 						inferredAnswers.push({ questionId: q.id, answer });
@@ -390,7 +390,7 @@ api.register({
 		const suppressGuardrail = "suppressGuardrail" in reflectBody && typeof reflectBody.suppressGuardrail === "boolean" ? reflectBody.suppressGuardrail : false;
 
 		const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-		const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+		const questionsById = new Map(EXAMINE_QUESTIONS.map((q) => [q.id, q]));
 
 		const card = cardsById.get(reflectCardId);
 		if (card === undefined) {
@@ -431,7 +431,7 @@ api.register({
 		};
 
 		const systemContent = suppressGuardrail
-			? `You are a reflective coach helping someone explore their sources of meaning. You have just read someone's answer to a reflective question.
+			? `You are a reflective coach helping someone examine their sources of meaning. You have just read someone's answer to a reflective question.
 
 Classify the answer into one of two categories:
 
@@ -440,7 +440,7 @@ Classify the answer into one of two categories:
 2. "none" — The answer is fine as-is and no follow-up is warranted.
 
 If type is "thought_bubble", message should be the follow-up question. If type is "none", set message to "".`
-			: `You are a reflective coach helping someone explore their sources of meaning. You have just read someone's answer to a reflective question.
+			: `You are a reflective coach helping someone examine their sources of meaning. You have just read someone's answer to a reflective question.
 
 Classify the answer into one of three categories:
 
@@ -547,7 +547,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		const short = "short" in body && body.short === true;
 
 		const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
-		const questionsById = new Map(EXPLORE_QUESTIONS.map((q) => [q.id, q]));
+		const questionsById = new Map(EXAMINE_QUESTIONS.map((q) => [q.id, q]));
 
 		const card = cardsById.get(cardId);
 		if (card === undefined) {
@@ -592,9 +592,9 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		const userMessage = answeredPairs.join("\n\n");
 
 		const answeredCount = questions.filter((q) => q.answer.trim() !== "").length;
-		const shortBulletRange = answeredCount >= EXPLORE_QUESTIONS.length ? "2-3" : "1-3";
+		const shortBulletRange = answeredCount >= EXAMINE_QUESTIONS.length ? "2-3" : "1-3";
 
-		const systemPrompt = "You are a reflective coach helping someone explore their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail.\n\n" + "Do not refer to 'this description' or 'my choices'; focus on what the user is conveying.\n\n" + "Do not ask questions.\n\n" + (short ? `IMPORTANT: Return ${shortBulletRange} bullet points. Each bullet point should be a short phrase (fewer than 10 words), not a complete sentence. No periods. Use "- " prefix for each bullet. No other text.` : "IMPORTANT: Write in the first person, as if the user is writing about themselves.\n\nDo not use bullet points or numbered lists — write in flowing prose. Use plain text only.\n\n4 to 7 sentences across 2 or 3 short paragraphs.");
+		const systemPrompt = "You are a reflective coach helping someone examine their sources of meaning. " + topicContext + "\n\nWrite down the main points from this personal conversation, focusing on insights, opportunities, and possible ways of action or decision. " + "Be concise and direct. " + "Focus on important ideas and concepts, not including every single detail.\n\n" + "Do not refer to 'this description' or 'my choices'; focus on what the user is conveying.\n\n" + "Do not ask questions.\n\n" + (short ? `IMPORTANT: Return ${shortBulletRange} bullet points. Each bullet point should be a short phrase (fewer than 10 words), not a complete sentence. No periods. Use "- " prefix for each bullet. No other text.` : "IMPORTANT: Write in the first person, as if the user is writing about themselves.\n\nDo not use bullet points or numbered lists — write in flowing prose. Use plain text only.\n\n4 to 7 sentences across 2 or 3 short paragraphs.");
 
 		try {
 			const content = await createAnthropicCompletion({

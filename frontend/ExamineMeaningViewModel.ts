@@ -3,23 +3,23 @@ import { ref } from "vue";
 import { fetchReflectOnAnswer, fetchInferredAnswers } from "./api.ts";
 import type { ReflectOnAnswerResponse } from "./api.ts";
 import { capture } from "./analytics.ts";
-import type { ExploreEntry } from "./store.ts";
-import { isCardFullyExplored, isExplorePhaseComplete, loadExploreData, requestStoragePersistence, saveExploreData, selectNextQuestion } from "./store.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import type { ExamineEntry } from "./store.ts";
+import { isCardFullyExamined, isExaminePhaseComplete, loadExamineData, requestStoragePersistence, saveExamineData, selectNextQuestion } from "./store.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
-const EXPLORE_PHASE_TRACK_KEY_PREFIX = "somecam-explore-phase-complete";
+const EXAMINE_PHASE_TRACK_KEY_PREFIX = "somecam-examine-phase-complete";
 
-export class ExploreMeaningViewModel {
+export class ExamineMeaningViewModel {
 	private readonly profileId: string;
 	private readonly cardId: string;
 
 	private readonly _card = ref<MeaningCard | undefined>(undefined);
-	private readonly _entries = ref<ExploreEntry[]>([]);
+	private readonly _entries = ref<ExamineEntry[]>([]);
 	private readonly _inferring = ref(false);
 	private readonly _awaitingReflection = ref(false);
 	private readonly _pendingInferResult = ref<Map<string, string> | null>(null);
@@ -43,7 +43,7 @@ export class ExploreMeaningViewModel {
 		return this._card.value;
 	}
 
-	get entries(): ExploreEntry[] {
+	get entries(): ExamineEntry[] {
 		return this._entries.value;
 	}
 
@@ -97,7 +97,7 @@ export class ExploreMeaningViewModel {
 	}
 
 	get allAnswered(): boolean {
-		return isCardFullyExplored(this._entries.value);
+		return isCardFullyExamined(this._entries.value);
 	}
 
 	get submittedCount(): number {
@@ -117,12 +117,12 @@ export class ExploreMeaningViewModel {
 		}
 
 		try {
-			const data = loadExploreData(this.profileId) ?? {};
+			const data = loadExamineData(this.profileId) ?? {};
 			if (!(this.cardId in data) || data[this.cardId].entries.length === 0) {
 				if (!(this.cardId in data)) {
 					data[this.cardId] = { entries: [], freeformNote: "", descriptionSelections: [] };
 				}
-				const allQuestionIds = EXPLORE_QUESTIONS.map((q) => q.id);
+				const allQuestionIds = EXAMINE_QUESTIONS.map((q) => q.id);
 				const questionId = selectNextQuestion(allQuestionIds, []);
 				data[this.cardId].entries.push({
 					questionId,
@@ -135,7 +135,7 @@ export class ExploreMeaningViewModel {
 					thoughtBubbleAcknowledged: false,
 					autoFilledPending: false,
 				});
-				saveExploreData(this.profileId, data);
+				saveExamineData(this.profileId, data);
 			}
 			const cardData = data[this.cardId];
 
@@ -158,7 +158,7 @@ export class ExploreMeaningViewModel {
 					this._manualReflectResult.value = new Map([...this._manualReflectResult.value, [lastEntry.questionId, { type: "thought_bubble", message: lastEntry.thoughtBubbleText }]]);
 					return "ready";
 				}
-				if (this._entries.value.length < EXPLORE_QUESTIONS.length) {
+				if (this._entries.value.length < EXAMINE_QUESTIONS.length) {
 					void this.inferAndAdvance();
 				}
 			} else {
@@ -345,33 +345,33 @@ export class ExploreMeaningViewModel {
 		this.applyInferAndAdvance(inferResult, remaining);
 	}
 
-	onActiveEntryInput(entry: ExploreEntry): void {
+	onActiveEntryInput(entry: ExamineEntry): void {
 		const snapshot = this._submittedAnswerSnapshots.value.get(entry.questionId);
 		if (snapshot !== undefined && snapshot !== entry.userAnswer) {
 			this._editedAfterSubmit.value.add(entry.questionId);
 		}
 	}
 
-	acceptAutoFill(entry: ExploreEntry): void {
+	acceptAutoFill(entry: ExamineEntry): void {
 		entry.userAnswer = entry.prefilledAnswer;
 		entry.autoFilledPending = false;
 		this.persistEntries();
 	}
 
-	clearAutoFill(entry: ExploreEntry): void {
+	clearAutoFill(entry: ExamineEntry): void {
 		entry.userAnswer = "";
 		entry.autoFilledPending = false;
 		this.persistEntries();
 	}
 
-	onAnsweredEntryInput(entry: ExploreEntry): void {
+	onAnsweredEntryInput(entry: ExamineEntry): void {
 		const snapshot = this._submittedAnswerSnapshots.value.get(entry.questionId);
 		if (snapshot !== undefined && snapshot !== entry.userAnswer) {
 			this._editedAfterSubmit.value.add(entry.questionId);
 		}
 	}
 
-	onAnsweredEntryBlur(entry: ExploreEntry): void {
+	onAnsweredEntryBlur(entry: ExamineEntry): void {
 		this.persistEntries();
 		if (!this._editedAfterSubmit.value.has(entry.questionId)) {
 			return;
@@ -444,24 +444,24 @@ export class ExploreMeaningViewModel {
 	}
 
 	persistEntries(): void {
-		const data = loadExploreData(this.profileId);
+		const data = loadExamineData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], entries: this._entries.value };
-		saveExploreData(this.profileId, data);
+		saveExamineData(this.profileId, data);
 	}
 
 	persistFreeform(): void {
-		const data = loadExploreData(this.profileId);
+		const data = loadExamineData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], freeformNote: this._freeformNote.value };
-		saveExploreData(this.profileId, data);
+		saveExamineData(this.profileId, data);
 	}
 
 	onFreeformBlur(): void {
 		this.persistFreeform();
 	}
 
-	finishExploring(): void {
+	finishExamining(): void {
 		if (this.hasBlockingReflection()) {
 			this.acceptReflection();
 			const lastIdx = this._entries.value.length - 1;
@@ -483,19 +483,19 @@ export class ExploreMeaningViewModel {
 			});
 		}
 		const answeredCount = this._entries.value.filter((entry) => entry.submitted).length;
-		capture("card_exploration_finished", {
+		capture("card_examination_finished", {
 			session_id: this.profileId,
 			card_id: this.cardId,
 			answered_count: answeredCount,
-			total_questions: EXPLORE_QUESTIONS.length,
-			completed_all_questions: answeredCount === EXPLORE_QUESTIONS.length,
+			total_questions: EXAMINE_QUESTIONS.length,
+			completed_all_questions: answeredCount === EXAMINE_QUESTIONS.length,
 		});
-		this.maybeTrackExplorePhaseCompleted();
+		this.maybeTrackExaminePhaseCompleted();
 	}
 
 	// --- Private helpers ---
 
-	private answerSource(entry: ExploreEntry, answer: string): "original" | "inferred-accepted" | "inferred-edited" {
+	private answerSource(entry: ExamineEntry, answer: string): "original" | "inferred-accepted" | "inferred-edited" {
 		if (entry.prefilledAnswer === "") {
 			return "original";
 		}
@@ -545,7 +545,7 @@ export class ExploreMeaningViewModel {
 	private remainingQuestionIds(): string[] {
 		const answered = this.answeredQuestionIds();
 		const inEntries = new Set(this._entries.value.map((e) => e.questionId));
-		return EXPLORE_QUESTIONS.filter((q) => !answered.has(q.id) && !inEntries.has(q.id)).map((q) => q.id);
+		return EXAMINE_QUESTIONS.filter((q) => !answered.has(q.id) && !inEntries.has(q.id)).map((q) => q.id);
 	}
 
 	private applyInferAndAdvance(inferredMap: Map<string, string>, remaining: string[]): void {
@@ -595,23 +595,23 @@ export class ExploreMeaningViewModel {
 	}
 
 	private persistDescriptions(): void {
-		const data = loadExploreData(this.profileId);
+		const data = loadExamineData(this.profileId);
 		if (data === null) return;
 		data[this.cardId] = { ...data[this.cardId], descriptionSelections: [...this._selectedDescriptionIds.value] };
-		saveExploreData(this.profileId, data);
+		saveExamineData(this.profileId, data);
 	}
 
-	private maybeTrackExplorePhaseCompleted(): void {
-		const trackedKey = `${EXPLORE_PHASE_TRACK_KEY_PREFIX}:${this.profileId}`;
+	private maybeTrackExaminePhaseCompleted(): void {
+		const trackedKey = `${EXAMINE_PHASE_TRACK_KEY_PREFIX}:${this.profileId}`;
 		if (sessionStorage.getItem(trackedKey) === "1") {
 			return;
 		}
 
-		if (!isExplorePhaseComplete(this.profileId)) {
+		if (!isExaminePhaseComplete(this.profileId)) {
 			return;
 		}
 
-		capture("explore_phase_completed", { session_id: this.profileId });
+		capture("examine_phase_completed", { session_id: this.profileId });
 		sessionStorage.setItem(trackedKey, "1");
 	}
 }

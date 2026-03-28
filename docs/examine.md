@@ -1,18 +1,18 @@
-# Explore flow — user story
+# Examine flow — user story
 
-## Entering the explore page
+## Entering the examine page
 
 After choosing their sources of meaning on the Find Meaning page, the user lands
-on the Explore overview. Each source of meaning has an **Explore** button.
-Clicking it takes the user to `/explore/:meaningId`, where they begin a guided
+on the Examine overview. Each source of meaning has an **Examine** button.
+Clicking it takes the user to `/examine/:meaningId`, where they begin a guided
 reflection on that source of meaning.
 
 ## Answering the first question
 
-The explore page shows the source of meaning's description at the top, followed by a single
-question drawn from one of five exploration topics: Interpretation, Significance,
+The examine page shows the source of meaning's description at the top, followed by a single
+question drawn from one of five examination topics: Interpretation, Significance,
 Importance, Threat, and Change. The question is randomly assigned when the user
-first visits the Explore page.
+first visits the Examine page.
 
 A textarea is displayed below the question. The user types their reflection and
 clicks **Next** (or presses Shift+Enter) to submit their answer.
@@ -48,7 +48,7 @@ with the pre-fill. It persists to localStorage so the auto-fill UI survives page
 refreshes.
 
 If the user presses **Clear** and then refreshes the page before typing a new
-answer, `loadExploreData` discards the blank active entry (since at least one
+answer, `loadExamineData` discards the blank active entry (since at least one
 non-blank answer exists for the source of meaning). On the next `initialize()`, the app
 regenerates the active question through the normal infer flow.
 
@@ -126,7 +126,7 @@ thought bubble), and once to advance. In the common case the user presses
 If the reflect-on-answer request fails (network error, API error, unparseable
 response), the app fails open: it treats the answer as sufficient and advances
 normally. This ensures the reflection step is purely additive and never
-degrades the core explore experience.
+degrades the core examine experience.
 
 ## Manual reflection on answered questions
 
@@ -137,7 +137,7 @@ fresh reflection at any time — not just during the automatic submit flow.
 The result is displayed inline using the same styling as the automatic flow:
 
 - **guardrail** — amber follow-up, same as the automatic guardrail.
-- **thought bubble** — green Socratic prompt with 💭, same as the automatic
+- **thought bubble** — green Socratic prompt with a thought-bubble icon, same as the automatic
   thought bubble.
 - **none** — a positive "Your answer looks good!" message in green italic.
 
@@ -159,21 +159,21 @@ structured question — there is no answer reflection. The user can type any ext
 thoughts they want to capture about the source of meaning. The note is saved to localStorage
 and included in the downloadable profile above the five Q&A blocks.
 
-The user can leave the field empty and click **Finish exploring** to return to
+The user can leave the field empty and click **Finish examining** to return to
 the sources-of-meaning overview.
 
-## Using "Stop Exploring" for early exit
+## Using "Stop Examining" for early exit
 
-At any point during the exploration, a **Stop Exploring** button is visible below
+At any point during the examination, a **Stop Examining** button is visible below
 the active question. Clicking it saves whatever text is currently in the textarea
-(if any) and returns to the explore list. The user does not need to answer all
+(if any) and returns to the examine list. The user does not need to answer all
 five questions — they can stop whenever they feel they have reflected enough.
 
-## Exploration complete
+## Examination complete
 
 After answering all five questions for a source of meaning, clicking
-**Finish exploring** takes the user to an interstitial page at
-`/:profileId/explore/:meaningId/complete`. This page makes completion feel more
+**Finish examining** takes the user to an interstitial page at
+`/:profileId/examine/:meaningId/complete`. This page makes completion feel more
 satisfying by showing the user's reflections distilled back to them.
 
 The page displays:
@@ -181,18 +181,18 @@ The page displays:
 - The source of meaning's description as a heading.
 - A warm rotating phrase (e.g. "Your reflections, distilled"), selected
   deterministically from the profile and source of meaning IDs.
-- Progress squares showing how many sources have been fully explored.
+- Progress squares showing how many sources have been fully examined.
 - AI-generated summary of the user's answers.
 
 The call-to-action varies based on progress:
 
-- If more sources remain: a **Keep exploring** button returns to the explore list.
+- If more sources remain: a **Keep examining** button returns to the examine list.
 - If all sources are complete: **Print your profile** is the primary action, with
-  **Back to explore list** as a secondary option.
+  **Back to examine list** as a secondary option.
 
 The page is purely presentational — no user input is collected. If accessed
-directly without data (e.g. via URL), it redirects to the explore list.
+directly without data (e.g. via URL), it redirects to the examine list.
 
 On the first visit for a given source of meaning, elements cascade in with timed fade-in
 animations. On revisit, all animations (including the fade-out transition from
-the explore page) are skipped and content appears immediately.
+the examine page) are skipped and content appears immediately.

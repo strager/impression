@@ -25,11 +25,11 @@ const phaseLabel = computed(() => {
 		case "findMeaningPrioritize":
 			return "Prioritize";
 		case "findMeaningManual":
-			return null; // handled as Explore sub-page
-		case "explore":
-			return "Explore";
-		case "exploreMeaning":
-			return null; // handled separately with Explore link + card name
+			return null; // handled as Examine sub-page
+		case "examine":
+			return "Examine";
+		case "examineMeaning":
+			return null; // handled separately with Examine link + card name
 		case "profile":
 			return "Profile";
 		case "llmTest":
@@ -43,16 +43,16 @@ const phaseLabel = computed(() => {
 
 const meaningCardName = computed(() => {
 	if (route.name === "findMeaningManual") return "Edit selection";
-	if (route.name !== "exploreMeaning") return null;
+	if (route.name !== "examineMeaning") return null;
 	const meaningId = route.params.meaningId;
 	if (typeof meaningId !== "string") return null;
 	const card = MEANING_CARDS.find((c) => c.id === meaningId);
 	return card?.source ?? meaningId;
 });
 
-const exploreRoute = computed(() => {
+const examineRoute = computed(() => {
 	if (profileId.value === null) return null;
-	return { name: "explore", params: { profileId: profileId.value } };
+	return { name: "examine", params: { profileId: profileId.value } };
 });
 </script>
 
@@ -66,7 +66,7 @@ const exploreRoute = computed(() => {
 			</template>
 			<template v-if="meaningCardName !== null">
 				<span class="nav-separator">/</span>
-				<RouterLink v-if="exploreRoute" :to="exploreRoute" class="nav-link">Explore</RouterLink>
+				<RouterLink v-if="examineRoute" :to="examineRoute" class="nav-link">Examine</RouterLink>
 				<span class="nav-separator">/</span>
 				<span class="nav-phase">{{ meaningCardName }}</span>
 			</template>

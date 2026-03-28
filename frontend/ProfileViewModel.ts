@@ -1,16 +1,16 @@
 import { ref } from "vue";
 
 import type { CardProfile, QuestionProfile } from "../shared/profile-types.ts";
-import { EXPLORE_QUESTIONS } from "../shared/explore-questions.ts";
+import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
 import { capture } from "./analytics.ts";
 import { fetchSynthesis } from "./api.ts";
-import { loadChosenCardIds, loadExploreData, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
+import { loadChosenCardIds, loadExamineData, lookupCachedSynthesis, saveCachedSynthesis } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
-const questionOrder = new Map(EXPLORE_QUESTIONS.map((q, i) => [q.id, i]));
+const questionOrder = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 
 export class ProfileViewModel {
 	private readonly profileId: string;
@@ -39,7 +39,7 @@ export class ProfileViewModel {
 		const entry = this._cards.value.find((r) => r.card.id === cardId);
 		if (entry === undefined) return;
 
-		const exploreData = loadExploreData(this.profileId) ?? {};
+		const exploreData = loadExamineData(this.profileId) ?? {};
 		if (!(cardId in exploreData)) return;
 
 		const entries = exploreData[cardId].entries;
@@ -80,7 +80,7 @@ export class ProfileViewModel {
 			return "no-data";
 		}
 
-		const exploreData = loadExploreData(this.profileId) ?? {};
+		const exploreData = loadExamineData(this.profileId) ?? {};
 
 		const cards: CardProfile[] = [];
 		const fetchTasks: Promise<void>[] = [];
@@ -94,7 +94,7 @@ export class ProfileViewModel {
 			const answersByQuestionId = new Map(entries.map((e) => [e.questionId, e.userAnswer]));
 			const questions: QuestionProfile[] = [];
 
-			for (const question of EXPLORE_QUESTIONS) {
+			for (const question of EXAMINE_QUESTIONS) {
 				const answer = answersByQuestionId.get(question.id) ?? "";
 
 				questions.push({
@@ -109,7 +109,7 @@ export class ProfileViewModel {
 			const selectedIds = hasCardData ? exploreData[cardId].descriptionSelections : [];
 			const selectedDescriptions = selectedIds.map((id) => descriptionTextById.get(id)).filter((text): text is string => text !== undefined);
 
-			// Build fingerprint for synthesis cache lookup (same algorithm as ExploreCompleteViewModel)
+			// Build fingerprint for synthesis cache lookup (same algorithm as ExamineCompleteViewModel)
 			const answered = entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 			const fingerprintParts = answered.map((e) => e.userAnswer);
 			if (freeformNote !== "") {
