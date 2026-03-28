@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe("initialize", () => {
-	it("returns 'no-data' when sorting isn't complete", () => {
+	it("returns 'no-data' when identification isn't complete", () => {
 		const vm = new IdentifyRankingViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});

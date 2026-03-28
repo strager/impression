@@ -1,10 +1,10 @@
-# How sorting works
+# How identification works
 
 Impression presents you with 26 sources of meaning, each representing a
-potential source of meaning in your life. Through a multi-step sorting
+potential source of meaning in your life. Through a multi-step identification
 process, you prioritize a small handful that matter most to you.
 
-## Step 1: Initial sorting
+## Step 1: Initial identification
 
 You are shown each of the 26 sources of meaning one at a time, in a
 randomized (shuffled) order. Each one displays a description — for example,
@@ -22,7 +22,7 @@ You can swipe (on touch devices) or click the buttons. An undo button lets
 you go back and change your mind on any previous response. A progress bar
 tracks how far along you are.
 
-After all 26 have been sorted, you move on. If you agreed with 5 or fewer,
+After all 26 have been identified, you move on. If you agreed with 5 or fewer,
 those become your chosen sources of meaning and you skip straight to your
 results. If you agreed with more than 5, you continue to the prioritizing
 step.
@@ -34,7 +34,7 @@ step.
 ## Step 2: Ranking
 
 In this step, you narrow down the sources of meaning that passed the
-initial sort to your top 3–5 through a series of MaxDiff (Best-Worst
+initial identification to your top 3–5 through a series of MaxDiff (Best-Worst
 Scaling) tasks.
 
 You are shown three sources of meaning at a time. First, you choose
