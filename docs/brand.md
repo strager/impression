@@ -1,0 +1,54 @@
+# Impression's brand
+
+Brand archetype: Translator (Sage)
+
+Positioning line: "Impression: A structured path to answering life's biggest
+question: what gives my life meaning?"
+
+## Mission statement
+
+Most people go their entire lives without being able to answer the question
+"What gives my life meaning?" Not because they don't care, but because the
+question is too big to know where to start. Life meaning shouldn't require a
+therapist, a crisis, or a lucky moment of clarity; it should be something anyone
+can sit down and work through.
+
+**Impression** is built on the belief that structure is the answer to overwhelm;
+the right process, followed patiently, can make even the most complex and
+existential question answerable.
+
+## On-brand terms (use these when appropriate)
+
+| terms                                                                                                                                                  | notes                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| structure, clarify, surface, uncover, guide, narrow, distill, articulate                                                                               | what the app does                                                                                                                       |
+| meaning, sources, what matters, self-understanding                                                                                                     | what the user experiences                                                                                                               |
+| structured, opinionated, patient, deliberate, guided, focused, intentional                                                                             | the app's character                                                                                                                     |
+| agree, disagree, unsure, undo, done, continue, next, back, start, review, remove, cancel, save, rename, delete, retry, download, print, import, export | actions                                                                                                                                 |
+| most important, least important                                                                                                                        | prioritizing                                                                                                                            |
+| complete, in progress, examined                                                                                                                        | card statuses                                                                                                                           |
+| source(s) of meaning, meaningful, importance, threat, change, reflection, additional notes                                                             | Content terms                                                                                                                           |
+| profile                                                                                                                                                | the printable document containing examination notes and AI synthesis; and a user's complete run-through of the app, replacing "session" |
+| feels right                                                                                                                                            | used in place of "resonate," as in "Which of these feel right to you?"                                                                  |
+| 26 meaning sources (social commitment, religiosity, ...)                                                                                               | research terms inherited from SoMeCaM                                                                                                   |
+
+## Off-brand words (avoid these)
+
+| term                                                                    | use instead                                            | notes                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| impression                                                              |                                                        | (only use "Impression" to refer to the app itself)                                                                                                                                                                              |
+| resonates                                                               | feels right, matters to you                            |                                                                                                                                                                                                                                 |
+| statements                                                              | avoid labeling; use "descriptions" if a noun is needed |                                                                                                                                                                                                                                 |
+| session                                                                 | profile                                                |                                                                                                                                                                                                                                 |
+| report                                                                  | profile                                                |                                                                                                                                                                                                                                 |
+| explore / explored                                                      | examine / examined                                     |                                                                                                                                                                                                                                 |
+| find meaning (as phase label)                                           | identify                                               |                                                                                                                                                                                                                                 |
+| sort (as phase label)                                                   | identify                                               |                                                                                                                                                                                                                                 |
+| significance                                                            | importance, meaningful                                 |                                                                                                                                                                                                                                 |
+| discover                                                                | find, uncover, surface                                 |                                                                                                                                                                                                                                 |
+| purpose (as synonym for meaning)                                        | meaning                                                | 'Meaning' is what you find when you look inward at what gives your life significance. 'Purpose' tends to imply a role or mission you serve in the world. Impression helps you find meaning more than it helps you find purpose. |
+| journey                                                                 | path, process                                          |                                                                                                                                                                                                                                 |
+| heal, transform, empower, unlock, breakthrough                          | clarify, surface, uncover                              |                                                                                                                                                                                                                                 |
+| supercharge, hack, optimize, level up, game-changing, revolutionary     | structured, focused, deliberate                        |                                                                                                                                                                                                                                 |
+| authentic, alignment, flow, energy, inner wisdom, soul                  | meaning, self-understanding, what matters              |                                                                                                                                                                                                                                 |
+| methodology, framework, assessment, instrument, psychometric, construct | method, process, approach                              |                                                                                                                                                                                                                                 |
