@@ -8,7 +8,7 @@ import { isCardFullyExamined, isExaminePhaseComplete, loadExamineData, requestSt
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
+import { MEANING_EXPRESSIONS } from "../shared/meaning-expressions.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
@@ -104,8 +104,8 @@ export class ExamineMeaningViewModel {
 		return this._entries.value.filter((e) => e.submitted).length;
 	}
 
-	get cardDescriptions(): (typeof MEANING_DESCRIPTIONS)[number][] {
-		return MEANING_DESCRIPTIONS.filter((d) => d.meaningId === this.cardId);
+	get cardDescriptions(): (typeof MEANING_EXPRESSIONS)[number][] {
+		return MEANING_EXPRESSIONS.filter((d) => d.meaningId === this.cardId);
 	}
 
 	// --- Public methods ---

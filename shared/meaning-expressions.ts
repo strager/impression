@@ -32,7 +32,7 @@ export const MEANING_SOURCES: readonly MeaningSource[] = [
 	{ id: "harmony", name: "Harmony" },
 ];
 
-export interface MeaningDescription {
+export interface MeaningExpression {
 	id: string;
 	// Corresponds to MEANING_SOURCES[].id.
 	meaningId: string;
@@ -42,7 +42,7 @@ export interface MeaningDescription {
 
 // ID numbering based on The Sources of Meaning and Meaning in Life
 // Questionnaire, Tatjana Schnell
-export const MEANING_DESCRIPTIONS: readonly MeaningDescription[] = [
+export const MEANING_EXPRESSIONS: readonly MeaningExpression[] = [
 	{
 		id: "3",
 		meaningId: "social-commitment",

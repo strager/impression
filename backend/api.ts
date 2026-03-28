@@ -11,7 +11,7 @@ import { createAnthropicCompletion } from "./anthropic-client.ts";
 import { createChatCompletion } from "./xai-client.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
-import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
+import { MEANING_EXPRESSIONS } from "../shared/meaning-expressions.ts";
 
 interface ApiProblemDetails {
 	type: string;
@@ -569,7 +569,7 @@ If type is "guardrail" or "thought_bubble", message should be the follow-up ques
 		}
 
 		const selectedDescriptionSet = new Set(selectedDescriptionIds);
-		const cardDescriptions = MEANING_DESCRIPTIONS.filter((d) => d.meaningId === cardId);
+		const cardDescriptions = MEANING_EXPRESSIONS.filter((d) => d.meaningId === cardId);
 		let checkedDescriptions = cardDescriptions.filter((d) => selectedDescriptionSet.has(d.id)).map((d) => d.text);
 		if (checkedDescriptions.length === 0) {
 			checkedDescriptions = [card.description];

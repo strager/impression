@@ -15,7 +15,7 @@ import type { ModuleNode, ViteDevServer } from "vite";
 import type { CardProfile, QuestionProfile } from "../shared/profile-types.ts";
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
+import { MEANING_EXPRESSIONS } from "../shared/meaning-expressions.ts";
 
 interface PdfEntryModule {
 	renderPdfHtml: (fontCss: string, componentCss: string, cards: CardProfile[], paperSize: string) => Promise<string>;
@@ -186,7 +186,7 @@ export function assembleProfileData(profileExportJson: string): CardProfile[] {
 			}
 		}
 	}
-	const descriptionTextById = new Map(MEANING_DESCRIPTIONS.map((d) => [d.id, d.text]));
+	const descriptionTextById = new Map(MEANING_EXPRESSIONS.map((d) => [d.id, d.text]));
 
 	const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 	const cards: CardProfile[] = [];

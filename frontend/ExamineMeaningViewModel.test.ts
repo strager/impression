@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
+import { MEANING_EXPRESSIONS } from "../shared/meaning-expressions.ts";
 import { ExamineMeaningViewModel } from "./ExamineMeaningViewModel.ts";
 import type { ExamineData, ExamineEntry } from "./store.ts";
 import { ensureProfilesInitialized, getActiveProfileId, loadExamineData, saveChosenCardIds, saveExamineData } from "./store.ts";
@@ -968,7 +968,7 @@ describe("descriptions and freeform", () => {
 		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		const descId = MEANING_EXPRESSIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
 		if (descId === undefined) return; // skip if no descriptions for this card
 
 		vm.toggleDescription(descId);
@@ -985,7 +985,7 @@ describe("descriptions and freeform", () => {
 		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		const descId = MEANING_EXPRESSIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
 		if (descId === undefined) return;
 
 		vm.toggleDescription(descId);
@@ -1003,7 +1003,7 @@ describe("descriptions and freeform", () => {
 		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
 		vm.initialize();
 
-		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		const descId = MEANING_EXPRESSIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
 		if (descId === undefined) return;
 
 		vm.confirmDescriptions();
@@ -1036,7 +1036,7 @@ describe("finishExamining", () => {
 		vm.initialize();
 		vm.freeformNote = "Final notes";
 
-		const descId = MEANING_DESCRIPTIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
+		const descId = MEANING_EXPRESSIONS.find((d) => d.meaningId === TEST_CARD_ID)?.id;
 		if (descId !== undefined) {
 			vm.toggleDescription(descId);
 		}

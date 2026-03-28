@@ -69,7 +69,7 @@ feel right to them and clicks **Next** to continue.
 
 Selections are saved to localStorage (as description IDs) and included in the
 downloadable profile. Description text is resolved from the shared
-`MEANING_DESCRIPTIONS` data at display time.
+`MEANING_EXPRESSIONS` data at display time.
 
 ## Answer reflection (guardrail and thought bubble)
 

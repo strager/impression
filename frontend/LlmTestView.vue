@@ -6,7 +6,7 @@ import type { LlmTestState } from "./store.ts";
 import { loadLlmTestState, saveLlmTestState } from "./store.ts";
 import { EXAMINE_QUESTIONS } from "../shared/examine-questions.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { MEANING_DESCRIPTIONS } from "../shared/meaning-descriptions.ts";
+import { MEANING_EXPRESSIONS } from "../shared/meaning-expressions.ts";
 
 interface QuestionRow {
 	questionId: string;
@@ -64,7 +64,7 @@ const rows = reactive<QuestionRow[]>(stored !== null ? toQuestionRows(stored.row
 const selectedDescriptions = reactive<Set<string>>(new Set(stored !== null ? stored.selectedDescriptions : []));
 const freeformNote = ref(stored !== null ? stored.freeformNote : "");
 
-const cardDescriptions = computed(() => MEANING_DESCRIPTIONS.filter((d) => d.meaningId === selectedCardId.value));
+const cardDescriptions = computed(() => MEANING_EXPRESSIONS.filter((d) => d.meaningId === selectedCardId.value));
 
 function toggleDescription(id: string): void {
 	if (selectedDescriptions.has(id)) {
