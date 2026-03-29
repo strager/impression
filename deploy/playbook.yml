@@ -1,8 +1,4 @@
 ---
-# TEMPORARY: Remove this import after the old somecam service has been cleaned
-# up on all servers, then delete deploy/cleanup-somecam.yml.
-- import_playbook: cleanup-somecam.yml
-
 - name: Deploy Impression
   hosts: impression
 
