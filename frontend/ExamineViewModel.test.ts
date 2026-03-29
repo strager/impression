@@ -148,7 +148,7 @@ describe("initialize", () => {
 	});
 
 	it("returns 'no-data' on corrupt data", () => {
-		localStorage.setItem(`somecam:${sid()}:chosen-card-ids`, "not-valid-json{{{");
+		localStorage.setItem(`somecam-${sid()}-chosen`, "not-valid-json{{{");
 
 		const vm = new ExamineViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
