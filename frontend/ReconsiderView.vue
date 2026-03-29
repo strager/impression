@@ -29,10 +29,7 @@ onMounted(() => {
 		<header>
 			<h1>Reconsider</h1>
 			<div class="instruction-stack">
-				<p :class="['instruction', { active: vm.selectedCount === 0 }]">Select at least one source of meaning to examine.</p>
-				<p :class="['instruction', { active: vm.selectedCount >= 1 && vm.selectedCount <= 2 }]">Select the sources of meaning you want to examine (aim for 3–5).</p>
-				<p :class="['instruction', { active: vm.selectedCount >= 3 && vm.selectedCount <= 5 }]">Good choices! Tap Done when you're ready.</p>
-				<p :class="['instruction', { active: vm.selectedCount > 5 }]">Consider narrowing to 3–5 sources for a more focused examination.</p>
+				<p class="instruction active">Select which sources of meaning you'd like to examine. We recommend choosing 3–5 to start with.</p>
 			</div>
 			<p class="count">{{ vm.selectedCount }} source{{ vm.selectedCount === 1 ? "" : "s" }} of meaning selected</p>
 		</header>
