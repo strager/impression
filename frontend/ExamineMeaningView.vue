@@ -281,7 +281,7 @@ onMounted(() => {
 			<ExamineTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
 		</div>
 
-		<AppButton variant="secondary" class="finish-btn" @click="handleFinishExamining">Finish examining</AppButton>
+		<AppButton :variant="vm.allAnswered && vm.descriptionsConfirmed ? 'primary' : 'secondary'" class="finish-btn" @click="handleFinishExamining">Finish examining {{ vm.card.source }}</AppButton>
 	</main>
 </template>
 
