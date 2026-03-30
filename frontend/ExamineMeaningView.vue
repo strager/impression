@@ -211,12 +211,16 @@ onMounted(() => {
 					entryCards[index] = el;
 				}
 			"
-			class="card-hrule"
+			class="card-hrule question-card"
 		>
-			<label :for="`q-${entry.questionId}`"
-				><q>{{ vm.card.description }}</q
-				><br />{{ questionsById.get(entry.questionId)?.text }}</label
-			>
+			<p>
+				<label :for="`q-${entry.questionId}`"
+					><q>{{ vm.card.description }}</q></label
+				>
+			</p>
+			<p>
+				<label :for="`q-${entry.questionId}`">{{ questionsById.get(entry.questionId)?.text }}</label>
+			</p>
 			<template v-if="entry.submitted">
 				<template v-if="vm.manualReflectResult.has(entry.questionId)">
 					<p v-if="vm.manualReflectResult.get(entry.questionId)!.type === 'guardrail'" class="reflection-guardrail" style="--chip-parent-cap: 1cap">
@@ -336,6 +340,10 @@ label {
 	font-size: var(--text-sm);
 	color: var(--color-gray-400);
 	margin: var(--space-2) 0 0;
+}
+
+.question-card p {
+	margin-bottom: var(--space-2);
 }
 
 .reflection-guardrail {
