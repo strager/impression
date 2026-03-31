@@ -78,7 +78,7 @@ async function handleSubmitAnswer(): Promise<void> {
 		void nextTick(() => {
 			const cur = document.activeElement;
 			if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
-			if (vm.allAnswered && vm.editingEntryIndex === -1) {
+			if (vm.freeformVisible) {
 				freeformTextarea.value?.focus();
 			} else {
 				activeTextarea.value?.focus();
@@ -145,7 +145,7 @@ function onKeydown(index: number | null, event: KeyboardEvent): void {
 		const next = entryTextareas[index + 1] ?? null;
 		if (next !== null) {
 			next.focus();
-		} else if (vm.allAnswered) {
+		} else if (vm.freeformVisible) {
 			freeformTextarea.value?.focus();
 		}
 	} else {
@@ -159,7 +159,7 @@ const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 
 function handleFinishExamining(): void {
 	vm.finishExamining();
-	if (vm.allAnswered) {
+	if (vm.readyForReflect) {
 		if (prefersReducedMotion.value || hasVisitedExamineReflect(profileId, cardId)) {
 			void router.push({ name: "examineReflect", params: { profileId, meaningId: cardId } });
 		} else {
@@ -169,7 +169,7 @@ function handleFinishExamining(): void {
 				void router.push({ name: "examineReflect", params: { profileId, meaningId: cardId } });
 			}, 2000);
 		}
-	} else {
+	} else if (!vm.allAnswered) {
 		void router.push({ name: "examine", params: { profileId } });
 	}
 }
@@ -276,12 +276,12 @@ onMounted(() => {
 			<AppButton v-if="!vm.descriptionsConfirmed" variant="primary" class="submit-btn" @click="handleConfirmDescriptions">Next</AppButton>
 		</div>
 
-		<div v-if="vm.allAnswered && vm.descriptionsConfirmed && !vm.inferring && vm.editingEntryIndex === -1 && !vm.awaitingReflection" class="card-hrule">
+		<div v-if="vm.freeformVisible" class="card-hrule">
 			<label for="freeform-notes">Additional notes about this source of meaning</label>
 			<ExamineTextarea id="freeform-notes" ref="freeformTextarea" v-model="vm.freeformNote" :rows="5" placeholder="Any other thoughts you'd like to capture (optional)" @update:model-value="debouncedFreeformPersist" @blur="vm.onFreeformBlur()" @keydown="onKeydown(null, $event)" />
 		</div>
 
-		<AppButton :variant="vm.allAnswered && vm.descriptionsConfirmed ? 'primary' : 'secondary'" class="finish-btn" @click="handleFinishExamining">Finish examining {{ vm.card.source }}</AppButton>
+		<AppButton :variant="vm.readyForReflect ? 'primary' : 'secondary'" class="finish-btn" @click="handleFinishExamining">Finish examining {{ vm.card.source }}</AppButton>
 	</main>
 </template>
 

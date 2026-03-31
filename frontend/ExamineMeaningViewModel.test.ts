@@ -1173,6 +1173,68 @@ describe("derived properties", () => {
 			expect(d.meaningId).toBe(TEST_CARD_ID);
 		}
 	});
+
+	it("readyForReflect is false when all answered but descriptions not confirmed", () => {
+		const entries = makeAllSubmitted();
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		expect(vm.allAnswered).toBe(true);
+		expect(vm.descriptionsConfirmed).toBe(false);
+		expect(vm.readyForReflect).toBe(false);
+	});
+
+	it("readyForReflect is true when all answered and descriptions confirmed", () => {
+		const entries = makeAllSubmitted();
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.confirmDescriptions();
+		expect(vm.readyForReflect).toBe(true);
+	});
+
+	it("readyForReflect is false when not all answered", () => {
+		const entries = [makeEntry(EXAMINE_QUESTIONS[0].id, "answer", false)];
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		expect(vm.readyForReflect).toBe(false);
+	});
+
+	it("freeformVisible is false when descriptions not confirmed", () => {
+		const entries = makeAllSubmitted();
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		expect(vm.freeformVisible).toBe(false);
+	});
+
+	it("freeformVisible is true when all answered, descriptions confirmed, and not editing", () => {
+		const entries = makeAllSubmitted();
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.confirmDescriptions();
+		expect(vm.freeformVisible).toBe(true);
+	});
+
+	it("freeformVisible is false during blocking reflection even when descriptions confirmed", () => {
+		const entries = makeAllSubmitted();
+		entries[entries.length - 1].guardrailText = "elaborate";
+		entries[entries.length - 1].submittedAfterGuardrail = false;
+		setupExamineData(TEST_CARD_ID, entries);
+
+		const vm = new ExamineMeaningViewModel(sid(), TEST_CARD_ID);
+		vm.initialize();
+		vm.confirmDescriptions();
+		expect(vm.editingEntryIndex).not.toBe(-1);
+		expect(vm.freeformVisible).toBe(false);
+	});
 });
 
 describe("sequential question selection", () => {

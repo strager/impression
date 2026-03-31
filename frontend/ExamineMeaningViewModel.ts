@@ -104,6 +104,14 @@ export class ExamineMeaningViewModel {
 		return this._entries.value.filter((e) => e.submitted).length;
 	}
 
+	get readyForReflect(): boolean {
+		return this.allAnswered && this._descriptionsConfirmed.value;
+	}
+
+	get freeformVisible(): boolean {
+		return this.allAnswered && this._descriptionsConfirmed.value && !this._inferring.value && this.editingEntryIndex === -1 && !this._awaitingReflection.value;
+	}
+
 	get cardDescriptions(): (typeof MEANING_EXPRESSIONS)[number][] {
 		return MEANING_EXPRESSIONS.filter((d) => d.meaningId === this.cardId);
 	}
