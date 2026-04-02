@@ -73,22 +73,25 @@ async function handleSubmitAnswer(): Promise<void> {
 	if (!hasPhysicalKeyboard() && document.activeElement instanceof HTMLElement) {
 		document.activeElement.blur();
 	}
-	await vm.submitAnswer();
-	if (hasPhysicalKeyboard()) {
-		void nextTick(() => {
-			const cur = document.activeElement;
-			if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
-			if (vm.freeformVisible) {
-				freeformTextarea.value?.focus();
-			} else {
-				activeTextarea.value?.focus();
-			}
-		});
-	}
-	if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
-		void nextTick(() => {
-			scrollCardIntoViewIfNeeded(submittedIndex);
-		});
+	try {
+		await vm.submitAnswer();
+	} finally {
+		if (hasPhysicalKeyboard()) {
+			void nextTick(() => {
+				const cur = document.activeElement;
+				if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
+				if (vm.freeformVisible) {
+					freeformTextarea.value?.focus();
+				} else {
+					activeTextarea.value?.focus();
+				}
+			});
+		}
+		if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
+			void nextTick(() => {
+				scrollCardIntoViewIfNeeded(submittedIndex);
+			});
+		}
 	}
 }
 
