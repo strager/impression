@@ -16,6 +16,7 @@ defineProps<{
 
 const emit = defineEmits<{
 	"update:modelValue": [value: string];
+	focus: [];
 	blur: [];
 }>();
 
@@ -34,6 +35,20 @@ function focusAtEnd(): void {
 	el.setSelectionRange(len, len);
 }
 
+// Pin the textarea to its current rendered height via inline style, so it
+// doesn't snap smaller when a flex-grow parent class is removed.
+function freezeHeight(): void {
+	const el = textareaRef.value;
+	if (el === null) return;
+	el.style.height = String(el.offsetHeight) + "px";
+}
+
+function unfreezeHeight(): void {
+	const el = textareaRef.value;
+	if (el === null) return;
+	el.style.height = "";
+}
+
 function onInput(event: Event): void {
 	if (!(event.target instanceof HTMLTextAreaElement)) {
 		throw new Error("Expected target to be an HTMLTextAreaElement");
@@ -41,12 +56,12 @@ function onInput(event: Event): void {
 	emit("update:modelValue", event.target.value);
 }
 
-defineExpose({ focus, focusAtEnd });
+defineExpose({ focus, focusAtEnd, freezeHeight, unfreezeHeight });
 </script>
 
 <template>
 	<div class="textarea-wrapper">
-		<textarea :id="id" ref="textareaRef" v-bind="attrs" :class="[variant ?? 'active', { autofilled, 'no-focus-ring': autofilled }]" :value="modelValue" :rows="rows ?? 5" :placeholder="placeholder ?? ''" :readonly="autofilled || undefined" @input="onInput" @blur="emit('blur')"></textarea>
+		<textarea :id="id" ref="textareaRef" v-bind="attrs" :class="[variant ?? 'active', { autofilled, 'no-focus-ring': autofilled }]" :value="modelValue" :rows="rows ?? 5" :placeholder="placeholder ?? ''" :readonly="autofilled || undefined" @input="onInput" @focus="emit('focus')" @blur="emit('blur')"></textarea>
 		<span v-if="autofilled" class="chip chip-positioned chip-ai autofill-chip">AI-generated</span>
 	</div>
 </template>
@@ -55,6 +70,8 @@ defineExpose({ focus, focusAtEnd });
 .textarea-wrapper {
 	position: relative;
 	line-height: 1; /* Position the chip properly. */
+	display: flex;
+	flex-direction: column;
 }
 
 textarea.autofilled {
