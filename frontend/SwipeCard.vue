@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import type { SwipeDirection } from "../shared/meaning-cards.ts";
+import SwipeCardFace from "./SwipeCardFace.vue";
 
 const props = withDefaults(
 	defineProps<{
@@ -15,22 +16,16 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-	swiped: [direction: SwipeDirection];
+	swiped: [payload: { direction: SwipeDirection; fromX: number; fromY: number }];
 }>();
 
 const SWIPE_THRESHOLD = 100;
-const FLY_AWAY_DURATION_MS = 800;
 
 const isDragging = ref(false);
 const startX = ref(0);
 const startY = ref(0);
 const offsetX = ref(0);
 const offsetY = ref(0);
-const flyingAway = ref(false);
-const flyX = ref(0);
-const flyY = ref(0);
-const flyDirection = ref<SwipeDirection | null>(null);
-const flyDurationMs = ref(FLY_AWAY_DURATION_MS);
 
 const dominantDirection = computed<SwipeDirection | null>(() => {
 	const ax = Math.abs(offsetX.value);
@@ -60,33 +55,15 @@ const pastThreshold = computed(() => {
 	return Math.max(ax, ay) >= SWIPE_THRESHOLD;
 });
 
-const DIRECTION_COLORS: Record<SwipeDirection, string> = {
-	agree: "42, 110, 78",
-	disagree: "85, 85, 85",
-	unsure: "115, 115, 115",
-};
-
-const overlayColor = computed(() => {
-	let dir: SwipeDirection | null;
-	let opacity: number;
-	if (flyingAway.value) {
-		dir = flyDirection.value;
-		opacity = 0.25;
-	} else if (isDragging.value) {
-		dir = dominantDirection.value;
-		const ax = Math.abs(offsetX.value);
-		const ay = Math.abs(offsetY.value);
-		const dist = Math.max(ax, ay);
-		opacity = Math.min(dist / SWIPE_THRESHOLD, 1) * 0.25;
-	} else {
-		return "transparent";
-	}
-	if (dir === null) return "transparent";
-	return `rgba(${DIRECTION_COLORS[dir]}, ${String(opacity)})`;
+const overlayOpacity = computed(() => {
+	if (!isDragging.value) return 0;
+	const ax = Math.abs(offsetX.value);
+	const ay = Math.abs(offsetY.value);
+	const dist = Math.max(ax, ay);
+	return Math.min(dist / SWIPE_THRESHOLD, 1) * 0.25;
 });
 
 const labelOpacity = computed(() => {
-	if (flyingAway.value) return 1;
 	if (!isDragging.value) return 0;
 	const ax = Math.abs(offsetX.value);
 	const ay = Math.abs(offsetY.value);
@@ -94,32 +71,7 @@ const labelOpacity = computed(() => {
 	return Math.min(Math.max((dist - 30) / (SWIPE_THRESHOLD - 30), 0), 1);
 });
 
-const activeDirection = computed<SwipeDirection | null>(() => {
-	if (flyingAway.value) return flyDirection.value;
-	if (isDragging.value) return dominantDirection.value;
-	return null;
-});
-
-const overlayStyle = computed(() => {
-	const style: Record<string, string> = { background: overlayColor.value };
-	const dir = activeDirection.value;
-	if (dir === "unsure") {
-		style.border = `2px dashed rgba(${DIRECTION_COLORS.unsure}, ${String(labelOpacity.value)})`;
-	} else if (dir !== null) {
-		style.border = `2px solid rgba(${DIRECTION_COLORS[dir]}, ${String(labelOpacity.value)})`;
-	}
-	return style;
-});
-
 const cardStyle = computed(() => {
-	if (flyingAway.value) {
-		const rotate = flyX.value * 0.08;
-		return {
-			transform: `translate(${String(flyX.value)}px, ${String(flyY.value)}px) rotate(${String(rotate)}deg)`,
-			opacity: "0",
-			transition: `transform ${String(flyDurationMs.value)}ms ease, opacity ${String(flyDurationMs.value)}ms ease`,
-		};
-	}
 	if (!isDragging.value) {
 		return { transition: "transform 0.3s ease" };
 	}
@@ -131,7 +83,6 @@ const cardStyle = computed(() => {
 });
 
 function onPointerDown(e: PointerEvent): void {
-	if (flyingAway.value) return;
 	isDragging.value = true;
 	startX.value = e.clientX;
 	startY.value = e.clientY;
@@ -154,59 +105,28 @@ function onPointerUp(): void {
 	isDragging.value = false;
 
 	if (pastThreshold.value && dominantDirection.value !== null) {
-		flyAway(dominantDirection.value, 300);
+		emit("swiped", { direction: dominantDirection.value, fromX: offsetX.value, fromY: offsetY.value });
 	} else {
 		offsetX.value = 0;
 		offsetY.value = 0;
 	}
 }
-
-function flyAway(direction: SwipeDirection, durationMs = FLY_AWAY_DURATION_MS): void {
-	if (flyingAway.value) return;
-	if (!props.allowUnsure && direction === "unsure") return;
-	flyingAway.value = true;
-	flyDirection.value = direction;
-	flyDurationMs.value = durationMs;
-	flyX.value = direction === "agree" ? 600 : direction === "disagree" ? -600 : 0;
-	flyY.value = direction === "unsure" ? -400 : 0;
-
-	globalThis.setTimeout(() => {
-		emit("swiped", direction);
-	}, durationMs);
-}
-
-defineExpose({ flyAway });
 </script>
 
 <template>
 	<div class="swipe-card-viewport">
 		<div class="swipe-card-stack">
-			<div v-if="nextCard" class="card-surface peek-card">
-				<p class="card-text">
-					{{ nextCard.description }} <span v-if="showSource" class="card-source">({{ nextCard.source }})</span>
-				</p>
+			<div v-if="nextCard" class="swipe-card-surface peek-card">
+				<SwipeCardFace :card="nextCard" :show-source="showSource" />
 			</div>
-			<div class="card-surface swipe-card" :style="cardStyle" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp">
-				<div class="card-overlay" :style="overlayStyle" />
-				<span v-if="dominantDirection === 'agree' || flyDirection === 'agree'" class="direction-label agree" :style="{ opacity: labelOpacity }"> Agree ✓ </span>
-				<span v-if="dominantDirection === 'disagree' || flyDirection === 'disagree'" class="direction-label disagree" :style="{ opacity: labelOpacity }"> Disagree ✕ </span>
-				<span v-if="dominantDirection === 'unsure' || flyDirection === 'unsure'" class="direction-label unsure" :style="{ opacity: labelOpacity }"> Unsure ？ </span>
-				<p class="card-text">
-					{{ card.description }} <span v-if="showSource" class="card-source">({{ card.source }})</span>
-				</p>
+			<div class="swipe-card-surface swipe-card" :style="cardStyle" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp">
+				<SwipeCardFace :card="card" :direction="dominantDirection" :overlay-opacity="overlayOpacity" :label-opacity="labelOpacity" :show-source="showSource" />
 			</div>
 		</div>
 	</div>
 </template>
 
 <style scoped>
-.card-surface {
-	height: 14rem;
-	padding: var(--space-8);
-	background: var(--color-white);
-	border: var(--border-thin);
-	font-family: var(--font-heading);
-}
 /* Stretch to full viewport width so overflow-x clips at screen edges,
    not at the parent's max-width boundary. 50% is half the parent's
    width; -50vw pulls back half the viewport. The difference cancels
@@ -228,9 +148,6 @@ defineExpose({ flyAway });
 .peek-card {
 	position: absolute;
 	inset: 0;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
 	z-index: 0;
 	pointer-events: none;
 }
@@ -239,63 +156,12 @@ defineExpose({ flyAway });
 	position: relative;
 	z-index: 1;
 	margin: 0 auto;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
 	cursor: grab;
 	user-select: none;
 	touch-action: none;
-	overflow: hidden;
 }
 
 .swipe-card:active {
 	cursor: grabbing;
-}
-
-.card-overlay {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	transition:
-		background 0.1s ease,
-		border 0.1s ease;
-}
-
-.direction-label {
-	position: absolute;
-	top: 1rem;
-	font-size: var(--text-lg);
-	font-weight: 700;
-	pointer-events: none;
-}
-
-.direction-label.agree {
-	left: 1rem;
-	color: var(--color-green-600);
-}
-
-.direction-label.disagree {
-	right: 1rem;
-	color: var(--color-gray-600);
-}
-
-.direction-label.unsure {
-	left: 50%;
-	transform: translateX(-50%);
-	color: var(--color-gray-400);
-}
-
-.card-source {
-	font-weight: 300;
-	color: var(--color-gray-600);
-}
-
-.card-text {
-	font-size: var(--text-2xl);
-	line-height: 1.3;
-	margin: 0;
-	color: var(--color-black);
-	position: relative;
-	z-index: 1;
 }
 </style>

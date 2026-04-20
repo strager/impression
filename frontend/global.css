@@ -609,6 +609,13 @@ tr:last-child td {
 	gap: var(--space-6);
 }
 
+.swipe-card-surface {
+	height: 14rem;
+	background: var(--color-white);
+	border: var(--border-thin);
+	font-family: var(--font-heading);
+}
+
 /* ============================================================
    LISTS
    ============================================================ */
