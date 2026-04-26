@@ -519,8 +519,12 @@ onMounted(() => {
 			<AppButton v-if="isMobileEditing && focusedCard === index && index !== vm.editingEntryIndex" variant="secondary" class="submit-btn" @pointerdown.prevent @click="handleDone">Done</AppButton>
 			<template v-if="index === vm.editingEntryIndex">
 				<div v-if="entry.autoFilledPending" class="autofill-actions">
-					<AppButton variant="primary" @click="handleEditAutoFill(entry, index)">Edit answer</AppButton>
-					<AppButton variant="primary" @click="handleClearAutoFill(entry, index)">Write my own</AppButton>
+					<AppButton variant="primary" @click="handleEditAutoFill(entry, index)">
+						<span class="btn-icon-label"> ✏︎ Edit answer </span>
+					</AppButton>
+					<AppButton variant="secondary" @click="handleClearAutoFill(entry, index)">
+						<span class="btn-icon-label"> ⌫ Write my own </span>
+					</AppButton>
 				</div>
 				<template v-else>
 					<div class="submit-actions">
@@ -705,6 +709,10 @@ label {
 
 .autofill-actions button {
 	flex: 1;
+}
+
+.btn-icon-label {
+	font-family: "Lucide Icons", var(--font-body);
 }
 
 .descriptions-heading {

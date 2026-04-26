@@ -15,7 +15,8 @@
 		"bench": "vitest bench --run",
 		"lint": "eslint .",
 		"fix": "eslint --fix .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"generate": "node tools/generate-icon-font.ts"
 	},
 	"dependencies": {
 		"@vue/server-renderer": "^3.5.28",
@@ -36,7 +37,9 @@
 		"eslint": "^9.39.2",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-vue": "^10.7.0",
+		"fantasticon": "^4.1.0",
 		"happy-dom": "^20.6.1",
+		"lucide-static": "^1.8.0",
 		"msw": "^2.12.10",
 		"prettier": "3.8.1",
 		"rollup-plugin-visualizer": "^6.0.5",
