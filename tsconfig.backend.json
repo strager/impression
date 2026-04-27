@@ -4,7 +4,10 @@
 		"erasableSyntaxOnly": true,
 		"rewriteRelativeImportExtensions": true,
 		"types": ["node"],
-		"lib": ["ESNext"]
+		"lib": ["ESNext"],
+		"paths": {
+			"rollup-plugin-license": ["./types/rollup-plugin-license.d.ts"]
+		}
 	},
-	"include": ["backend/**/*.ts", "shared/**/*.ts", "tools/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+	"include": ["backend/**/*.ts", "shared/**/*.ts", "tools/**/*.ts", "types/**/*.d.ts", "vite.config.ts", "vitest.config.ts"]
 }

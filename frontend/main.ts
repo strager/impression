@@ -70,6 +70,11 @@ const router = createRouter({
 			component: PrivacyView,
 		},
 		{
+			path: "/licenses",
+			name: "licenses",
+			component: () => import("./LicensesView.vue"),
+		},
+		{
 			path: "/llm-test",
 			name: "llmTest",
 			component: () => import("./LlmTestView.vue"),

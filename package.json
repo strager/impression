@@ -16,7 +16,8 @@
 		"lint": "eslint .",
 		"fix": "eslint --fix .",
 		"format": "prettier --write .",
-		"generate": "node tools/generate-icon-font.ts"
+		"generate": "node tools/generate-icon-font.ts",
+		"generate:licenses": "vite build --config tools/vite.licenses.config.ts"
 	},
 	"dependencies": {
 		"@vue/server-renderer": "^3.5.28",
@@ -42,6 +43,7 @@
 		"lucide-static": "^1.8.0",
 		"msw": "^2.12.10",
 		"prettier": "3.8.1",
+		"rollup-plugin-license": "^3.7.1",
 		"rollup-plugin-visualizer": "^6.0.5",
 		"typescript": "^5.8.2",
 		"typescript-eslint": "^8.55.0",

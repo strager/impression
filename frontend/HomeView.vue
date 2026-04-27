@@ -169,6 +169,7 @@ function onLoadFile(): void {
 				<cite>Journal of Humanistic Psychology, 60</cite>(1), 20–42.
 				<a href="https://doi.org/10.1177/0022167816669620" target="_blank" rel="noopener">doi:10.1177/0022167816669620</a>
 			</p>
+			<p class="footnote-link"><router-link to="/licenses">Licenses</router-link></p>
 			<a class="github-link" href="https://github.com/strager/impression" target="_blank" rel="noopener" aria-label="View source on GitHub">
 				<!-- GitHub mark icon from Primer Octicons (mark-github-24)
 					 https://github.com/primer/octicons/blob/main/icons/mark-github-24.svg -->
@@ -307,6 +308,11 @@ footer {
 	color: var(--color-gray-600);
 	line-height: var(--leading-normal);
 	margin: 0;
+}
+
+.footnote-link {
+	margin: var(--space-4) 0 0;
+	font-size: var(--text-sm);
 }
 
 .github-link {
