@@ -14,11 +14,11 @@ const ALLOWED_POST_PATHS = new Set(["/batch", "/batch/", "/capture", "/capture/"
 const ALLOWED_GET_PATHS = new Set(["/flags", "/flags/"]);
 
 export function resolvePosthogHost(pathname: string): string {
-	return pathname.startsWith("/static/") || pathname.startsWith("/array/") ? POSTHOG_ASSET_HOST : POSTHOG_API_HOST;
+	return isAssetPath(pathname) ? POSTHOG_ASSET_HOST : POSTHOG_API_HOST;
 }
 
 export function isAllowedEndpoint(method: string, pathname: string): boolean {
-	if (pathname.startsWith("/static/") || pathname.startsWith("/array/")) {
+	if (isAssetPath(pathname)) {
 		return method === "GET" || method === "HEAD";
 	}
 	if (method === "POST") {
@@ -32,12 +32,9 @@ export function isAllowedEndpoint(method: string, pathname: string): boolean {
 
 export function copyRequestHeaders(headers: Record<string, string | string[] | undefined>): Headers {
 	const result = new Headers();
-	for (const [name, value] of Object.entries(headers)) {
+	for (const name of ALLOWED_REQUEST_HEADERS) {
+		const value = headers[name];
 		if (value === undefined) {
-			continue;
-		}
-		const normalized = name.toLowerCase();
-		if (!ALLOWED_REQUEST_HEADERS.has(normalized)) {
 			continue;
 		}
 		if (Array.isArray(value)) {
@@ -100,14 +97,11 @@ export function createUpstreamUrl(pathWithQuery: string, posthogHost: string, ap
 }
 
 export function sanitizeResponseHeaders(headers: Headers): Headers {
-	const sanitized = new Headers(headers);
-	if (sanitized.has("content-encoding")) {
-		sanitized.delete("content-encoding");
-		sanitized.delete("content-length");
-	}
-	for (const name of [...sanitized.keys()]) {
-		if (!ALLOWED_RESPONSE_HEADERS.has(name.toLowerCase())) {
-			sanitized.delete(name);
+	const sanitized = new Headers();
+	for (const name of ALLOWED_RESPONSE_HEADERS) {
+		const value = headers.get(name);
+		if (value !== null) {
+			sanitized.set(name, value);
 		}
 	}
 	return sanitized;
