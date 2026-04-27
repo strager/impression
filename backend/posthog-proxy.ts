@@ -6,9 +6,9 @@ import { firstHeaderValue, isAllowedOrigin, requestHost, requestProtocol, should
 const POSTHOG_API_HOST = "us.i.posthog.com";
 const POSTHOG_ASSET_HOST = "us-assets.i.posthog.com";
 
-const ALLOWED_REQUEST_HEADERS = new Set(["accept", "accept-encoding", "content-encoding", "content-type", "user-agent"]);
+const ALLOWED_REQUEST_HEADERS = new Set(["accept", "accept-encoding", "content-type", "user-agent"]);
 
-const ALLOWED_RESPONSE_HEADERS = new Set(["cache-control", "content-length", "content-type", "date", "etag", "expires", "last-modified", "vary"]);
+const ALLOWED_RESPONSE_HEADERS = new Set(["cache-control", "content-type", "date", "etag", "expires", "last-modified", "vary"]);
 
 const ALLOWED_POST_PATHS = new Set(["/batch", "/batch/", "/capture", "/capture/", "/decide", "/decide/", "/e", "/e/", "/flags", "/flags/", "/s", "/s/"]);
 const ALLOWED_GET_PATHS = new Set(["/flags", "/flags/"]);
