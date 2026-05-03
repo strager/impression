@@ -346,6 +346,9 @@ function handleConfirmDescriptions(): void {
 			freeformTextarea.value?.focus();
 		});
 	}
+	void nextTick(() => {
+		scrollCardIntoView("freeform");
+	});
 }
 
 async function handleReflectOnEntry(questionId: string, index: number): Promise<void> {
