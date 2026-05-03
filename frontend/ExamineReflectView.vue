@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance, watch } from "vue";
 import { useRouter } from "vue-router";
 
 import AppButton from "./AppButton.vue";
@@ -15,7 +15,36 @@ import { useMatchMedia } from "./use-match-media.ts";
  * - true: always play animations
  * - false: always skip animations
  */
-const DEBUG_FORCE_ANIMATE: boolean | null = null;
+const DEBUG_FORCE_ANIMATE: boolean | null = true;
+
+interface ShowAllFadeoutDebug {
+	/**
+	 * Zero-based sentence index whose "Show all" should be fading out.
+	 * With the current reveal rules, the first real "Show all" appears after
+	 * sentence index 1, so lower values are clamped to 1.
+	 */
+	afterSentenceIndex: number;
+	/**
+	 * Pauses the fade midway so the DOM/CSS state can be inspected.
+	 */
+	freezeAnimation: boolean;
+}
+
+/**
+ * Debug state for the "Show all" handoff.
+ * Set to null to use the normal cascade.
+ */
+function getInitialShowAllFadeoutDebug(): ShowAllFadeoutDebug | null {
+	return null;
+	/*
+	return {
+		afterSentenceIndex: 1,
+		freezeAnimation: true,
+	};
+	*/
+}
+
+const DEBUG_SHOW_ALL_FADEOUT = getInitialShowAllFadeoutDebug();
 
 interface DeviceSize {
 	width: number;
@@ -37,6 +66,7 @@ interface LinearRGB {
 
 const PULSE_DURATION_MS = 1000;
 const PULSE_OVERSHOOT_PX = 6; // CSS pixels beyond the square edge
+const SHOW_ALL_FADE_OUT_MS = 500;
 
 const WHITE_LINEAR: LinearRGB = { r: 1, g: 1, b: 1 };
 
@@ -273,6 +303,11 @@ interface ParagraphData {
 	startIndex: number;
 }
 
+interface ShowAllFadeout {
+	left: number;
+	top: number;
+}
+
 const synthesisParagraphs = computed((): ParagraphData[] => {
 	const paragraphs = vm.synthesis.split("\n").filter(Boolean);
 	const result: ParagraphData[] = [];
@@ -297,13 +332,21 @@ const showAllAfterIndex = computed(() => {
 });
 
 const sentenceSpans = ref<HTMLSpanElement[]>([]);
-const showAllLinks = ref<HTMLAnchorElement[]>([]);
+const showAllFadeouts = ref(new Map<number, ShowAllFadeout>());
+const showAllLinks = new Map<number, HTMLAnchorElement>();
+const showAllFadeoutTimers = new Map<number, number>();
 
-watch(showAllAfterIndex, (newIndex) => {
-	if (!(document.activeElement instanceof HTMLElement) || !document.activeElement.classList.contains("show-all-btn")) return;
-	if (newIndex === -1) return;
+watch(showAllAfterIndex, (newIndex, oldIndex) => {
+	const oldLink = oldIndex >= 0 ? showAllLinks.get(oldIndex) : undefined;
+	const shouldMoveFocus = oldLink !== undefined && document.activeElement === oldLink;
+
+	if (oldLink !== undefined) {
+		addShowAllFadeout(oldIndex, oldLink);
+	}
+
+	if (!shouldMoveFocus || newIndex === -1) return;
 	void nextTick(() => {
-		showAllLinks.value[newIndex]?.focus();
+		showAllLinks.get(newIndex)?.focus();
 	});
 });
 
@@ -345,6 +388,106 @@ function scrollIntoView(el: HTMLElement | null | undefined): void {
 	void nextTick(() => {
 		el.scrollIntoView({ behavior: "smooth", block: "nearest" });
 	});
+}
+
+function setShowAllLinkRef(el: Element | ComponentPublicInstance | null, sentenceIndex: number): void {
+	if (el instanceof HTMLAnchorElement) {
+		showAllLinks.set(sentenceIndex, el);
+	} else {
+		showAllLinks.delete(sentenceIndex);
+	}
+}
+
+function addShowAllFadeout(sentenceIndex: number, link: HTMLAnchorElement): void {
+	if (prefersReducedMotion.value) return;
+
+	const linkRect = link.getBoundingClientRect();
+	if (linkRect.width === 0 || linkRect.height === 0) return;
+
+	const paragraph = link.closest("p");
+	if (!(paragraph instanceof HTMLElement)) return;
+
+	const paragraphRect = paragraph.getBoundingClientRect();
+	const fadeout: ShowAllFadeout = {
+		left: linkRect.left - paragraphRect.left,
+		top: linkRect.top - paragraphRect.top,
+	};
+
+	showAllFadeouts.value = new Map(showAllFadeouts.value).set(sentenceIndex, fadeout);
+	if (isShowAllFadeoutDebugFrozen()) return;
+
+	showAllFadeoutTimers.set(
+		sentenceIndex,
+		window.setTimeout(() => {
+			removeShowAllFadeout(sentenceIndex);
+		}, SHOW_ALL_FADE_OUT_MS + 100),
+	);
+}
+
+function removeShowAllFadeout(sentenceIndex: number): void {
+	const timer = showAllFadeoutTimers.get(sentenceIndex);
+	if (timer !== undefined) {
+		window.clearTimeout(timer);
+		showAllFadeoutTimers.delete(sentenceIndex);
+	}
+	const next = new Map(showAllFadeouts.value);
+	next.delete(sentenceIndex);
+	showAllFadeouts.value = next;
+}
+
+function clearShowAllFadeouts(): void {
+	for (const timer of showAllFadeoutTimers.values()) window.clearTimeout(timer);
+	showAllFadeoutTimers.clear();
+	showAllFadeouts.value = new Map();
+}
+
+function isShowAllFadeoutDebugFrozen(): boolean {
+	return DEBUG_SHOW_ALL_FADEOUT?.freezeAnimation === true;
+}
+
+function getShowAllStyle(sentenceIndex: number): Record<string, string> | undefined {
+	const fadeout = showAllFadeouts.value.get(sentenceIndex);
+	if (fadeout === undefined) return undefined;
+	return {
+		left: `${String(fadeout.left)}px`,
+		top: `${String(fadeout.top)}px`,
+	};
+}
+
+function handleShowAllAnimationEnd(sentenceIndex: number): void {
+	removeShowAllFadeout(sentenceIndex);
+}
+
+function getDebugShowAllFadeoutIndex(total: number): number | null {
+	const debug = DEBUG_SHOW_ALL_FADEOUT;
+	if (debug === null || total < 3) return null;
+	return Math.max(1, Math.min(debug.afterSentenceIndex, total - 2));
+}
+
+async function runShowAllFadeoutDebugState(): Promise<void> {
+	document.documentElement.classList.add("nav-hidden");
+	titleVisible.value = true;
+	warmPhraseVisible.value = true;
+	synthesisVisible.value = true;
+	progressSquaresVisible.value = true;
+	animatedExaminedCount.value = vm.examinedCount;
+	primaryActionVisible.value = false;
+	secondaryActionVisible.value = false;
+
+	await vm.whenReady;
+	await nextTick();
+
+	const fadeoutIndex = getDebugShowAllFadeoutIndex(totalSentenceCount.value);
+	if (fadeoutIndex === null) {
+		revealedSentenceCount.value = Infinity;
+		return;
+	}
+
+	clearShowAllFadeouts();
+	revealedSentenceCount.value = fadeoutIndex + 1;
+	await nextTick();
+	revealedSentenceCount.value = fadeoutIndex + 2;
+	await nextTick();
 }
 
 async function runCascade(signal: AbortSignal): Promise<void> {
@@ -419,6 +562,11 @@ onMounted(() => {
 		return;
 	}
 
+	if (DEBUG_SHOW_ALL_FADEOUT !== null) {
+		void runShowAllFadeoutDebugState();
+		return;
+	}
+
 	if (skipAnimations) {
 		titleVisible.value = true;
 		warmPhraseVisible.value = true;
@@ -438,6 +586,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
 	cascadeAbort?.abort();
 	pulseAnimation.stop();
+	clearShowAllFadeouts();
 	document.documentElement.classList.remove("nav-hidden");
 });
 
@@ -487,7 +636,7 @@ function handleOpenProfile(): void {
 					<p>
 						<template v-for="(sentence, sIdx) in para.sentences" :key="sIdx"
 							><span ref="sentenceSpans" :class="['cascading', { visible: para.startIndex + sIdx < revealedSentenceCount }]">{{ sentence }}</span
-							><span v-if="para.startIndex + sIdx < totalSentenceCount - 1" class="show-all-anchor">&nbsp;<a ref="showAllLinks" :class="['show-all-btn', { visible: showAllAfterIndex === para.startIndex + sIdx }]" :tabindex="showAllAfterIndex === para.startIndex + sIdx ? 0 : -1" role="button" @click="handleShowAll" @keydown.enter="handleShowAll">Show all</a></span></template
+							><template v-if="para.startIndex + sIdx < totalSentenceCount - 1">{{ " " }}<a :ref="(el) => setShowAllLinkRef(el, para.startIndex + sIdx)" :aria-hidden="showAllAfterIndex === para.startIndex + sIdx ? undefined : true" :class="['show-all-btn', { visible: showAllAfterIndex === para.startIndex + sIdx, fading: showAllFadeouts.has(para.startIndex + sIdx), 'debug-frozen': showAllFadeouts.has(para.startIndex + sIdx) && isShowAllFadeoutDebugFrozen() }]" :style="getShowAllStyle(para.startIndex + sIdx)" :tabindex="showAllAfterIndex === para.startIndex + sIdx ? 0 : -1" role="button" @animationend="handleShowAllAnimationEnd(para.startIndex + sIdx)" @click="handleShowAll" @keydown.enter="handleShowAll">Show all</a></template></template
 						>
 					</p>
 				</template>
@@ -653,37 +802,67 @@ h1 {
 }
 
 .synthesis-summary p {
+	position: relative;
 	margin: 0 0 var(--space-2);
 	font-size: var(--text-base);
 	color: var(--color-gray-800);
 	line-height: var(--leading-normal);
 }
 
-.show-all-anchor {
-	display: inline-block;
-	width: 0;
-	height: 0;
-	position: relative;
-	overflow: visible;
-	vertical-align: baseline;
-}
-
 .show-all-btn {
 	white-space: nowrap;
-	opacity: 0;
-	transition: opacity 0.5s ease;
-	pointer-events: none;
 	color: var(--color-gray-400);
 	font-size: var(--text-sm);
 	font-style: italic;
+	display: none;
 	cursor: pointer;
-	line-height: inherit;
 }
 
 .show-all-btn.visible {
-	opacity: 1;
-	transition: opacity 1.5s ease;
-	pointer-events: auto;
+	display: inline-block;
+	animation: show-all-fade-in 1.5s ease forwards;
+}
+
+.show-all-btn.fading {
+	position: absolute;
+	display: inline-block;
+	z-index: 1;
+	pointer-events: none;
+	animation: show-all-fade-out 0.5s ease forwards;
+}
+
+.show-all-btn.fading.debug-frozen {
+	animation-delay: -0.25s;
+	animation-play-state: paused;
+}
+
+@keyframes show-all-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes show-all-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.show-all-btn.visible {
+		opacity: 1;
+		animation: none;
+	}
+
+	.show-all-btn.fading {
+		animation: none;
+	}
 }
 
 .has-hover .show-all-btn:hover,
