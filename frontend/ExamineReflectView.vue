@@ -288,6 +288,7 @@ const synthesisVisible = ref(false);
 const countSwapActive = ref(false);
 const primaryActionVisible = ref(false);
 const secondaryActionVisible = ref(false);
+const isUserTouching = ref(false);
 
 const prefersReducedMotion = useMatchMedia("(prefers-reduced-motion: reduce)");
 const visibilityGaps = {
@@ -297,6 +298,8 @@ const visibilityGaps = {
 	sentenceBase: prefersReducedMotion.value ? 0 : 300,
 	progressStart: prefersReducedMotion.value ? 0 : 1500,
 };
+
+const MAX_TOUCH_HOLD_DELAY_MS = 500;
 
 interface ParagraphData {
 	sentences: string[];
@@ -361,21 +364,94 @@ function abortReason(signal: AbortSignal): DOMException {
 	return signal.reason instanceof DOMException ? signal.reason : new DOMException("Aborted", "AbortError");
 }
 
-function animationDelay(ms: number, signal: AbortSignal): Promise<void> {
+function animationDelay(ms: number, signal: AbortSignal, { limitTouchHoldDelay = true }: { limitTouchHoldDelay?: boolean } = {}): Promise<void> {
 	return new Promise((resolve, reject) => {
 		if (signal.aborted) {
 			reject(abortReason(signal));
 			return;
 		}
-		const timer = setTimeout(() => {
+		let activeRemaining = ms;
+		let holdDelayRemaining: number | null = limitTouchHoldDelay ? MAX_TOUCH_HOLD_DELAY_MS : null;
+		let activeTimer: number | null = null;
+		let holdDelayTimer: number | null = null;
+		let activeStartTime = 0;
+		let holdDelayStartTime = 0;
+		let isPaused = false;
+
+		function startActive(): void {
+			isPaused = false;
+			activeStartTime = performance.now();
+			activeTimer = window.setTimeout(() => {
+				activeTimer = null;
+				cleanup();
+				resolve();
+			}, activeRemaining);
+		}
+
+		function stopActive(): void {
+			if (activeTimer === null) return;
+			window.clearTimeout(activeTimer);
+			activeTimer = null;
+			activeRemaining = Math.max(0, activeRemaining - (performance.now() - activeStartTime));
+		}
+
+		function startHoldDelay(): void {
+			isPaused = true;
+			if (holdDelayRemaining === null) return;
+			holdDelayStartTime = performance.now();
+			holdDelayTimer = window.setTimeout(() => {
+				holdDelayTimer = null;
+				holdDelayRemaining = 0;
+				startActive();
+			}, holdDelayRemaining);
+		}
+
+		function stopHoldDelay(): void {
+			if (holdDelayTimer === null) return;
+			window.clearTimeout(holdDelayTimer);
+			holdDelayTimer = null;
+			if (holdDelayRemaining !== null) {
+				holdDelayRemaining = Math.max(0, holdDelayRemaining - (performance.now() - holdDelayStartTime));
+			}
+		}
+
+		function hasHoldDelayBudget(): boolean {
+			return holdDelayRemaining === null || holdDelayRemaining > 0;
+		}
+
+		const stopWatch = watch(isUserTouching, (touching) => {
+			if (touching && !isPaused && activeTimer !== null) {
+				if (!hasHoldDelayBudget()) return;
+				stopActive();
+				startHoldDelay();
+			} else if (!touching && isPaused) {
+				stopHoldDelay();
+				startActive();
+			}
+		});
+
+		function cleanup(): void {
+			if (activeTimer !== null) {
+				window.clearTimeout(activeTimer);
+				activeTimer = null;
+			}
+			if (holdDelayTimer !== null) {
+				window.clearTimeout(holdDelayTimer);
+				holdDelayTimer = null;
+			}
+			stopWatch();
 			signal.removeEventListener("abort", onAbort);
-			resolve();
-		}, ms);
+		}
+
 		function onAbort(): void {
-			clearTimeout(timer);
+			cleanup();
 			reject(abortReason(signal));
 		}
+
 		signal.addEventListener("abort", onAbort, { once: true });
+
+		if (isUserTouching.value) startHoldDelay();
+		else startActive();
 	});
 }
 
@@ -531,7 +607,8 @@ async function runCascade(signal: AbortSignal): Promise<void> {
 			scrollIntoView(sentenceSpans.value[0]);
 
 			for (let i = 1; i < allSentences.length; i++) {
-				await animationDelay(sentenceDurations[i - 1], signal);
+				const showAllVisibleDuringGap = i >= 2;
+				await animationDelay(sentenceDurations[i - 1], signal, { limitTouchHoldDelay: !showAllVisibleDuringGap });
 				revealedSentenceCount.value = i + 1;
 				scrollIntoView(sentenceSpans.value[i]);
 			}
@@ -553,6 +630,14 @@ async function runCascade(signal: AbortSignal): Promise<void> {
 		if (error instanceof DOMException && error.name === "AbortError") return;
 		throw error;
 	}
+}
+
+function onTouchStart(): void {
+	isUserTouching.value = true;
+}
+
+function onTouchEnd(event: TouchEvent): void {
+	if (event.touches.length === 0) isUserTouching.value = false;
 }
 
 onMounted(() => {
@@ -579,6 +664,10 @@ onMounted(() => {
 		return;
 	}
 
+	document.addEventListener("touchstart", onTouchStart, { passive: true });
+	document.addEventListener("touchend", onTouchEnd, { passive: true });
+	document.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
 	cascadeAbort = new AbortController();
 	void runCascade(cascadeAbort.signal);
 });
@@ -588,6 +677,9 @@ onBeforeUnmount(() => {
 	pulseAnimation.stop();
 	clearShowAllFadeouts();
 	document.documentElement.classList.remove("nav-hidden");
+	document.removeEventListener("touchstart", onTouchStart);
+	document.removeEventListener("touchend", onTouchEnd);
+	document.removeEventListener("touchcancel", onTouchEnd);
 });
 
 function handleShowAll(): void {
