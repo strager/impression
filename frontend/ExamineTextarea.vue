@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import getCaretCoordinates from "textarea-caret";
 import { ref, useAttrs } from "vue";
 
 defineOptions({ inheritAttrs: false });
@@ -49,6 +50,30 @@ function unfreezeHeight(): void {
 	el.style.height = "";
 }
 
+// Scroll the textarea to make the caret visible.
+//
+// Chrome doesn't auto-scroll on setSelectionRange
+// (https://issues.chromium.org/issues/41081857), so we compute the caret's y
+// via the mirror-div technique (using the textarea-caret library) and adjust
+// scrollTop ourselves.
+//
+// Used when the textarea has just shrunk (e.g. a reflection paragraph appearing
+// above it inside the same flex card).
+function scrollCaretIntoView(): void {
+	const el = textareaRef.value;
+	if (el === null) return;
+	const caret = getCaretCoordinates(el, el.selectionEnd);
+	const borderTopRaw = parseInt(getComputedStyle(el).borderTopWidth);
+	const borderTop = Number.isFinite(borderTopRaw) ? borderTopRaw : 0;
+	const visualTop = caret.top - el.scrollTop;
+	const visualBottom = visualTop + caret.height;
+	if (visualTop < borderTop) {
+		el.scrollTop = caret.top - borderTop;
+	} else if (visualBottom > borderTop + el.clientHeight) {
+		el.scrollTop = caret.top + caret.height - borderTop - el.clientHeight;
+	}
+}
+
 function onInput(event: Event): void {
 	if (!(event.target instanceof HTMLTextAreaElement)) {
 		throw new Error("Expected target to be an HTMLTextAreaElement");
@@ -56,7 +81,7 @@ function onInput(event: Event): void {
 	emit("update:modelValue", event.target.value);
 }
 
-defineExpose({ focus, focusAtEnd, freezeHeight, unfreezeHeight });
+defineExpose({ focus, focusAtEnd, freezeHeight, unfreezeHeight, scrollCaretIntoView });
 </script>
 
 <template>

@@ -328,6 +328,12 @@ async function handleSubmitAnswer(): Promise<void> {
 						// reflection text. Otherwise scroll to the description (new card).
 						scrollCardIntoView(focusedCard.value);
 					}
+					// After --scroll-offset reflows the card and the textarea takes
+					// its new (smaller) height, nudge the browser to keep the caret
+					// visible inside the textarea.
+					requestAnimationFrame(() => {
+						activeTextarea.value?.scrollCaretIntoView();
+					});
 				});
 			}
 			if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
