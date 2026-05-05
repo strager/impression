@@ -453,17 +453,17 @@ function handleFinish(): void {
 
 		<div v-if="!vm.isComplete" class="ranking-area">
 			<div v-if="vm.currentTask !== null" :key="vm.round">
-				<div ref="cardStageRef" class="card-stage" :class="{ settling: isSettling, 'motion-suppressed': suppressMotion }">
+				<div ref="cardStageRef" class="card-stage" :class="{ settling: isSettling, 'motion-suppressed': suppressMotion }" :inert="isSettling">
 					<component :is="cardListComponent" v-bind="cardListProps" class="card-triad">
 						<div v-for="(idx, slotIndex) in displayOrder" :key="vm.currentTask[idx].id" :ref="(element) => setSlotRef(slotIndex, element as Element | null)" class="ranking-slot" @pointerdown="handleCardPointerDown($event, idx)">
 							<div class="ranking-slot-shell" :class="{ animated: dragState !== null && dragState.draggedIndex !== idx }" :style="getCardShellStyle(idx)" @transitionrun="handleAnimatedTransformStart(`card-${String(idx)}`, $event)" @transitionend="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)" @transitioncancel="handleAnimatedTransformFinish(`card-${String(idx)}`, $event)">
-								<div class="card-hrule ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)">
+								<div class="card-hrule ranking-card" :class="{ spacer: isDraggedCard(idx) }" :aria-hidden="isDraggedCard(idx)" :inert="isDraggedCard(idx)">
 									<div class="card-title">{{ vm.currentTask[idx].source }}</div>
 									<div class="card-body">{{ vm.currentTask[idx].description }}</div>
 									<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === idx ? 1 : 0 }">Most important</span>
 									<div class="card-buttons">
-										<ToggleButton variant="primary" :active="previewSelection.mostIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleMost(idx)">↑</ToggleButton>
-										<ToggleButton variant="neutral" :active="previewSelection.leastIndex === idx" :disabled="isSettling || isDraggedCard(idx)" @toggle="handleLeast(idx)">↓</ToggleButton>
+										<ToggleButton variant="primary" :active="previewSelection.mostIndex === idx" @toggle="handleMost(idx)">↑</ToggleButton>
+										<ToggleButton variant="neutral" :active="previewSelection.leastIndex === idx" @toggle="handleLeast(idx)">↓</ToggleButton>
 									</div>
 									<span class="chip chip-positioned chip-neutral ranking-chip ranking-chip-bottom" :style="{ opacity: previewSelection.leastIndex === idx ? 1 : 0 }">Least important</span>
 								</div>
@@ -471,15 +471,15 @@ function handleFinish(): void {
 						</div>
 					</component>
 					<div v-if="dropTargetStyle !== null" class="drop-target-indicator" :style="dropTargetStyle" />
-					<div v-if="draggedCard !== null" class="drag-overlay">
+					<div v-if="draggedCard !== null" class="drag-overlay" inert>
 						<div class="drag-overlay-card" :class="{ settling: isSettling }" :style="dragOverlayStyle" @transitionrun="handleAnimatedTransformStart('overlay', $event)" @transitionend="handleAnimatedTransformFinish('overlay', $event)" @transitioncancel="handleAnimatedTransformFinish('overlay', $event)">
 							<div class="card-hrule ranking-card" :class="{ 'border-visible': dragState?.borderVisible, dragging: true, settling: isSettling }">
 								<div class="card-title">{{ draggedCard.source }}</div>
 								<div class="card-body">{{ draggedCard.description }}</div>
 								<span class="chip chip-positioned chip-success ranking-chip ranking-chip-top" :style="{ opacity: previewSelection.mostIndex === dragState?.draggedIndex ? 1 : 0 }">Most important</span>
 								<div class="card-buttons">
-									<ToggleButton variant="primary" :active="previewSelection.mostIndex === dragState?.draggedIndex" disabled>↑</ToggleButton>
-									<ToggleButton variant="neutral" :active="previewSelection.leastIndex === dragState?.draggedIndex" disabled>↓</ToggleButton>
+									<ToggleButton variant="primary" :active="previewSelection.mostIndex === dragState?.draggedIndex">↑</ToggleButton>
+									<ToggleButton variant="neutral" :active="previewSelection.leastIndex === dragState?.draggedIndex">↓</ToggleButton>
 								</div>
 								<span class="chip chip-positioned chip-neutral ranking-chip ranking-chip-bottom" :style="{ opacity: previewSelection.leastIndex === dragState?.draggedIndex ? 1 : 0 }">Least important</span>
 							</div>
