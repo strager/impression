@@ -15,7 +15,7 @@ import { useMatchMedia } from "./use-match-media.ts";
  * - true: always play animations
  * - false: always skip animations
  */
-const DEBUG_FORCE_ANIMATE: boolean | null = true;
+const DEBUG_FORCE_ANIMATE: boolean | null = null;
 
 interface ShowAllFadeoutDebug {
 	/**
