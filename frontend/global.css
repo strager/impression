@@ -237,6 +237,7 @@ button {
 	border: none;
 	outline: none;
 	line-height: var(--leading-normal);
+	touch-action: manipulation;
 }
 
 .btn-primary {
