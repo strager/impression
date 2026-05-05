@@ -313,29 +313,27 @@ async function handleSubmitAnswer(): Promise<void> {
 					focusedCard.value = null;
 				}
 			}
-			if (hasPhysicalKb.value || isMobileEditing.value) {
-				void nextTick(() => {
-					const cur = document.activeElement;
-					if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
-					if (vm.freeformVisible) {
-						freeformTextarea.value?.focus();
-					} else {
-						activeTextarea.value?.focus();
-					}
-					if (focusedCard.value !== null) {
-						// If a reflection/guardrail appeared on the card we're still
-						// looking at (e.g. guardrail after submit), scroll to the
-						// reflection text. Otherwise scroll to the description (new card).
-						scrollCardIntoView(focusedCard.value);
-					}
-					// After --scroll-offset reflows the card and the textarea takes
-					// its new (smaller) height, nudge the browser to keep the caret
-					// visible inside the textarea.
-					requestAnimationFrame(() => {
-						activeTextarea.value?.scrollCaretIntoView();
-					});
+			void nextTick(() => {
+				const cur = document.activeElement;
+				if (cur !== focusedAtStart && cur !== document.body && cur !== null) return;
+				if (vm.freeformVisible) {
+					freeformTextarea.value?.focus();
+				} else {
+					activeTextarea.value?.focus();
+				}
+				if (focusedCard.value !== null) {
+					// If a reflection/guardrail appeared on the card we're still
+					// looking at (e.g. guardrail after submit), scroll to the
+					// reflection text. Otherwise scroll to the description (new card).
+					scrollCardIntoView(focusedCard.value);
+				}
+				// After --scroll-offset reflows the card and the textarea takes
+				// its new (smaller) height, nudge the browser to keep the caret
+				// visible inside the textarea.
+				requestAnimationFrame(() => {
+					activeTextarea.value?.scrollCaretIntoView();
 				});
-			}
+			});
 			if (submittedIndex >= 0 && vm.manualReflectResult.has(vm.entries[submittedIndex].questionId)) {
 				void nextTick(() => {
 					scrollCardIntoView(submittedIndex);
