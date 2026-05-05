@@ -103,6 +103,16 @@ function entryFromManualPackage(name: string): JsonEntry {
 	};
 }
 
+function fixEntry(entry: JsonEntry): JsonEntry {
+	if (entry.name === "posthog-js-lite" && entry.homepage === null) {
+		entry = { ...entry, homepage: "https://github.com/PostHog/posthog-js" };
+	}
+	if (entry.repository === "component/textarea-caret-position") {
+		entry = { ...entry, repository: "https://github.com/component/textarea-caret-position" };
+	}
+	return entry;
+}
+
 export default defineConfig({
 	root: resolve(projectRoot, "frontend"),
 	plugins: [
@@ -112,7 +122,7 @@ export default defineConfig({
 				output: {
 					file: resolve(projectRoot, "frontend/licenses.json"),
 					template(dependencies: Dependency[]): string {
-						const entries: JsonEntry[] = [...dependencies.map(entryFromDependency), ...MANUAL_PACKAGES.map(entryFromManualPackage)];
+						const entries: JsonEntry[] = [...dependencies.map(entryFromDependency), ...MANUAL_PACKAGES.map(entryFromManualPackage)].map(fixEntry);
 						entries.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 						return JSON.stringify(entries, null, "\t");
 					},
