@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, TransitionGroup, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 import { computeLayoutTops, findClosestSlotIndex, getDraggedOutcome, moveCardToSlot, useIdentifyRankingInteractionState } from "./PrioritizeInteractionState.ts";
 import type { SlotRect } from "./PrioritizeInteractionState.ts";
@@ -8,11 +8,14 @@ import { IdentifyRankingViewModel } from "./PrioritizeViewModel.ts";
 import { useStringParam } from "./route-utils.ts";
 import { useMatchMedia } from "./use-match-media.ts";
 import AppButton from "./AppButton.vue";
+import PrioritizeDebugPanel from "./PrioritizeDebugPanel.vue";
 import ToggleButton from "./ToggleButton.vue";
 
 const router = useRouter();
+const route = useRoute();
 const profileId = useStringParam("profileId");
 const vm = new IdentifyRankingViewModel(profileId);
+const debugMode = computed(() => "debug" in route.query);
 
 const interaction = useIdentifyRankingInteractionState();
 const mostIndex = interaction.mostIndex;
@@ -512,6 +515,8 @@ function handleFinish(): void {
 				<AppButton variant="primary" @click="handleFinish">Examine meaning</AppButton>
 			</div>
 		</div>
+
+		<PrioritizeDebugPanel v-if="debugMode" :vm="vm" />
 	</main>
 </template>
 

@@ -2,7 +2,7 @@ import { type ShallowRef, ref, shallowRef, triggerRef } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import type { RemainingEstimate } from "../shared/ranking.ts";
+import type { RankingConfig, RemainingEstimate, StopReason, TaskRecord } from "../shared/ranking.ts";
 import { Ranking, makeXorshift } from "../shared/ranking.ts";
 import { capture } from "./analytics.ts";
 import type { MaxDiffComparison } from "./store.ts";
@@ -17,7 +17,7 @@ export class IdentifyRankingViewModel {
 	// Ranking.
 	private readonly _ranking: ShallowRef<Ranking<string> | null> = shallowRef(null);
 	private _allComparisons: MaxDiffComparison[] = [];
-	private cardIds: string[] = [];
+	private _cardIds: string[] = [];
 	private _phaseStartedAtMs = 0;
 	private _taskShownAtMs = 0;
 
@@ -62,6 +62,35 @@ export class IdentifyRankingViewModel {
 		return { bestId: entry.best, worstId: entry.worst };
 	}
 
+	get cardIds(): readonly string[] {
+		// _cardIds is a plain field; reading _ranking.value first ties this getter
+		// to the ShallowRef so Vue computeds re-run once initialize() populates both.
+		if (this._ranking.value === null) return [];
+		return this._cardIds;
+	}
+
+	get history(): readonly TaskRecord<string>[] {
+		return this._ranking.value?.history ?? [];
+	}
+
+	get debugState(): {
+		mu: Float64Array;
+		sigma: Float64Array;
+		exposures: readonly number[];
+		config: RankingConfig;
+		round: number;
+	} | null {
+		return this._ranking.value?.debugState() ?? null;
+	}
+
+	get stopReason(): StopReason | null {
+		return this._ranking.value?.stopReason ?? null;
+	}
+
+	get effectiveK(): number | null {
+		return this._ranking.value?.effectiveK ?? null;
+	}
+
 	initialize(): "ready" | "no-data" | "skip" {
 		this._phaseStartedAtMs = performance.now();
 		const saved = loadRanking(this.profileId);
@@ -81,7 +110,7 @@ export class IdentifyRankingViewModel {
 			return "no-data";
 		}
 
-		this.cardIds = resolvedCardIds;
+		this._cardIds = resolvedCardIds;
 
 		if (!needsPrioritization(this.profileId)) {
 			saveChosenCardIds(this.profileId, resolvedCardIds);
@@ -205,7 +234,7 @@ export class IdentifyRankingViewModel {
 			throw new Error("Cannot save progress: ranking is null");
 		}
 		saveRanking(this.profileId, {
-			cardIds: this.cardIds,
+			cardIds: this._cardIds,
 			comparisons: this._allComparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
 			activeRound: this._ranking.value.round < this._allComparisons.length ? this._ranking.value.round : undefined,
 			complete,

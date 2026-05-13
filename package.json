@@ -20,9 +20,11 @@
 		"generate:licenses": "vite build --config tools/vite.licenses.config.ts"
 	},
 	"dependencies": {
+		"@types/dagre": "^0.7.54",
 		"@vue/server-renderer": "^3.5.28",
 		"altcha-lib": "^1.4.1",
 		"better-sqlite3": "^12.6.2",
+		"dagre": "^0.8.5",
 		"express": "^5.1.0",
 		"openapi-backend": "^5.15.0",
 		"posthog-js-lite": "^4.6.10",

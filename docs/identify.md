@@ -55,6 +55,16 @@ positions are too close to call. Those become your final selection, and
 you are taken to your results. A progress indicator shows how many
 tasks are left.
 
+### Debug view
+
+Append `?debug` to the prioritize page URL (for example
+`/your-profile/prioritize?debug`) to reveal a debug panel below the
+ranking UI. The panel shows the ranking algorithm's current internal
+state (utility estimates, uncertainty, exposures, top-K membership),
+the full history of your selections as ordered triples (e.g.
+`1. Honesty > Freedom > Power`), and a directed graph of the cards in
+which each triple A>B>C contributes three edges: A→B, A→C, and B→C.
+
 ## Step 3: Editing your selection
 
 From the Examine page, you can click **Edit selection** to revisit your
