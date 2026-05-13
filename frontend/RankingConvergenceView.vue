@@ -72,20 +72,6 @@ function buildTests(): TestDef[] {
 	}
 
 	for (const n of [8, 10, 12]) {
-		const strength = descendingStrength(n);
-		const top3 = range(3);
-		tests.push({
-			name: `n=${String(n)}`,
-			scenario: "top3-only",
-			n,
-			trueStrength: strength,
-			oracleSpec: { type: "random-bottom", confidentItems: top3, randomMax: n - 3, noiseSeed: 99 },
-			expectedTopK: top3,
-			config: { k: 5, minK: 3, m: 3 },
-		});
-	}
-
-	for (const n of [8, 10, 12]) {
 		const strength = new Array<number>(n).fill(0);
 		strength[0] = n;
 		strength[1] = n - 1;
@@ -378,27 +364,25 @@ const scenarioLabels: Record<string, string> = {
 	"rand-bot-t4": "Random Bottom (top 4 stable)",
 	"rand-bot-t5": "Random Bottom (top 5 stable)",
 	"rand-bot-t6": "Random Bottom (top 6 stable)",
-	"top3-only": "Top 3 Only",
 	mushy: "Mushy Middle",
 	reversal: "Preference Reversal",
 };
 
 const scenarioDescriptions: Record<string, string> = {
 	perfect: "Oracle always picks the truly best and worst items. Baseline for convergence speed. Should stop with confidence, eK=5, and correct=100%.",
-	"noisy-t3": "Top 3 items are judged correctly; bottom items have random noise. Should identify the true top 3.",
-	"noisy-t4": "Top 4 items are judged correctly; bottom items have random noise. Should identify the true top 4.",
-	"noisy-t5": "Top 5 items are judged correctly; bottom items have random noise. Should identify the true top 5.",
-	"noisy-t6": "Top 6 items are judged correctly; bottom items have random noise. Should identify the true top 5 (k=5 cap).",
+	"noisy-t3": "Top 3 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 3.",
+	"noisy-t4": "Top 4 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 4.",
+	"noisy-t5": "Top 5 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 5.",
+	"noisy-t6": "Top 6 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 5 (k=5 cap).",
 	"rand-bot-t3": "Top 3 items are judged correctly; bottom items get completely random strengths. Should identify the true top 3.",
 	"rand-bot-t4": "Top 4 items are judged correctly; bottom items get completely random strengths. Should identify the true top 4.",
 	"rand-bot-t5": "Top 5 items are judged correctly; bottom items get completely random strengths. Should identify the true top 5.",
 	"rand-bot-t6": "Top 6 items are judged correctly; bottom items get completely random strengths. Should identify the true top 5 (k=5 cap).",
-	"top3-only": "Only the top 3 items are judged correctly; all others get random strengths. Should settle on eK=3 since only 3 items have clear signal.",
 	mushy: "Top 2 and bottom 2 items are clear; middle items are indistinguishable. Should identify the top 2 correctly (eK=3 or lower) despite the ambiguous middle.",
 	reversal: "Oracle changes its preferences at round 15, swapping items 1 and 5. Should adapt to the new ordering and correctly identify items 0, 2, 3 as top.",
 };
 
-const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6", "rand-bot-t3", "rand-bot-t4", "rand-bot-t5", "rand-bot-t6", "top3-only", "mushy", "reversal"];
+const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6", "rand-bot-t3", "rand-bot-t4", "rand-bot-t5", "rand-bot-t6", "mushy", "reversal"];
 </script>
 
 <template>
