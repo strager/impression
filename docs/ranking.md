@@ -74,6 +74,8 @@ Track all sets within tolerance ε of the minimum (e.g., ε = 1, equivalent to "
 
 A `minTasks` floor (default: equal to `maxTasks`) gates the _early-exit_ paths — boundary stability and the unique-optimum form of irreducible-cycle detection. Below the floor, those checks are suppressed and the algorithm keeps probing pairs even when the analysis thinks it's done. The intent is to force enough comparisons that noise has a chance to surface as cycles or contradictory direct edges; with `minTasks = maxTasks` the algorithm always exhausts its budget. Tunable downward when efficiency matters more than noise robustness. The hard cap, "no eligible pairs", and the fallback irreducible-cycle path (which only fires when there are _no_ eligible pairs left at all) are _not_ gated by `minTasks` — those represent genuine impossibility of further work.
 
+Per-card **exposure floors** gate the same early-exit paths as a separate, complementary check: every card must have appeared in at least `minExposuresPerCard` comparisons (default 2), and every card in the current optimal top-K must have appeared in at least `minExposuresTopK` comparisons (default 3). A unique optimum derived from only one sighting of a boundary card is suspect — a single fluky comparison can decide its placement — so we require at least one corroborating direct comparison for every card, and an extra one for cards we're about to declare top-K. Like `minTasks`, these floors only suppress the early-exit paths; the hard cap, "no eligible pairs", and the fallback irreducible-cycle path still fire when they apply.
+
 The session ends when **any** of these is true:
 
 1. **Boundary stability.** Only one top-5 set exists at the minimum disagreement cost, _and_ the cost gap from that optimum to the next-best set is at least ε (with default ε = 1, this means at least one full direct contradiction's worth of margin), _and_ there are no cycles touching the boundary region (defined as: no SCC of size ≥ 2 that contains both cards in the current top-5 and cards not in the current top-5). The margin gate is the key guard against premature exit: it ensures the optimum is separated from alternatives by something equivalent to a real direct comparison, not just a chain of decayed transitive contributions that happen to sum to a small fractional advantage. A single direct boundary edge (4→5 in a chain) is enough — its weight 1.0 ≥ ε. Pure transitive disambiguation (e.g., margin 0.3 from a length-2 path) is not. With weighted closure plus the margin gate, this is the dominant termination path.
@@ -96,6 +98,7 @@ The algorithm has several tuning knobs that should be set empirically rather tha
 - The tolerance ε for what counts as "near-optimal" in the partition view.
 - The hard cap on comparisons.
 - The `minTasks` floor — how aggressively to suppress early exit in exchange for more noise robustness.
+- The per-card exposure floors (`minExposuresPerCard`, `minExposuresTopK`) — minimum direct sightings required of any card / top-K card before convergence is allowed.
 - The decay base β for path weights (default 0.3).
 - The closure-weight eligibility threshold τ (default 0.7).
 

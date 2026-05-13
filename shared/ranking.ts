@@ -20,6 +20,10 @@ export interface RankingConfig {
 	maxTasks: number;
 	/** Floor on total comparisons before any early-termination (boundary-stable / irreducible-cycle) can fire. Default 0 → match maxTasks (force exhaustion of the budget). */
 	minTasks: number;
+	/** Per-card exposure floor before boundary-stable / unique-optimum irreducible-cycle can fire: every card must have appeared in at least this many comparisons. Default 2. */
+	minExposuresPerCard: number;
+	/** Higher exposure floor applied only to cards in the current optimal top-K. Default 3. */
+	minExposuresTopK: number;
 	/** Tolerance (in contradiction-weight units) for "near-optimal" in the partition view. Default 1. */
 	epsilon: number;
 	/** Weight on boundary-relevance term in scoring. Default 1. */
@@ -50,6 +54,8 @@ const DEFAULT_CONFIG: RankingConfig = {
 	k: 5,
 	maxTasks: 0,
 	minTasks: 0,
+	minExposuresPerCard: 2,
+	minExposuresTopK: 3,
 	epsilon: 1,
 	weightBoundary: 1,
 	weightClosure: 1,
@@ -272,6 +278,8 @@ export class Ranking<T> {
 		const budget = this._config.maxTasks - this._records.length;
 		// Floor: we can't exit before minTasks, regardless of how clean the partition looks.
 		const minGap = Math.max(0, this._config.minTasks - this._records.length);
+		// Each comparison adds 2 exposures; a deficit of d needs at least ceil(d/2) more tasks.
+		const exposureGap = Math.ceil(this._exposureDeficit() / 2);
 		// Disambiguation: each near-optimal set roughly costs one well-placed comparison
 		// to push out of contention (since each direct edge contributes ~1.0 to cost differential).
 		// Plus margin-clearing: if costMargin < ε, we need additional comparisons to widen the gap.
@@ -279,7 +287,7 @@ export class Ranking<T> {
 		const ambigEstimate = ambig <= 1 ? 1 : ambig - 1;
 		const marginGap = Math.max(0, this._config.epsilon - this._costMargin);
 		const ambigPlusMargin = ambigEstimate + Math.ceil(marginGap);
-		return Math.min(budget, Math.max(minGap, ambigPlusMargin));
+		return Math.min(budget, Math.max(minGap, exposureGap, ambigPlusMargin));
 	}
 
 	get topK(): readonly T[] {
@@ -555,9 +563,9 @@ export class Ranking<T> {
 		// from declaring uniqueness; a single direct boundary edge (margin = 1.0) is enough
 		// at default ε = 1. Check first because it's the cleanest possible termination —
 		// when both this and "no eligible pairs" hold, prefer reporting the boundary outcome.
-		// minTasks gates this so we don't exit before gathering enough evidence to surface
-		// noise as cycles or contradictory direct edges.
-		if (this._records.length >= this._config.minTasks && this._optimalSets.length === 1 && this._costMargin >= this._config.epsilon) {
+		// minTasks and per-card exposure floors gate this so we don't exit before gathering
+		// enough evidence to surface noise as cycles or contradictory direct edges.
+		if (this._records.length >= this._config.minTasks && this._optimalSets.length === 1 && this._costMargin >= this._config.epsilon && this._exposureFloorsMet()) {
 			const top = new Set(this._optimalSets[0]);
 			const straddling = this._findStraddlingSccs(top);
 			if (straddling.length === 0) {
@@ -635,6 +643,32 @@ export class Ranking<T> {
 			if (hasIn && hasOut) result.push(comp);
 		}
 		return result;
+	}
+
+	private _exposureFloorsMet(): boolean {
+		const minBase = this._config.minExposuresPerCard;
+		const minTop = this._config.minExposuresTopK;
+		if (minBase <= 0 && minTop <= 0) return true;
+		const top = this._optimalSets.length > 0 ? new Set(this._optimalSets[0]) : new Set<number>();
+		for (let i = 0; i < this._n; i++) {
+			const required = top.has(i) ? minTop : minBase;
+			if (this._exposures[i] < required) return false;
+		}
+		return true;
+	}
+
+	private _exposureDeficit(): number {
+		const minBase = this._config.minExposuresPerCard;
+		const minTop = this._config.minExposuresTopK;
+		if (minBase <= 0 && minTop <= 0) return 0;
+		const top = this._optimalSets.length > 0 ? new Set(this._optimalSets[0]) : new Set<number>();
+		let deficit = 0;
+		for (let i = 0; i < this._n; i++) {
+			const required = top.has(i) ? minTop : minBase;
+			const gap = required - this._exposures[i];
+			if (gap > 0) deficit += gap;
+		}
+		return deficit;
 	}
 
 	private _isEligible(i: number, j: number): boolean {

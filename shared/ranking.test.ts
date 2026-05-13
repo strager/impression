@@ -127,7 +127,7 @@ describe("Ranking — margin gate on boundary stability", () => {
 		//   cost({c}) = W(a,c) + W(b,c) = 0.3 + 1 = 1.3
 		// So the margin from the optimum to the next-best is 1.0. With ε = 1.5,
 		// the gate is NOT cleared and the algorithm should keep going.
-		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1.5, minTasks: 0, maxTasks: 99 });
+		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1.5, minTasks: 0, minExposuresPerCard: 0, minExposuresTopK: 0, maxTasks: 99 });
 		r.recordTask("a", "b", ["a", "b"]);
 		r.recordTask("b", "c", ["b", "c"]);
 		expect(r.stopped).toBe(false);
@@ -135,7 +135,7 @@ describe("Ranking — margin gate on boundary stability", () => {
 
 	it("does terminate boundary-stable when the margin clears epsilon", () => {
 		// Same chain, but with ε = 1.0 the margin (1.0) is exactly at the gate.
-		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, maxTasks: 99 });
+		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, minExposuresPerCard: 0, minExposuresTopK: 0, maxTasks: 99 });
 		r.recordTask("a", "b", ["a", "b"]);
 		r.recordTask("b", "c", ["b", "c"]);
 		expect(r.stopped).toBe(true);
@@ -163,7 +163,7 @@ describe("Ranking — no-eligible-pairs termination", () => {
 	it("stops with no-eligible-pairs when all pairs are compared but the margin does not clear epsilon", () => {
 		// N=2, k=1, one direct edge → optimum {a} unique with margin 1. With ε=2 the
 		// boundary-stable gate fails, no SCC exists, and the only pair is already compared.
-		const r = new Ranking(["a", "b"], { k: 1, seed: 1, epsilon: 2, minTasks: 0, maxTasks: 99 });
+		const r = new Ranking(["a", "b"], { k: 1, seed: 1, epsilon: 2, minTasks: 0, minExposuresPerCard: 0, minExposuresTopK: 0, maxTasks: 99 });
 		r.recordTask("a", "b", ["a", "b"]);
 		expect(r.stopped).toBe(true);
 		expect(r.stopReason).toBe("no-eligible-pairs");
@@ -212,6 +212,44 @@ describe("Ranking — minTasks gate", () => {
 			r.recordTask(best, worst);
 		}
 		expect(r.round).toBeGreaterThanOrEqual(minTasks);
+	});
+});
+
+describe("Ranking — per-card exposure floor", () => {
+	it("suppresses boundary-stable exit while a card has fewer than minExposuresPerCard appearances", () => {
+		// Chain a→b→c→d with k=1. After 3 edges the optimum is uniquely {a} with a margin of
+		// 1.0 ≥ ε. With minExposuresPerCard=0 it would terminate boundary-stable here.
+		// With the default floor of 2, cards a and d only have 1 appearance, so the early-exit
+		// path must stay suppressed.
+		const r = new Ranking(["a", "b", "c", "d"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, minExposuresTopK: 0, maxTasks: 99 });
+		r.recordTask("a", "b", ["a", "b"]);
+		r.recordTask("b", "c", ["b", "c"]);
+		r.recordTask("c", "d", ["c", "d"]);
+		expect(r.stopped).toBe(false);
+	});
+
+	it("suppresses boundary-stable exit while a top-K card has fewer than minExposuresTopK appearances", () => {
+		// Same chain; the base per-card floor is satisfied by adding b↔d, but top-K card a still
+		// only has 1 appearance, below the default top-K floor of 3.
+		const r = new Ranking(["a", "b", "c", "d"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, minExposuresPerCard: 0, maxTasks: 99 });
+		r.recordTask("a", "b", ["a", "b"]);
+		r.recordTask("b", "c", ["b", "c"]);
+		r.recordTask("c", "d", ["c", "d"]);
+		// After this, the optimum is uniquely {a} with margin ≥ ε, but a has only 1 exposure.
+		expect(r.stopped).toBe(false);
+	});
+
+	it("terminates boundary-stable once the floors are met", () => {
+		// Chain a→b→c→d plus a→c and a→d gives a 3 exposures and the rest 2+, satisfying both
+		// the per-card floor (2) and the top-K floor (3 for {a}).
+		const r = new Ranking(["a", "b", "c", "d"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, maxTasks: 99 });
+		r.recordTask("a", "b", ["a", "b"]);
+		r.recordTask("b", "c", ["b", "c"]);
+		r.recordTask("c", "d", ["c", "d"]);
+		r.recordTask("a", "c", ["a", "c"]);
+		r.recordTask("a", "d", ["a", "d"]);
+		expect(r.stopped).toBe(true);
+		expect(r.stopReason).toBe("boundary-stable");
 	});
 });
 
