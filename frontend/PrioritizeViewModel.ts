@@ -2,24 +2,24 @@ import { type ShallowRef, ref, shallowRef, triggerRef } from "vue";
 
 import type { MeaningCard } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import type { RankingConfig, RemainingEstimate, StopReason, TaskRecord } from "../shared/ranking.ts";
-import { Ranking, makeXorshift } from "../shared/ranking.ts";
+import type { PairRecord, RankingDebugState, StopReason } from "../shared/ranking.ts";
+import { Ranking } from "../shared/ranking.ts";
 import { capture } from "./analytics.ts";
-import type { MaxDiffComparison } from "./store.ts";
-import { loadRanking, loadSwipeProgress, needsPrioritization, saveChosenCardIds, saveRanking, selectCandidateCards } from "./store.ts";
+import type { PairComparison } from "./store.ts";
+import { loadPrioritizeProgress, loadSwipeProgress, saveChosenCardIds, savePrioritizeProgress, selectCandidateCards } from "./store.ts";
 
 const cardsById = new Map(MEANING_CARDS.map((c) => [c.id, c]));
 
-export class IdentifyRankingViewModel {
+export class PrioritizeViewModel {
 	private readonly profileId: string;
-	private readonly _currentTask = ref<MeaningCard[] | null>(null);
+	private readonly _currentPair = ref<[MeaningCard, MeaningCard] | null>(null);
 	// You should manually trigger this ref when calling mutating methods of
 	// Ranking.
 	private readonly _ranking: ShallowRef<Ranking<string> | null> = shallowRef(null);
-	private _allComparisons: MaxDiffComparison[] = [];
-	private _cardIds: string[] = [];
+	private _allComparisons: PairComparison[] = [];
+	private readonly _cardIds = shallowRef<readonly string[]>([]);
 	private _phaseStartedAtMs = 0;
-	private _taskShownAtMs = 0;
+	private _pairShownAtMs = 0;
 
 	constructor(profileId: string) {
 		this.profileId = profileId;
@@ -39,8 +39,8 @@ export class IdentifyRankingViewModel {
 		return MEANING_CARDS.filter((c) => ids.has(c.id));
 	}
 
-	get currentTask(): MeaningCard[] | null {
-		return this._currentTask.value;
+	get currentPair(): [MeaningCard, MeaningCard] | null {
+		return this._currentPair.value;
 	}
 
 	get round(): number {
@@ -51,7 +51,7 @@ export class IdentifyRankingViewModel {
 		return this._ranking.value !== null && this._ranking.value.round > 0;
 	}
 
-	get estimatedRemaining(): RemainingEstimate {
+	get estimatedRemaining(): number | null {
 		return this._ranking.value?.estimateRemaining() ?? null;
 	}
 
@@ -63,23 +63,14 @@ export class IdentifyRankingViewModel {
 	}
 
 	get cardIds(): readonly string[] {
-		// _cardIds is a plain field; reading _ranking.value first ties this getter
-		// to the ShallowRef so Vue computeds re-run once initialize() populates both.
-		if (this._ranking.value === null) return [];
-		return this._cardIds;
+		return this._cardIds.value;
 	}
 
-	get history(): readonly TaskRecord<string>[] {
+	get history(): readonly PairRecord<string>[] {
 		return this._ranking.value?.history ?? [];
 	}
 
-	get debugState(): {
-		mu: Float64Array;
-		sigma: Float64Array;
-		exposures: readonly number[];
-		config: RankingConfig;
-		round: number;
-	} | null {
+	get debugState(): RankingDebugState<string> | null {
 		return this._ranking.value?.debugState() ?? null;
 	}
 
@@ -93,7 +84,7 @@ export class IdentifyRankingViewModel {
 
 	initialize(): "ready" | "no-data" | "skip" {
 		this._phaseStartedAtMs = performance.now();
-		const saved = loadRanking(this.profileId);
+		const saved = loadPrioritizeProgress(this.profileId);
 		let resolvedCardIds: string[];
 
 		if (saved !== null) {
@@ -110,9 +101,9 @@ export class IdentifyRankingViewModel {
 			return "no-data";
 		}
 
-		this._cardIds = resolvedCardIds;
+		this._cardIds.value = resolvedCardIds;
 
-		if (!needsPrioritization(this.profileId)) {
+		if (resolvedCardIds.length <= 5) {
 			saveChosenCardIds(this.profileId, resolvedCardIds);
 			return "skip";
 		}
@@ -120,7 +111,7 @@ export class IdentifyRankingViewModel {
 		this._ranking.value = new Ranking(resolvedCardIds, { k: 5, seed: 42 });
 
 		if (saved !== null) {
-			this._allComparisons = saved.comparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst }));
+			this._allComparisons = saved.comparisons.map((c) => ({ set: [c.set[0], c.set[1]], best: c.best, worst: c.worst }));
 			const activeRound = saved.activeRound ?? saved.comparisons.length;
 			for (let i = 0; i < activeRound; i++) {
 				if (this._ranking.value.stopped) break;
@@ -132,7 +123,7 @@ export class IdentifyRankingViewModel {
 		const resumedFromRound = this._ranking.value.round;
 
 		if (!this._ranking.value.stopped) {
-			this.showNextTask();
+			this.showNextPair();
 		}
 
 		triggerRef(this._ranking);
@@ -146,28 +137,31 @@ export class IdentifyRankingViewModel {
 		return "ready";
 	}
 
-	choose(bestIndex: number, worstIndex: number): void {
+	choose(winnerIndex: 0 | 1): void {
 		if (this._ranking.value === null || this._ranking.value.stopped) {
 			throw new Error("Cannot choose: ranking is null or stopped");
 		}
-		const task = this._currentTask.value;
-		if (task === null) {
-			throw new Error("Cannot choose: no current task");
+		const pair = this._currentPair.value;
+		if (pair === null) {
+			throw new Error("Cannot choose: no current pair");
 		}
 
-		const best = task[bestIndex];
-		const worst = task[worstIndex];
+		const winner = pair[winnerIndex];
+		const loser = pair[1 - winnerIndex];
 		const now = performance.now();
-		const timeOnTaskMs = Math.round(now - this._taskShownAtMs);
+		const timeOnPairMs = Math.round(now - this._pairShownAtMs);
 
 		const cursor = this._ranking.value.round;
-		const result = this._ranking.value.recordTask(best.id, worst.id);
+		// Pass the explicit set when in the redo zone so Ranking records on the persisted
+		// pair instead of falling back to whatever its scoring would pick fresh.
+		const setOverride = cursor < this._allComparisons.length ? this._allComparisons[cursor].set : undefined;
+		const result = this._ranking.value.recordTask(winner.id, loser.id, setOverride);
 
 		const lastHistory = this._ranking.value.history.at(-1);
 		if (lastHistory === undefined) {
 			throw new Error("No history after recordTask");
 		}
-		const newComp: MaxDiffComparison = { set: [...lastHistory.set], best: lastHistory.best, worst: lastHistory.worst };
+		const newComp: PairComparison = { set: [lastHistory.set[0], lastHistory.set[1]], best: lastHistory.best, worst: lastHistory.worst };
 		if (cursor < this._allComparisons.length) {
 			const existing = this._allComparisons[cursor];
 			if (existing.best !== newComp.best || existing.worst !== newComp.worst) {
@@ -181,7 +175,7 @@ export class IdentifyRankingViewModel {
 		if (result.stopped) {
 			this.saveProgress(true);
 		} else {
-			this.showNextTask();
+			this.showNextPair();
 			this.saveProgress(false);
 		}
 
@@ -190,7 +184,7 @@ export class IdentifyRankingViewModel {
 		const est = this._ranking.value.estimateRemaining();
 		capture("prioritize_comparison_made", {
 			session_id: this.profileId,
-			time_on_pair_ms: timeOnTaskMs,
+			time_on_pair_ms: timeOnPairMs,
 			comparisons_so_far: this._ranking.value.round,
 			estimated_remaining: est !== null ? Math.ceil(est) : -1,
 		});
@@ -204,7 +198,7 @@ export class IdentifyRankingViewModel {
 		const bestId = undone.best;
 		const worstId = undone.worst;
 		this._ranking.value.undoLastTask();
-		this.showNextTask();
+		this.showNextPair();
 		triggerRef(this._ranking);
 		this.saveProgress(false);
 
@@ -233,30 +227,34 @@ export class IdentifyRankingViewModel {
 		if (this._ranking.value === null) {
 			throw new Error("Cannot save progress: ranking is null");
 		}
-		saveRanking(this.profileId, {
-			cardIds: this._cardIds,
-			comparisons: this._allComparisons.map((c) => ({ set: [...c.set], best: c.best, worst: c.worst })),
+		savePrioritizeProgress(this.profileId, {
+			cardIds: [...this._cardIds.value],
+			comparisons: this._allComparisons.map((c) => ({ set: [c.set[0], c.set[1]], best: c.best, worst: c.worst })),
 			activeRound: this._ranking.value.round < this._allComparisons.length ? this._ranking.value.round : undefined,
 			complete,
 		});
 	}
 
-	private showNextTask(): void {
+	private showNextPair(): void {
 		if (this._ranking.value === null) {
-			throw new Error("Cannot show next task: ranking is null");
+			throw new Error("Cannot show next pair: ranking is null");
 		}
-		const { items } = this._ranking.value.selectTask();
-		const cards = items.map((id) => cardsById.get(id)).filter((c): c is MeaningCard => c !== undefined);
-		if (cards.length !== items.length) {
-			throw new Error("Card not found for ranking task");
+		const round = this._ranking.value.round;
+		let pairIds: readonly [string, string];
+		if (round < this._allComparisons.length) {
+			// Redo zone: re-present the originally-asked pair so the user sees their
+			// previous choice highlighted instead of being thrown a fresh question.
+			pairIds = this._allComparisons[round].set;
+		} else {
+			const { items } = this._ranking.value.selectTask();
+			pairIds = items;
 		}
-		// Shuffle display order so cards don't appear in a predictable pattern
-		const rng = makeXorshift(42);
-		for (let i = cards.length - 1; i > 0; i--) {
-			const j = Math.floor(rng.next() * (i + 1));
-			[cards[i], cards[j]] = [cards[j], cards[i]];
+		const cardA = cardsById.get(pairIds[0]);
+		const cardB = cardsById.get(pairIds[1]);
+		if (cardA === undefined || cardB === undefined) {
+			throw new Error("Card not found for ranking pair");
 		}
-		this._currentTask.value = cards;
-		this._taskShownAtMs = performance.now();
+		this._currentPair.value = [cardA, cardB];
+		this._pairShownAtMs = performance.now();
 	}
 }

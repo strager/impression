@@ -5,8 +5,8 @@ import { watchSyncEffect } from "vue";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import { IdentifyRankingViewModel } from "./PrioritizeViewModel.ts";
-import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, saveRanking, saveSwipeProgress } from "./store.ts";
+import { PrioritizeViewModel } from "./PrioritizeViewModel.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadPrioritizeProgress, savePrioritizeProgress, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -49,7 +49,7 @@ afterEach(() => {
 
 describe("initialize", () => {
 	it("returns 'no-data' when identification isn't complete", () => {
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
@@ -59,37 +59,37 @@ describe("initialize", () => {
 			shuffledCardIds: cardIds,
 			swipeHistory: [{ cardId: cardIds[0], direction: "agree" }],
 		});
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		expect(vm.initialize()).toBe("no-data");
 	});
 
 	it("returns 'skip' when <=5 candidate cards", () => {
 		const cardIds = MEANING_CARDS.slice(0, 4).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		expect(vm.initialize()).toBe("skip");
 		expect(loadChosenCardIds(sid())).toEqual(cardIds);
 	});
 
-	it("returns 'ready' when >5 cards, populates currentTask", () => {
+	it("returns 'ready' when >5 cards, populates currentPair", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
-		expect(vm.currentTask).not.toBeNull();
-		expect(vm.currentTask!.length).toBe(3);
+		expect(vm.currentPair).not.toBeNull();
+		expect(vm.currentPair!.length).toBe(2);
 		expect(vm.round).toBe(0);
 		expect(vm.isComplete).toBe(false);
 	});
 
 	it("resumes from saved comparison history", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
-		saveRanking(sid(), {
+		savePrioritizeProgress(sid(), {
 			cardIds,
-			comparisons: [{ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] }],
+			comparisons: [{ set: [cardIds[0], cardIds[1]], best: cardIds[0], worst: cardIds[1] }],
 			complete: false,
 		});
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		expect(vm.initialize()).toBe("ready");
 		expect(vm.round).toBe(1);
 		expect(vm.canUndo).toBe(true);
@@ -97,64 +97,65 @@ describe("initialize", () => {
 });
 
 describe("choose", () => {
-	function setupVm(): IdentifyRankingViewModel {
+	function setupVm(): PrioritizeViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
 
-	it("choose with best and worst advances round", () => {
+	it("choose with winner index advances round", () => {
 		const vm = setupVm();
 		expect(vm.round).toBe(0);
 
-		const task = vm.currentTask!;
-		const worstIndex = task.length - 1;
-		vm.choose(0, worstIndex);
+		vm.choose(0);
 		expect(vm.round).toBe(1);
 
-		const saved = loadRanking(sid());
+		const saved = loadPrioritizeProgress(sid());
 		expect(saved).not.toBeNull();
 		expect(saved!.comparisons).toHaveLength(1);
+		expect(saved!.comparisons[0].set).toHaveLength(2);
 	});
 
 	it("throws when isComplete", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
-		// Build many comparisons to trigger max-tasks stop
-		const comparisons = [];
-		for (let i = 0; i < 40; i++) {
-			comparisons.push({ set: [cardIds[0], cardIds[1], cardIds[2]], best: cardIds[0], worst: cardIds[2] });
+		// Generate all C(7, 2) = 21 unique pairs with the lower-indexed card as winner.
+		// That's enough deterministic evidence for Ranking to terminate (boundary-stable)
+		// before max-tasks fires.
+		const comparisons: { set: [string, string]; best: string; worst: string }[] = [];
+		for (let i = 0; i < cardIds.length; i++) {
+			for (let j = i + 1; j < cardIds.length; j++) {
+				comparisons.push({ set: [cardIds[i], cardIds[j]], best: cardIds[i], worst: cardIds[j] });
+			}
 		}
-		saveRanking(sid(), { cardIds, comparisons, complete: false });
-		const vm = new IdentifyRankingViewModel(sid());
+		savePrioritizeProgress(sid(), { cardIds, comparisons, complete: false });
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
-		// After replaying 40 tasks, it should be stopped
 		expect(vm.isComplete).toBe(true);
 		expect(() => {
-			vm.choose(0, 2);
+			vm.choose(0);
 		}).toThrow();
 	});
 });
 
 describe("undo", () => {
-	function setupVm(): IdentifyRankingViewModel {
+	function setupVm(): PrioritizeViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
 
-	it("throws when no tasks and in best phase", () => {
+	it("throws when no tasks to undo", () => {
 		const vm = setupVm();
 		expect(() => vm.undo()).toThrow();
 	});
 
 	it("decrements round after a task", () => {
 		const vm = setupVm();
-		const task = vm.currentTask!;
-		vm.choose(0, task.length - 1);
+		vm.choose(0);
 		expect(vm.round).toBe(1);
 
 		vm.undo();
@@ -164,11 +165,10 @@ describe("undo", () => {
 
 	it("persists forward comparisons and activeRound to localStorage", () => {
 		const vm = setupVm();
-		const task = vm.currentTask!;
-		vm.choose(0, task.length - 1);
+		vm.choose(0);
 
 		vm.undo();
-		const saved = loadRanking(sid());
+		const saved = loadPrioritizeProgress(sid());
 		expect(saved).not.toBeNull();
 		expect(saved!.comparisons).toHaveLength(1);
 		expect(saved!.activeRound).toBe(0);
@@ -176,10 +176,10 @@ describe("undo", () => {
 });
 
 describe("pendingRedo", () => {
-	function setupVm(): IdentifyRankingViewModel {
+	function setupVm(): PrioritizeViewModel {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
 		return vm;
 	}
@@ -191,8 +191,7 @@ describe("pendingRedo", () => {
 
 	it("returns undone task data after undo", () => {
 		const vm = setupVm();
-		const task = vm.currentTask!;
-		vm.choose(0, task.length - 1);
+		vm.choose(0);
 		const { bestId, worstId } = vm.undo();
 		const redo = vm.pendingRedo;
 		expect(redo).not.toBeNull();
@@ -202,16 +201,14 @@ describe("pendingRedo", () => {
 
 	it("undo twice then choose: pendingRedo returns second undone task data", () => {
 		const vm = setupVm();
-		const task1 = vm.currentTask!;
-		vm.choose(0, task1.length - 1);
-		const task2 = vm.currentTask!;
-		vm.choose(0, task2.length - 1);
+		vm.choose(0);
+		vm.choose(0);
 
 		const undo2 = vm.undo();
 		vm.undo();
 
-		// Re-advance with same choice as round 0
-		vm.choose(0, vm.currentTask!.length - 1);
+		// Re-advance round 0 with the same choice as before.
+		vm.choose(0);
 
 		const redo = vm.pendingRedo;
 		expect(redo).not.toBeNull();
@@ -219,33 +216,30 @@ describe("pendingRedo", () => {
 		expect(redo!.worstId).toBe(undo2.worstId);
 
 		// Consume the redo
-		vm.choose(0, vm.currentTask!.length - 1);
+		vm.choose(0);
 		expect(vm.pendingRedo).toBeNull();
 	});
 
 	it("changing selection on re-advance truncates forward entries", () => {
 		const vm = setupVm();
-		const task1 = vm.currentTask!;
-		vm.choose(0, task1.length - 1);
-		const task2 = vm.currentTask!;
-		vm.choose(0, task2.length - 1);
+		vm.choose(0);
+		vm.choose(0);
 
 		vm.undo();
 		vm.undo();
 
-		// Re-advance with a DIFFERENT choice (reversed best/worst)
-		vm.choose(vm.currentTask!.length - 1, 0);
+		// Re-advance round 0 with the OTHER card as winner — different from before.
+		vm.choose(1);
 		expect(vm.pendingRedo).toBeNull();
 	});
 
 	it("redo data persists across re-initialization", () => {
 		const vm1 = setupVm();
-		const task1 = vm1.currentTask!;
-		vm1.choose(0, task1.length - 1);
+		vm1.choose(0);
 		vm1.undo();
 
 		// Simulate page refresh
-		const vm2 = new IdentifyRankingViewModel(sid());
+		const vm2 = new PrioritizeViewModel(sid());
 		vm2.initialize();
 
 		const redo = vm2.pendingRedo;
@@ -258,13 +252,11 @@ describe("finalize", () => {
 	it("saves chosen cards via loadChosenCardIds", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
 
-		// Make tasks until complete: pick first card as best, last as worst
 		while (!vm.isComplete) {
-			const task = vm.currentTask!;
-			vm.choose(0, task.length - 1);
+			vm.choose(0);
 		}
 		vm.finalize();
 		const chosen = loadChosenCardIds(sid());
@@ -275,15 +267,14 @@ describe("finalize", () => {
 });
 
 describe("full ranking run", () => {
-	it("completes ranking with 7 cards, picking first card as best and last as worst", () => {
+	it("completes ranking with 7 cards, always picking the first card of the pair", () => {
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm = new IdentifyRankingViewModel(sid());
+		const vm = new PrioritizeViewModel(sid());
 		vm.initialize();
 
 		while (!vm.isComplete) {
-			const task = vm.currentTask!;
-			vm.choose(0, task.length - 1);
+			vm.choose(0);
 		}
 
 		expect(vm.topK.length).toBeGreaterThanOrEqual(3);
@@ -299,16 +290,15 @@ describe("full ranking run", () => {
 		// Complete a ranking and save the result.
 		const cardIds = MEANING_CARDS.slice(0, 7).map((c) => c.id);
 		setupSwipeProgressAllSwiped(cardIds);
-		const vm1 = new IdentifyRankingViewModel(sid());
+		const vm1 = new PrioritizeViewModel(sid());
 		vm1.initialize();
 		while (!vm1.isComplete) {
-			const task = vm1.currentTask!;
-			vm1.choose(0, task.length - 1);
+			vm1.choose(0);
 		}
 		// vm1 saved the completed ranking to localStorage.
 
 		// Simulate a page refresh: create a new ViewModel and initialize it.
-		const vm2 = new IdentifyRankingViewModel(sid());
+		const vm2 = new PrioritizeViewModel(sid());
 
 		// Track what Vue's reactivity system sees for isComplete.
 		let isComplete: boolean | undefined;

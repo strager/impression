@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { IdentifyViewModel } from "./IdentifyViewModel.ts";
-import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadRanking, loadSwipeProgress, saveSwipeProgress } from "./store.ts";
+import { ensureProfilesInitialized, getActiveProfileId, loadChosenCardIds, loadPrioritizeProgress, loadSwipeProgress, saveSwipeProgress } from "./store.ts";
 
 let currentWindow: Window | null = null;
 
@@ -298,11 +298,11 @@ describe("finalize", () => {
 		vm.initialize();
 		vm.finalize();
 		expect(vm.requiresPrioritization).toBe(true);
-		const ranking = loadRanking(sid());
-		expect(ranking).not.toBeNull();
-		expect(ranking!.cardIds).toEqual(cardIds);
-		expect(ranking!.comparisons).toEqual([]);
-		expect(ranking!.complete).toBe(false);
+		const progress = loadPrioritizeProgress(sid());
+		expect(progress).not.toBeNull();
+		expect(progress!.cardIds).toEqual(cardIds);
+		expect(progress!.comparisons).toEqual([]);
+		expect(progress!.complete).toBe(false);
 	});
 
 	it("does not require prioritization when ≤5 agreed among many cards", () => {

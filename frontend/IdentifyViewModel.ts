@@ -4,7 +4,7 @@ import type { MeaningCard, SwipeDirection } from "../shared/meaning-cards.ts";
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
 import { capture } from "./analytics.ts";
 import type { SwipeRecord } from "./store.ts";
-import { loadSwipeProgress, needsPrioritization, saveChosenCardIds, saveRanking, selectCandidateCards, saveSwipeProgress } from "./store.ts";
+import { loadSwipeProgress, needsPrioritization, saveChosenCardIds, savePrioritizeProgress, selectCandidateCards, saveSwipeProgress } from "./store.ts";
 
 function shuffle<T>(array: readonly T[]): T[] {
 	const result = [...array];
@@ -127,7 +127,7 @@ export class IdentifyViewModel {
 		const cardIdsToConsider = selectCandidateCards(this.profileId);
 
 		if (needsPrioritization(this.profileId)) {
-			saveRanking(this.profileId, { cardIds: cardIdsToConsider, comparisons: [], complete: false });
+			savePrioritizeProgress(this.profileId, { cardIds: cardIdsToConsider, comparisons: [], complete: false });
 		} else {
 			saveChosenCardIds(this.profileId, cardIdsToConsider);
 		}

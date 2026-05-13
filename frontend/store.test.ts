@@ -3,7 +3,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createProfile, deleteProfile, detectProfilePhase, ensureProfilesInitialized, exportProgressData, formatProfileDate, getActiveProfileId, hasVisitedExamineReflect, importProgressData, listProfiles, loadChosenCardIds, loadExamineData, loadLlmTestState, loadRanking, loadSwipeProgress, lookupCachedSynthesis, markExamineReflectVisited, renameProfile, saveCachedSynthesis, saveChosenCardIds, saveExamineData, saveLlmTestState, saveRanking, saveSwipeProgress } from "./store.ts";
+import { createProfile, deleteProfile, detectProfilePhase, ensureProfilesInitialized, exportProgressData, formatProfileDate, getActiveProfileId, hasVisitedExamineReflect, importProgressData, listProfiles, loadChosenCardIds, loadExamineData, loadLlmTestState, loadPrioritizeProgress, loadSwipeProgress, lookupCachedSynthesis, markExamineReflectVisited, renameProfile, saveCachedSynthesis, saveChosenCardIds, saveExamineData, saveLlmTestState, savePrioritizeProgress, saveSwipeProgress } from "./store.ts";
 
 function sid(): string {
 	return getActiveProfileId();
@@ -1048,161 +1048,162 @@ describe("profile data isolation", () => {
 	});
 });
 
-describe("loadRanking/saveRanking", () => {
+describe("loadPrioritizeProgress/savePrioritizeProgress", () => {
 	it("returns null when key is absent", () => {
-		expect(loadRanking(sid())).toBeNull();
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when cardIds is missing", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ comparisons: [], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ comparisons: [], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when cardIds is empty", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: [], comparisons: [], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: [], comparisons: [], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when comparisons is missing", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a"], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a"], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when complete is missing", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a"], comparisons: [] }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a"], comparisons: [] }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
-	it("returns null for old PrioritizeProgress format (no comparisons field)", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], swipeHistory: [] }));
-		expect(loadRanking(sid())).toBeNull();
-	});
-
-	it("returns null for old pairwise format (winner/loser)", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], comparisons: [{ winner: "a", loser: "b" }], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+	it("returns null for legacy MaxDiff format (triplet set)", () => {
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when comparison entry has missing set", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ best: "a", worst: "c" }], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a", "b"], comparisons: [{ best: "a", worst: "b" }], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
 	it("returns null when comparison set is too short", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ set: ["a"], best: "a", worst: "a" }], complete: false }));
-		expect(loadRanking(sid())).toBeNull();
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a", "b"], comparisons: [{ set: ["a"], best: "a", worst: "a" }], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 
-	it("round-trips saved ranking data", () => {
-		saveRanking(sid(), {
+	it("round-trips saved progress", () => {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			complete: false,
 		});
-		expect(loadRanking(sid())).toEqual({
+		expect(loadPrioritizeProgress(sid())).toEqual({
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			activeRound: undefined,
 			complete: false,
 		});
 	});
 
-	it("round-trips complete ranking", () => {
-		saveRanking(sid(), {
+	it("round-trips complete progress", () => {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			complete: true,
 		});
-		expect(loadRanking(sid())).toEqual({
+		expect(loadPrioritizeProgress(sid())).toEqual({
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			activeRound: undefined,
 			complete: true,
 		});
 	});
 
 	it("round-trips activeRound when within bounds", () => {
-		saveRanking(sid(), {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
 			comparisons: [
-				{ set: ["a", "b", "c"], best: "a", worst: "c" },
-				{ set: ["a", "b", "c"], best: "b", worst: "c" },
+				{ set: ["a", "b"], best: "a", worst: "b" },
+				{ set: ["a", "c"], best: "a", worst: "c" },
 			],
 			activeRound: 1,
 			complete: false,
 		});
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBe(1);
 	});
 
 	it("ignores activeRound when negative", () => {
 		localStorage.setItem(
-			activeKey("narrowdown"),
+			activeKey("prioritize"),
 			JSON.stringify({
 				cardIds: ["a", "b", "c"],
-				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 				activeRound: -1,
 				complete: false,
 			}),
 		);
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBeUndefined();
 	});
 
 	it("ignores activeRound when fractional", () => {
 		localStorage.setItem(
-			activeKey("narrowdown"),
+			activeKey("prioritize"),
 			JSON.stringify({
 				cardIds: ["a", "b", "c"],
-				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 				activeRound: 0.5,
 				complete: false,
 			}),
 		);
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBeUndefined();
 	});
 
 	it("ignores activeRound when greater than comparisons length", () => {
 		localStorage.setItem(
-			activeKey("narrowdown"),
+			activeKey("prioritize"),
 			JSON.stringify({
 				cardIds: ["a", "b", "c"],
-				comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+				comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 				activeRound: 5,
 				complete: false,
 			}),
 		);
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBeUndefined();
 	});
 
 	it("accepts activeRound of 0", () => {
-		saveRanking(sid(), {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			activeRound: 0,
 			complete: false,
 		});
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBe(0);
 	});
 
 	it("accepts activeRound equal to comparisons length", () => {
-		saveRanking(sid(), {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			activeRound: 1,
 			complete: false,
 		});
-		const loaded = loadRanking(sid());
+		const loaded = loadPrioritizeProgress(sid());
 		expect(loaded).not.toBeNull();
 		expect(loaded!.activeRound).toBe(1);
+	});
+
+	it("ignores legacy narrowdown-keyed in-progress data", () => {
+		// Old MaxDiff data under the legacy key should not be visible via the new accessor.
+		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }], complete: false }));
+		expect(loadPrioritizeProgress(sid())).toBeNull();
 	});
 });
 
@@ -1219,19 +1220,19 @@ describe("detectProfilePhase", () => {
 		expect(detectProfilePhase(sid())).toBe("identify");
 	});
 
-	it("returns 'prioritize' when ranking data exists and not complete", () => {
-		saveRanking(sid(), {
+	it("returns 'prioritize' when prioritize data exists and not complete", () => {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			complete: false,
 		});
 		expect(detectProfilePhase(sid())).toBe("prioritize");
 	});
 
-	it("returns 'prioritize-complete' when ranking is complete", () => {
-		saveRanking(sid(), {
+	it("returns 'prioritize-complete' when prioritize is complete", () => {
+		savePrioritizeProgress(sid(), {
 			cardIds: ["a", "b", "c"],
-			comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }],
+			comparisons: [{ set: ["a", "b"], best: "a", worst: "b" }],
 			complete: true,
 		});
 		expect(detectProfilePhase(sid())).toBe("prioritize-complete");
@@ -1242,23 +1243,29 @@ describe("detectProfilePhase", () => {
 		expect(detectProfilePhase(sid())).toBe("examine");
 	});
 
-	it("examine takes priority over ranking data", () => {
-		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
+	it("examine takes priority over prioritize data", () => {
+		savePrioritizeProgress(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
 		saveChosenCardIds(sid(), ["a"]);
 		expect(detectProfilePhase(sid())).toBe("examine");
 	});
 
-	it("ranking takes priority over swipe progress", () => {
+	it("prioritize takes priority over swipe progress", () => {
 		saveSwipeProgress(sid(), {
 			shuffledCardIds: ["a", "b"],
 			swipeHistory: [{ cardId: "a", direction: "agree" }],
 		});
-		saveRanking(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
+		savePrioritizeProgress(sid(), { cardIds: ["a", "b", "c"], comparisons: [], complete: false });
 		expect(detectProfilePhase(sid())).toBe("prioritize");
 	});
 
-	it("returns 'none' for old PrioritizeProgress format", () => {
-		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b"], swipeHistory: [] }));
+	it("returns 'none' for malformed prioritize data", () => {
+		localStorage.setItem(activeKey("prioritize"), JSON.stringify({ cardIds: ["a", "b"], swipeHistory: [] }));
+		expect(detectProfilePhase(sid())).toBe("none");
+	});
+
+	it("ignores legacy narrowdown-keyed in-progress data when detecting phase", () => {
+		// Old MaxDiff in-progress data under the legacy key should not be treated as a prioritize phase.
+		localStorage.setItem(activeKey("narrowdown"), JSON.stringify({ cardIds: ["a", "b", "c"], comparisons: [{ set: ["a", "b", "c"], best: "a", worst: "c" }], complete: false }));
 		expect(detectProfilePhase(sid())).toBe("none");
 	});
 });

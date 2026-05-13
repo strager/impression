@@ -9,7 +9,7 @@ const PERSIST_REQUESTED_KEY = "somecam-persist-requested";
 const RATE_LIMIT_SESSION_KEY = "somecam-api-session-id";
 const PAPER_SIZE_KEY = "somecam-paper-size";
 
-const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"] as const;
+const SESSION_DATA_SUFFIXES = ["progress", "narrowdown", "prioritize", "chosen", "explore", "summaries", "freeform", "statements", "complete-visited"] as const;
 
 const DEFAULT_QUESTION_ID = EXAMINE_QUESTIONS[0]?.id ?? "";
 
@@ -46,15 +46,15 @@ export interface SwipeProgress {
 	swipeHistory: SwipeRecord[];
 }
 
-export interface MaxDiffComparison {
-	set: string[];
+export interface PairComparison {
+	set: [string, string];
 	best: string;
 	worst: string;
 }
 
-export interface RankingProgress {
+export interface PrioritizeProgress {
 	cardIds: string[];
-	comparisons: MaxDiffComparison[];
+	comparisons: PairComparison[];
 	activeRound?: number;
 	complete: boolean;
 }
@@ -263,8 +263,8 @@ function profileKey(profileId: string, suffix: string): string {
 function progressKey(profileId: string): string {
 	return profileKey(profileId, "progress");
 }
-function narrowdownKey(profileId: string): string {
-	return profileKey(profileId, "narrowdown");
+function prioritizeKey(profileId: string): string {
+	return profileKey(profileId, "prioritize");
 }
 function chosenKey(profileId: string): string {
 	return profileKey(profileId, "chosen");
@@ -388,8 +388,8 @@ export function saveSwipeProgress(profileId: string, data: SwipeProgress): void 
 	touchProfile(profileId);
 }
 
-export function loadRanking(profileId: string): RankingProgress | null {
-	const parsed = parseJsonFromStorage(narrowdownKey(profileId));
+export function loadPrioritizeProgress(profileId: string): PrioritizeProgress | null {
+	const parsed = parseJsonFromStorage(prioritizeKey(profileId));
 	if (!isObjectRecord(parsed)) {
 		return null;
 	}
@@ -402,12 +402,12 @@ export function loadRanking(profileId: string): RankingProgress | null {
 	if (typeof parsed.complete !== "boolean") {
 		return null;
 	}
-	const comparisons: MaxDiffComparison[] = [];
+	const comparisons: PairComparison[] = [];
 	for (const entry of parsed.comparisons) {
-		if (!isObjectRecord(entry) || !isStringArray(entry.set) || entry.set.length < 2 || typeof entry.best !== "string" || typeof entry.worst !== "string") {
+		if (!isObjectRecord(entry) || !isStringArray(entry.set) || entry.set.length !== 2 || typeof entry.best !== "string" || typeof entry.worst !== "string") {
 			return null;
 		}
-		comparisons.push({ set: entry.set, best: entry.best, worst: entry.worst });
+		comparisons.push({ set: [entry.set[0], entry.set[1]], best: entry.best, worst: entry.worst });
 	}
 	const ar = parsed.activeRound;
 	const activeRound = typeof ar === "number" && Number.isInteger(ar) && ar >= 0 && ar <= comparisons.length ? ar : undefined;
@@ -419,8 +419,8 @@ export function loadRanking(profileId: string): RankingProgress | null {
 	};
 }
 
-export function saveRanking(profileId: string, data: RankingProgress): void {
-	localStorage.setItem(narrowdownKey(profileId), JSON.stringify(data));
+export function savePrioritizeProgress(profileId: string, data: PrioritizeProgress): void {
+	localStorage.setItem(prioritizeKey(profileId), JSON.stringify(data));
 	touchProfile(profileId);
 }
 
@@ -446,9 +446,9 @@ export function selectCandidateCards(profileId: string): string[] {
 }
 
 export function needsPrioritization(profileId: string): boolean {
-	const ranking = loadRanking(profileId);
-	if (ranking !== null) {
-		return ranking.cardIds.length > 5;
+	const progress = loadPrioritizeProgress(profileId);
+	if (progress !== null) {
+		return progress.cardIds.length > 5;
 	}
 	return selectCandidateCards(profileId).length > 5;
 }
@@ -626,15 +626,15 @@ export function saveLlmTestState(data: LlmTestState): void {
 export type ProgressPhase = "examine" | "prioritize-complete" | "prioritize" | "identify" | "none";
 
 export function detectProfilePhase(id: string): ProgressPhase {
-	const chosenRaw = parseJsonFromStorage(`somecam-${id}-chosen`);
+	const chosenRaw = parseJsonFromStorage(chosenKey(id));
 	if (isStringArray(chosenRaw) && chosenRaw.length > 0) {
 		return "examine";
 	}
-	const narrowRaw = parseJsonFromStorage(`somecam-${id}-narrowdown`);
-	if (isObjectRecord(narrowRaw) && isStringArray(narrowRaw.cardIds) && narrowRaw.cardIds.length > 0 && Array.isArray(narrowRaw.comparisons) && typeof narrowRaw.complete === "boolean") {
-		return narrowRaw.complete ? "prioritize-complete" : "prioritize";
+	const prioritizeRaw = parseJsonFromStorage(prioritizeKey(id));
+	if (isObjectRecord(prioritizeRaw) && isStringArray(prioritizeRaw.cardIds) && prioritizeRaw.cardIds.length > 0 && Array.isArray(prioritizeRaw.comparisons) && typeof prioritizeRaw.complete === "boolean") {
+		return prioritizeRaw.complete ? "prioritize-complete" : "prioritize";
 	}
-	const progressRaw = parseJsonFromStorage(`somecam-${id}-progress`);
+	const progressRaw = parseJsonFromStorage(progressKey(id));
 	if (isObjectRecord(progressRaw) && Array.isArray(progressRaw.swipeHistory) && progressRaw.swipeHistory.length > 0) {
 		return "identify";
 	}

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from "vue";
 
-import type { StopMode } from "../shared/ranking.ts";
 import RemainingEstimatePlot from "./RemainingEstimatePlot.vue";
 import ViolinPlot from "./ViolinPlot.vue";
+import { range } from "./ranking-convergence-protocol.ts";
 import type { OracleSpec, RunResult, WorkerRequest, WorkerResponse } from "./ranking-convergence-protocol.ts";
 import ConvergenceWorker from "./ranking-convergence.worker.ts?worker";
 
@@ -18,11 +18,7 @@ interface TestDef {
 	trueStrength: number[];
 	oracleSpec: OracleSpec;
 	expectedTopK: number[];
-	config: { k: number; minK: number; m: number };
-}
-
-function range(n: number): number[] {
-	return Array.from({ length: n }, (_, i) => i);
+	config: { k: number };
 }
 
 function descendingStrength(n: number): number[] {
@@ -40,7 +36,7 @@ function buildTests(): TestDef[] {
 			trueStrength: descendingStrength(n),
 			oracleSpec: { type: "perfect" },
 			expectedTopK: range(5),
-			config: { k: 5, minK: 3, m: 3 },
+			config: { k: 5 },
 		});
 	}
 
@@ -56,7 +52,7 @@ function buildTests(): TestDef[] {
 				trueStrength: strength,
 				oracleSpec: { type: "noisy", confidentItems: topItems, noiseRange: 4, noiseSeed: 77 },
 				expectedTopK: topItems,
-				config: { k: 5, minK: 3, m: 3 },
+				config: { k: 5 },
 			});
 
 			tests.push({
@@ -66,7 +62,7 @@ function buildTests(): TestDef[] {
 				trueStrength: strength,
 				oracleSpec: { type: "random-bottom", confidentItems: topItems, randomMax: n - confidentCount, noiseSeed: 99 },
 				expectedTopK: topItems,
-				config: { k: 5, minK: 3, m: 3 },
+				config: { k: 5 },
 			});
 		}
 	}
@@ -85,7 +81,7 @@ function buildTests(): TestDef[] {
 			trueStrength: strength,
 			oracleSpec: { type: "mushy", confidentItems, n },
 			expectedTopK: [0, 1],
-			config: { k: 5, minK: 3, m: 3 },
+			config: { k: 5 },
 		});
 	}
 
@@ -101,7 +97,7 @@ function buildTests(): TestDef[] {
 			strengthsAfter: [8, 3, 6, 5, 4, 7, 2, 1],
 		},
 		expectedTopK: [0, 2, 3],
-		config: { k: 5, minK: 3, m: 3 },
+		config: { k: 5 },
 	});
 
 	return tests;
@@ -123,13 +119,44 @@ interface TestResult {
 	perfectCount: number;
 	goodEnoughCount: number;
 	incorrectCount: number;
+	stopCounts: Record<string, number>;
+}
+
+const STOP_REASON_ORDER = ["boundary-stable", "irreducible-cycle", "no-eligible-pairs", "max-tasks"] as const;
+const STOP_REASON_LABEL: Record<string, string> = {
+	"boundary-stable": "Boundary stable",
+	"irreducible-cycle": "Irreducible cycle",
+	"no-eligible-pairs": "No eligible pairs",
+	"max-tasks": "Max tasks (cap hit)",
+};
+
+function countStopReasons(runs: RunResult[]): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const r of runs) {
+		counts[r.stop] = (counts[r.stop] ?? 0) + 1;
+	}
+	return counts;
+}
+
+function stopBarTitle(counts: Record<string, number>): string {
+	const parts: string[] = [];
+	for (const r of STOP_REASON_ORDER) {
+		const n = counts[r] ?? 0;
+		if (n > 0) parts.push(`${STOP_REASON_LABEL[r]}: ${String(n)}`);
+	}
+	const knownReasons: readonly string[] = STOP_REASON_ORDER;
+	for (const [k, v] of Object.entries(counts)) {
+		if (!knownReasons.includes(k) && v > 0) {
+			parts.push(`${k}: ${String(v)}`);
+		}
+	}
+	return parts.join("\n");
 }
 
 // ---------------------------------------------------------------------------
 // Reactive state
 // ---------------------------------------------------------------------------
 
-// Build test matrix once so tables are always visible.
 const allTests = buildTests();
 const testNamesByScenario = new Map<string, string[]>();
 
@@ -142,10 +169,8 @@ for (const t of allTests) {
 	}
 }
 
-const delta = ref<number | null>(null);
-const stopMode = ref<StopMode>("boundary_only");
+const epsilon = ref<number | null>(null);
 const maxTasks = ref<number | null>(null);
-const m = ref(3);
 const numSeeds = ref(10);
 const running = ref(false);
 const progressText = ref("");
@@ -189,7 +214,6 @@ function runAll(): void {
 	const seedCount = numSeeds.value;
 	const seeds = Array.from({ length: seedCount }, (_, i) => i + 1);
 
-	// Build job list: one job per (test, seed) pair
 	interface Job {
 		request: WorkerRequest;
 		testIndex: number;
@@ -207,9 +231,8 @@ function runAll(): void {
 					trueStrength: t.trueStrength,
 					oracleSpec: t.oracleSpec,
 					expectedTopK: t.expectedTopK,
-					config: { ...t.config, m: m.value },
-					...(delta.value !== null ? { delta: delta.value } : {}),
-					stopMode: stopMode.value,
+					config: { ...t.config },
+					...(epsilon.value !== null ? { epsilon: epsilon.value } : {}),
 					...(maxTasks.value !== null ? { maxTasks: maxTasks.value } : {}),
 					seed,
 				},
@@ -222,7 +245,6 @@ function runAll(): void {
 	let completedJobs = 0;
 	let nextJob = 0;
 
-	// Collect results per test index
 	const runsByTest = new Map<number, RunResult[]>();
 	const newResults = new Map<string, Map<string, TestResult>>();
 
@@ -245,6 +267,7 @@ function runAll(): void {
 			perfectCount: runs.filter((r) => r.correctness === "perfect").length,
 			goodEnoughCount: runs.filter((r) => r.correctness === "good-enough").length,
 			incorrectCount: runs.filter((r) => r.correctness === "incorrect").length,
+			stopCounts: countStopReasons(runs),
 		};
 
 		let scenarioMap = newResults.get(t.scenario);
@@ -257,7 +280,6 @@ function runAll(): void {
 		results.value = new Map(newResults);
 	}
 
-	// Create worker pool
 	const poolSize = Math.min(navigator.hardwareConcurrency, totalJobs);
 	const workers: Worker[] = [];
 	const submitTimes = new Map<number, number>();
@@ -295,14 +317,12 @@ function runAll(): void {
 		updateResults(ti);
 
 		if (completedJobs >= totalJobs) {
-			// All done — terminate workers
 			for (const w of workers) w.terminate();
 			running.value = false;
 			progressText.value = "";
 			return;
 		}
 
-		// Dispatch next job to this worker
 		dispatch(worker);
 	}
 
@@ -337,12 +357,13 @@ function maxRoundsForScenario(scenario: string): number {
 	return Math.max(max, 10);
 }
 
-function scenarioTotals(scenario: string): { totalPerfect: number; totalGoodEnough: number; totalIncorrect: number; totalRuns: number } {
+function scenarioTotals(scenario: string): { totalPerfect: number; totalGoodEnough: number; totalIncorrect: number; totalRuns: number; totalStopCounts: Record<string, number> } {
 	const names = testNamesByScenario.get(scenario) ?? [];
 	let totalPerfect = 0;
 	let totalGoodEnough = 0;
 	let totalIncorrect = 0;
 	let totalRuns = 0;
+	const totalStopCounts: Record<string, number> = {};
 	for (const name of names) {
 		const r = getResult(scenario, name);
 		if (r === undefined) continue;
@@ -350,8 +371,11 @@ function scenarioTotals(scenario: string): { totalPerfect: number; totalGoodEnou
 		totalGoodEnough += r.goodEnoughCount;
 		totalIncorrect += r.incorrectCount;
 		totalRuns += numSeeds.value;
+		for (const [k, v] of Object.entries(r.stopCounts)) {
+			totalStopCounts[k] = (totalStopCounts[k] ?? 0) + v;
+		}
 	}
-	return { totalPerfect, totalGoodEnough, totalIncorrect, totalRuns };
+	return { totalPerfect, totalGoodEnough, totalIncorrect, totalRuns, totalStopCounts };
 }
 
 const scenarioLabels: Record<string, string> = {
@@ -369,7 +393,7 @@ const scenarioLabels: Record<string, string> = {
 };
 
 const scenarioDescriptions: Record<string, string> = {
-	perfect: "Oracle always picks the truly best and worst items. Baseline for convergence speed. Should stop with confidence, eK=5, and correct=100%.",
+	perfect: "Oracle always picks the truly best and worst items. Baseline for convergence speed. Should stop with the correct top-5.",
 	"noisy-t3": "Top 3 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 3.",
 	"noisy-t4": "Top 4 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 4.",
 	"noisy-t5": "Top 5 items are judged correctly; bottom items are jittered around their true strength (partial noise — still correlated with truth, unlike Random Bottom). Should identify the true top 5.",
@@ -378,7 +402,7 @@ const scenarioDescriptions: Record<string, string> = {
 	"rand-bot-t4": "Top 4 items are judged correctly; bottom items get completely random strengths. Should identify the true top 4.",
 	"rand-bot-t5": "Top 5 items are judged correctly; bottom items get completely random strengths. Should identify the true top 5.",
 	"rand-bot-t6": "Top 6 items are judged correctly; bottom items get completely random strengths. Should identify the true top 5 (k=5 cap).",
-	mushy: "Top 2 and bottom 2 items are clear; middle items are indistinguishable. Should identify the top 2 correctly (eK=3 or lower) despite the ambiguous middle.",
+	mushy: "Top 2 and bottom 2 items are clear; middle items are indistinguishable. Should stop with cycles or many near-optimal sets straddling the boundary.",
 	reversal: "Oracle changes its preferences at round 15, swapping items 1 and 5. Should adapt to the new ordering and correctly identify items 0, 2, 3 as top.",
 };
 
@@ -389,27 +413,16 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 	<!-- eslint-disable vue/no-restricted-html-elements -->
 	<div class="rc-container">
 		<h1>Ranking convergence</h1>
+		<p class="hint">Pair-based graph algorithm — see <code>docs/ranking.md</code>.</p>
 
 		<div class="controls">
 			<label>
-				Delta
-				<input :value="delta ?? ''" type="number" step="0.01" min="0.01" max="1" placeholder="auto" class="num-input" @input="delta = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" />
-			</label>
-			<label>
-				Stop mode
-				<select v-model="stopMode" class="select-input">
-					<option value="boundary_only">Boundary only</option>
-					<option value="all_cross_pairs">All cross-pairs</option>
-					<option value="bayesian">Bayesian</option>
-				</select>
+				Epsilon
+				<input :value="epsilon ?? ''" type="number" step="1" min="0" max="50" placeholder="auto" class="num-input" @input="epsilon = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" />
 			</label>
 			<label>
 				Max tasks
 				<input :value="maxTasks ?? ''" type="number" min="1" max="9999" placeholder="auto" class="num-input" @input="maxTasks = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" />
-			</label>
-			<label>
-				m
-				<input v-model.number="m" type="number" min="2" max="99" class="num-input" />
 			</label>
 			<label>
 				Seeds
@@ -430,12 +443,12 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 				<thead>
 					<tr>
 						<th>Test</th>
-						<th>Delta</th>
 						<th>Max</th>
 						<th colspan="3">Rounds</th>
 						<th>Distribution</th>
 						<th><span class="hint-label" title="X: actual remaining (high to low, left to right = time). Y: predicted remaining (mid estimate). Dots above the dashed line = overestimates, below = underestimates.">Est. Remaining</span></th>
 						<th colspan="3">eK</th>
+						<th><span class="hint-label" title="Stop reason distribution. Green = boundary-stable (clean), amber = irreducible-cycle, blue = no-eligible-pairs, red = max-tasks (cap hit).">Stop</span></th>
 						<th class="c-perfect" title="Perfect">P</th>
 						<th class="c-good-enough" title="Good enough">G</th>
 						<th class="c-incorrect" title="Incorrect">I</th>
@@ -445,7 +458,6 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 					<tr v-for="testName in testNamesByScenario.get(scenario)" :key="testName">
 						<td>{{ testName }}</td>
 						<template v-if="getResult(scenario, testName)">
-							<td class="mono num">{{ getResult(scenario, testName)?.runs[0]?.delta }}</td>
 							<td class="mono num">{{ getResult(scenario, testName)?.runs[0]?.maxTasks }}</td>
 							<td class="mono num"><span class="stat-label">min</span>{{ getResult(scenario, testName)?.roundMin }}</td>
 							<td class="mono num"><span class="stat-label">avg</span>{{ getResult(scenario, testName)?.roundMedian }}</td>
@@ -463,6 +475,13 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 							<td class="mono num">
 								<template v-if="getResult(scenario, testName)?.eKMin === getResult(scenario, testName)?.eKMax"></template><template v-else><span class="stat-label">max</span>{{ getResult(scenario, testName)?.eKMax }}</template>
 							</td>
+							<td>
+								<div class="stop-bar" :title="stopBarTitle(getResult(scenario, testName)?.stopCounts ?? {})">
+									<div v-for="reason in STOP_REASON_ORDER" v-show="(getResult(scenario, testName)?.stopCounts[reason] ?? 0) > 0" :key="reason" class="stop-seg" :class="`stop-${reason}`" :style="{ flexGrow: getResult(scenario, testName)?.stopCounts[reason] ?? 0 }">
+										{{ getResult(scenario, testName)?.stopCounts[reason] }}
+									</div>
+								</div>
+							</td>
 							<td class="mono num" :class="{ 'c-perfect': (getResult(scenario, testName)?.perfectCount ?? 0) > 0 }">{{ getResult(scenario, testName)?.perfectCount }}</td>
 							<td class="mono num" :class="{ 'c-good-enough': (getResult(scenario, testName)?.goodEnoughCount ?? 0) > 0 }">{{ getResult(scenario, testName)?.goodEnoughCount }}</td>
 							<td class="mono num" :class="{ 'c-incorrect': (getResult(scenario, testName)?.incorrectCount ?? 0) > 0 }">{{ getResult(scenario, testName)?.incorrectCount }}</td>
@@ -474,7 +493,14 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 				</tbody>
 				<tfoot v-if="results.get(scenario)">
 					<tr>
-						<td colspan="11"><strong>Total</strong></td>
+						<td colspan="10"><strong>Total</strong></td>
+						<td>
+							<div class="stop-bar" :title="stopBarTitle(scenarioTotals(scenario).totalStopCounts)">
+								<div v-for="reason in STOP_REASON_ORDER" v-show="(scenarioTotals(scenario).totalStopCounts[reason] ?? 0) > 0" :key="reason" class="stop-seg" :class="`stop-${reason}`" :style="{ flexGrow: scenarioTotals(scenario).totalStopCounts[reason] ?? 0 }">
+									{{ scenarioTotals(scenario).totalStopCounts[reason] }}
+								</div>
+							</div>
+						</td>
 						<td class="mono num" :class="{ 'c-perfect': scenarioTotals(scenario).totalPerfect > 0 }">
 							<strong>{{ scenarioTotals(scenario).totalPerfect }}</strong>
 						</td>
@@ -514,12 +540,6 @@ const scenarioOrder = ["perfect", "noisy-t3", "noisy-t4", "noisy-t5", "noisy-t6"
 
 .num-input {
 	width: 5rem;
-	padding: 0.4rem;
-	font-size: 1rem;
-}
-
-.select-input {
-	width: 10rem;
 	padding: 0.4rem;
 	font-size: 1rem;
 }
@@ -604,5 +624,44 @@ th {
 
 .c-incorrect {
 	color: #dc2626;
+}
+
+.stop-bar {
+	display: flex;
+	width: 100%;
+	min-width: 4rem;
+	height: 1.25rem;
+	border-radius: 2px;
+	overflow: hidden;
+	cursor: help;
+	background: #f0f0f0;
+}
+
+.stop-seg {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: monospace;
+	font-size: 0.7rem;
+	color: #fff;
+	min-width: 0;
+	overflow: hidden;
+	text-shadow: 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.stop-boundary-stable {
+	background: #2a6e4e;
+}
+
+.stop-irreducible-cycle {
+	background: #d97706;
+}
+
+.stop-no-eligible-pairs {
+	background: #2563eb;
+}
+
+.stop-max-tasks {
+	background: #dc2626;
 }
 </style>

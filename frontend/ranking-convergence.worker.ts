@@ -1,11 +1,13 @@
 // Web Worker for ranking convergence tests.
 // Each message is a single runTest() job; the worker posts back the result.
 
-import { Ranking, makeXorshift } from "../shared/ranking.ts";
+import { makeXorshift } from "../shared/ranking-math.ts";
+import { Ranking } from "../shared/ranking.ts";
+import { range } from "./ranking-convergence-protocol.ts";
 import type { OracleSpec, RunResult, WorkerRequest, WorkerResponse } from "./ranking-convergence-protocol.ts";
 
 // ---------------------------------------------------------------------------
-// Oracle reconstruction from serializable specs
+// Oracle reconstruction from serializable specs (length-2 task sets)
 // ---------------------------------------------------------------------------
 
 type OracleFn = (task: number[], trueStrength: number[], round: number) => { best: number; worst: number };
@@ -77,18 +79,20 @@ function buildOracle(spec: OracleSpec): OracleFn {
 // Run a single test
 // ---------------------------------------------------------------------------
 
-function range(n: number): number[] {
-	return Array.from({ length: n }, (_, i) => i);
-}
-
 function runTest(req: WorkerRequest): RunResult {
 	const items = range(req.n);
 	const oracle = buildOracle(req.oracleSpec);
-	const ranking = new Ranking(items, { ...req.config, ...(req.maxTasks !== undefined ? { maxTasks: req.maxTasks } : {}), ...(req.delta !== undefined ? { delta: req.delta } : {}), ...(req.stopMode !== undefined ? { stopMode: req.stopMode } : {}), seed: req.seed });
+	const ranking = new Ranking(items, {
+		k: req.config.k,
+		seed: req.seed,
+		...(req.maxTasks !== undefined ? { maxTasks: req.maxTasks } : {}),
+		...(req.minTasks !== undefined ? { minTasks: req.minTasks } : {}),
+		...(req.epsilon !== undefined ? { epsilon: req.epsilon } : {}),
+	});
 	const estimatedMidPerRound: (number | null)[] = [];
 	while (!ranking.stopped) {
-		const { items: task } = ranking.selectTask();
-		const { best, worst } = oracle(task, req.trueStrength, ranking.round);
+		const { items: pair } = ranking.selectTask();
+		const { best, worst } = oracle(pair, req.trueStrength, ranking.round);
 		ranking.recordTask(best, worst);
 		estimatedMidPerRound.push(ranking.estimateRemaining());
 	}
@@ -99,7 +103,14 @@ function runTest(req: WorkerRequest): RunResult {
 	const goodEnoughExpected = req.expectedTopK.slice(0, Math.min(eK, req.expectedTopK.length));
 	const goodEnoughCorrect = goodEnoughExpected.every((x) => topK.has(x));
 	const correctness = perfectCorrect ? "perfect" : goodEnoughCorrect ? "good-enough" : "incorrect";
-	return { round: ranking.round, stop: ranking.stopReason ?? "?", eK, correctness, delta: ranking.delta, maxTasks: ranking.maxTasks, estimatedMidPerRound };
+	return {
+		round: ranking.round,
+		stop: ranking.stopReason ?? "?",
+		eK,
+		correctness,
+		maxTasks: ranking.maxTasks,
+		estimatedMidPerRound,
+	};
 }
 
 // ---------------------------------------------------------------------------

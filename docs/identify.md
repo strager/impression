@@ -31,17 +31,17 @@ step.
 > included alongside your "agree" responses for the prioritizing step, so
 > you have enough to work with.
 
-## Step 2: Ranking
+## Step 2: Prioritizing
 
 In this step, you narrow down the sources of meaning that passed the
-initial identification to your top 3–5 through a series of MaxDiff (Best-Worst
-Scaling) tasks.
+initial identification to your top 3–5 through a series of pairwise
+comparisons.
 
-You are shown three sources of meaning at a time. First, you choose
-which one matters to you **most**. Then, from the remaining two,
-you choose which matters **least**. This two-phase selection gives the
-algorithm roughly three times as much information per task compared to
-a simple head-to-head comparison.
+You are shown two sources of meaning at a time. Tap the one that
+matters more to you to highlight it, then tap it again to confirm. A
+**Back** button lets you undo the previous comparison — when you go
+back, the pair you originally answered is shown again with your previous
+pick pre-highlighted, so you can re-confirm or change your mind.
 
 An important change happens here: each source of meaning now reveals its
 **name** alongside the original description. For example,
@@ -49,21 +49,27 @@ you might see the label _"Social commitment"_ above the description _"I
 intervene when I see injustice being done"_. This additional context
 helps you make more deliberate choices.
 
-Tasks continue until the algorithm is confident in your top
+Comparisons continue until the algorithm is confident in your top
 selections — typically 5, but sometimes 3 or 4 if the remaining
 positions are too close to call. Those become your final selection, and
-you are taken to your results. A progress indicator shows how many
-tasks are left.
+you are taken to your results. A progress indicator shows roughly how
+many comparisons are left. See [`ranking.md`](ranking.md) for the
+full algorithm specification.
 
 ### Debug view
 
 Append `?debug` to the prioritize page URL (for example
 `/your-profile/prioritize?debug`) to reveal a debug panel below the
-ranking UI. The panel shows the ranking algorithm's current internal
-state (utility estimates, uncertainty, exposures, top-K membership),
-the full history of your selections as ordered triples (e.g.
-`1. Honesty > Freedom > Power`), and a directed graph of the cards in
-which each triple A>B>C contributes three edges: A→B, A→C, and B→C.
+ranking UI. The panel shows the algorithm's current state — round, stop
+reason, effective k, estimated remaining comparisons, the number of
+near-optimal top-5 sets still in contention, and a per-card table of
+exposures, wins, losses, and top-K membership — followed by the full
+history of your comparisons as ordered pairs (e.g. `1. Honesty >
+Freedom`) and a directed graph of the cards. A solid arrow A→B means
+"you picked A over B directly"; a dashed line A⋯B (with a weight label)
+means the algorithm implies A > B by transitive closure. Cards sharing
+a tinted background belong to the same strongly connected component
+(your preferences imply a cycle like A > B > … > A in that region).
 
 ## Step 3: Editing your selection
 

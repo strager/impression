@@ -3,9 +3,9 @@ import dagre from "dagre";
 import { computed } from "vue";
 
 import { MEANING_CARDS } from "../shared/meaning-cards.ts";
-import type { IdentifyRankingViewModel } from "./PrioritizeViewModel.ts";
+import type { PrioritizeViewModel } from "./PrioritizeViewModel.ts";
 
-const props = defineProps<{ vm: IdentifyRankingViewModel }>();
+const props = defineProps<{ vm: PrioritizeViewModel }>();
 
 const cardSourceById = new Map(MEANING_CARDS.map((c) => [c.id, c.source]));
 
@@ -16,71 +16,59 @@ function sourceFor(id: string): string {
 interface InternalRow {
 	id: string;
 	source: string;
-	mu: number;
-	uncertainty: number;
 	exposures: number;
-	taskBest: number;
-	taskWorst: number;
+	wins: number;
+	losses: number;
 	inTopK: boolean;
+	sccSize: number;
 }
 
 const internalRows = computed<InternalRow[]>(() => {
 	const debugState = props.vm.debugState;
 	if (debugState === null) return [];
 	const cardIds = props.vm.cardIds;
-	const n = cardIds.length;
 	const topKIds = new Set(props.vm.topK.map((c) => c.id));
-	const bestCounts = new Map<string, number>();
-	const worstCounts = new Map<string, number>();
+	const winsByCard = new Map<string, number>();
+	const lossesByCard = new Map<string, number>();
 	for (const record of props.vm.history) {
-		bestCounts.set(record.best, (bestCounts.get(record.best) ?? 0) + 1);
-		worstCounts.set(record.worst, (worstCounts.get(record.worst) ?? 0) + 1);
+		winsByCard.set(record.best, (winsByCard.get(record.best) ?? 0) + 1);
+		lossesByCard.set(record.worst, (lossesByCard.get(record.worst) ?? 0) + 1);
 	}
-	const rows: InternalRow[] = [];
-	for (let i = 0; i < n; i++) {
-		const id = cardIds[i];
-		const variance = debugState.sigma[i * n + i];
-		rows.push({
-			id,
-			source: sourceFor(id),
-			mu: debugState.mu[i],
-			uncertainty: Math.sqrt(Math.max(0, variance)),
-			exposures: debugState.exposures[i],
-			taskBest: bestCounts.get(id) ?? 0,
-			taskWorst: worstCounts.get(id) ?? 0,
-			inTopK: topKIds.has(id),
-		});
+	const sccSizeByCard = new Map<string, number>();
+	for (const comp of debugState.sccs) {
+		for (const id of comp) {
+			sccSizeByCard.set(id, comp.length);
+		}
 	}
-	rows.sort((a, b) => b.mu - a.mu);
+	const rows: InternalRow[] = cardIds.map((id, i) => ({
+		id,
+		source: sourceFor(id),
+		exposures: debugState.exposures[i],
+		wins: winsByCard.get(id) ?? 0,
+		losses: lossesByCard.get(id) ?? 0,
+		inTopK: topKIds.has(id),
+		sccSize: sccSizeByCard.get(id) ?? 1,
+	}));
+	rows.sort((a, b) => {
+		if (a.inTopK !== b.inTopK) return a.inTopK ? -1 : 1;
+		return b.wins - b.losses - (a.wins - a.losses);
+	});
 	return rows;
 });
 
 interface HistoryEntry {
 	round: number;
-	bestSource: string;
-	middleSource: string;
-	worstSource: string;
+	winnerSource: string;
+	loserSource: string;
 }
 
 const historyEntries = computed<HistoryEntry[]>(() => {
-	return props.vm.history.map((record, index) => {
-		const middleId = record.set.find((id) => id !== record.best && id !== record.worst) ?? "";
-		return {
-			round: index + 1,
-			bestSource: sourceFor(record.best),
-			middleSource: sourceFor(middleId),
-			worstSource: sourceFor(record.worst),
-		};
-	});
+	return props.vm.history.map((record, index) => ({
+		round: index + 1,
+		winnerSource: sourceFor(record.best),
+		loserSource: sourceFor(record.worst),
+	}));
 });
-
-interface PairEdge {
-	from: string;
-	to: string;
-	forwardCount: number;
-	reverseCount: number;
-	diff: number;
-}
 
 interface RenderedNode {
 	id: string;
@@ -89,15 +77,19 @@ interface RenderedNode {
 	y: number;
 	width: number;
 	height: number;
+	sccTint: number;
 }
 
-interface RenderedEdge extends PairEdge {
+interface RenderedEdge {
+	from: string;
+	to: string;
 	path: string;
-	labelX: number;
-	labelY: number;
+	dashed: boolean;
 	opacity: number;
 	strokeWidth: number;
-	stroke: string;
+	weight?: number;
+	labelX: number;
+	labelY: number;
 }
 
 interface GraphLayout {
@@ -114,45 +106,11 @@ const NODE_CHAR_WIDTH = 7;
 const NODE_PADDING = 16;
 const NODE_MIN_WIDTH = 60;
 
-const pairEdges = computed<PairEdge[]>(() => {
-	const directional = new Map<string, number>();
-	for (const record of props.vm.history) {
-		const middleId = record.set.find((id) => id !== record.best && id !== record.worst);
-		if (middleId === undefined) continue;
-		const pairs: [string, string][] = [
-			[record.best, middleId],
-			[record.best, record.worst],
-			[middleId, record.worst],
-		];
-		for (const [from, to] of pairs) {
-			const key = `${from}\x00${to}`;
-			directional.set(key, (directional.get(key) ?? 0) + 1);
-		}
-	}
-
-	const seen = new Set<string>();
-	const result: PairEdge[] = [];
-	for (const [key, count] of directional) {
-		const [a, b] = key.split("\x00");
-		const pairKey = a < b ? `${a}\x00${b}` : `${b}\x00${a}`;
-		if (seen.has(pairKey)) continue;
-		seen.add(pairKey);
-		const reverseCount = directional.get(`${b}\x00${a}`) ?? 0;
-		if (count === reverseCount) continue;
-		if (count > reverseCount) {
-			result.push({ from: a, to: b, forwardCount: count, reverseCount, diff: count - reverseCount });
-		} else {
-			result.push({ from: b, to: a, forwardCount: reverseCount, reverseCount: count, diff: reverseCount - count });
-		}
-	}
-	return result;
-});
-
 const graphLayout = computed<GraphLayout>(() => {
+	const debugState = props.vm.debugState;
 	const ids = new Set(props.vm.cardIds);
 	const cards = MEANING_CARDS.filter((c) => ids.has(c.id));
-	const edges = pairEdges.value;
-	if (cards.length === 0) {
+	if (debugState === null || cards.length === 0) {
 		return { nodes: [], edges: [], viewMinX: 0, viewMinY: 0, width: 0, height: 0 };
 	}
 
@@ -164,29 +122,57 @@ const graphLayout = computed<GraphLayout>(() => {
 		const width = Math.max(NODE_MIN_WIDTH, card.source.length * NODE_CHAR_WIDTH + NODE_PADDING);
 		g.setNode(card.id, { label: card.source, width, height: NODE_HEIGHT });
 	}
-	for (const edge of edges) {
-		g.setEdge(edge.from, edge.to);
+	for (const [from, to] of debugState.edges) {
+		g.setEdge(from, to);
 	}
 
 	dagre.layout(g);
 
+	const sccTintByCard = new Map<string, number>();
+	let multiSccCount = 0;
+	for (const comp of debugState.sccs) {
+		if (comp.length < 2) continue;
+		multiSccCount++;
+		for (const id of comp) sccTintByCard.set(id, multiSccCount);
+	}
+
 	const renderedNodes: RenderedNode[] = cards.map((card) => {
 		const n = g.node(card.id);
-		return { id: card.id, source: card.source, x: n.x, y: n.y, width: n.width, height: n.height };
+		return { id: card.id, source: card.source, x: n.x, y: n.y, width: n.width, height: n.height, sccTint: sccTintByCard.get(card.id) ?? 0 };
 	});
 
-	const maxDiff = edges.reduce((m, e) => Math.max(m, e.diff), 1);
-	const renderedEdges: RenderedEdge[] = edges.map((edge) => {
-		const dagreEdge = g.edge(edge.from, edge.to);
+	const renderedEdges: RenderedEdge[] = debugState.edges.map(([from, to]) => {
+		const dagreEdge = g.edge(from, to);
 		const points = dagreEdge.points;
 		const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${String(p.x)} ${String(p.y)}`).join(" ");
 		const mid = points[Math.floor(points.length / 2)];
-		const t = maxDiff > 1 ? (edge.diff - 1) / (maxDiff - 1) : 0;
-		const opacity = 0.4 + 0.6 * t;
-		const strokeWidth = 1.0 + 1.0 * t;
-		const stroke = edge.reverseCount !== 0 ? "#d97706" : "var(--color-gray-600)";
-		return { ...edge, path, labelX: mid.x, labelY: mid.y, opacity, strokeWidth, stroke };
+		return { from, to, path, dashed: false, opacity: 1, strokeWidth: 1.5, labelX: mid.x, labelY: mid.y };
 	});
+
+	// Overlay implied closure edges as dashed lines for pairs that have no direct edge.
+	// We can't run dagre.layout for these without distorting the node layout, so we draw
+	// straight lines between node centers and scale opacity by the implied weight.
+	const directKeys = new Set<string>();
+	for (const [from, to] of debugState.edges) directKeys.add(`${from}\x00${to}`);
+	const nodeById = new Map<string, RenderedNode>(renderedNodes.map((n) => [n.id, n]));
+	for (const [from, to, weight] of debugState.closureImplied) {
+		if (directKeys.has(`${from}\x00${to}`) || directKeys.has(`${to}\x00${from}`)) continue;
+		if (weight < 0.1) continue;
+		const a = nodeById.get(from);
+		const b = nodeById.get(to);
+		if (a === undefined || b === undefined) continue;
+		renderedEdges.push({
+			from,
+			to,
+			path: `M ${String(a.x)} ${String(a.y)} L ${String(b.x)} ${String(b.y)}`,
+			dashed: true,
+			opacity: 0.2 + 0.6 * weight,
+			strokeWidth: 1,
+			weight,
+			labelX: (a.x + b.x) / 2,
+			labelY: (a.y + b.y) / 2,
+		});
+	}
 
 	let minX = Infinity;
 	let minY = Infinity;
@@ -198,16 +184,6 @@ const graphLayout = computed<GraphLayout>(() => {
 		maxX = Math.max(maxX, node.x + node.width / 2);
 		maxY = Math.max(maxY, node.y + node.height / 2);
 	}
-	for (const edge of edges) {
-		const dagreEdge = g.edge(edge.from, edge.to);
-		for (const p of dagreEdge.points) {
-			minX = Math.min(minX, p.x);
-			minY = Math.min(minY, p.y);
-			maxX = Math.max(maxX, p.x);
-			maxY = Math.max(maxY, p.y);
-		}
-	}
-	// Pad for arrowhead markers, stroke width, and edge count labels.
 	const padding = 12;
 	minX -= padding;
 	minY -= padding;
@@ -230,9 +206,19 @@ const remainingDisplay = computed<string>(() => {
 	return Math.ceil(est).toString();
 });
 
-function formatNumber(value: number, digits: number): string {
-	if (!Number.isFinite(value)) return String(value);
-	return value.toFixed(digits);
+const sccSummary = computed<string>(() => {
+	const debugState = props.vm.debugState;
+	if (debugState === null) return "—";
+	const multi = debugState.sccs.filter((c) => c.length >= 2);
+	if (multi.length === 0) return "none";
+	return multi.map((c) => `{${c.map((id) => sourceFor(id)).join(", ")}}`).join(", ");
+});
+
+const SCC_TINTS = ["#fce7d6", "#dbeafe", "#fde7e3", "#e9d8fd", "#fef3c7", "#d1fae5"];
+
+function sccFill(tint: number): string {
+	if (tint === 0) return "var(--color-white)";
+	return SCC_TINTS[(tint - 1) % SCC_TINTS.length];
 }
 </script>
 
@@ -267,30 +253,40 @@ function formatNumber(value: number, digits: number): string {
 					<dt>N (cards)</dt>
 					<dd>{{ vm.cardIds.length }}</dd>
 				</div>
+				<div>
+					<dt>Near-optimal sets</dt>
+					<dd>{{ vm.debugState?.nearOptimalCount ?? "—" }}</dd>
+				</div>
+				<div>
+					<dt>Direct edges</dt>
+					<dd>{{ vm.debugState?.edges.length ?? "—" }}</dd>
+				</div>
+				<div class="full">
+					<dt>Multi-card SCCs (cycles)</dt>
+					<dd>{{ sccSummary }}</dd>
+				</div>
 			</dl>
 			<table class="debug-table">
 				<thead>
 					<tr>
 						<th>#</th>
 						<th>Source</th>
-						<th>μ (utility)</th>
-						<th>σ (uncertainty)</th>
 						<th>Exposures</th>
-						<th>Task Best</th>
-						<th>Task Worst</th>
+						<th>Wins</th>
+						<th>Losses</th>
 						<th>Top-K</th>
+						<th>SCC size</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr v-for="(row, index) in internalRows" :key="row.id" :class="{ 'in-topk': row.inTopK }">
 						<td>{{ index + 1 }}</td>
 						<td>{{ row.source }}</td>
-						<td>{{ formatNumber(row.mu, 3) }}</td>
-						<td>{{ formatNumber(row.uncertainty, 3) }}</td>
 						<td>{{ row.exposures }}</td>
-						<td>{{ row.taskBest }}</td>
-						<td>{{ row.taskWorst }}</td>
+						<td>{{ row.wins }}</td>
+						<td>{{ row.losses }}</td>
 						<td>{{ row.inTopK ? "✓" : "" }}</td>
+						<td>{{ row.sccSize > 1 ? row.sccSize : "" }}</td>
 					</tr>
 				</tbody>
 			</table>
@@ -299,14 +295,14 @@ function formatNumber(value: number, digits: number): string {
 		<section class="debug-section">
 			<h3>History ({{ historyEntries.length }})</h3>
 			<ol v-if="historyEntries.length > 0" class="debug-history">
-				<li v-for="entry in historyEntries" :key="entry.round">{{ entry.round }}. {{ entry.bestSource }} &gt; {{ entry.middleSource }} &gt; {{ entry.worstSource }}</li>
+				<li v-for="entry in historyEntries" :key="entry.round">{{ entry.round }}. {{ entry.winnerSource }} &gt; {{ entry.loserSource }}</li>
 			</ol>
 			<p v-else class="debug-empty">No comparisons yet.</p>
 		</section>
 
 		<section class="debug-section">
 			<h3>Graph</h3>
-			<p class="debug-help">Each triple A&gt;B&gt;C contributes A→B, A→C, B→C to the win counts. One edge per pair, drawn in the dominant direction (none if tied). Label format: +wins -losses; edges with a larger margin are darker.</p>
+			<p class="debug-help">Solid arrows: direct preference edges (winner → loser). Dashed: implied via transitive closure (weight ≥ 0.1). Nodes in the same tinted group share a multi-card SCC (cycle).</p>
 			<div v-if="graphLayout.nodes.length > 0" class="debug-graph-scroll">
 				<svg class="debug-graph" :style="{ minWidth: `${String(graphLayout.width)}px` }" :viewBox="`${String(graphLayout.viewMinX)} ${String(graphLayout.viewMinY)} ${String(graphLayout.width)} ${String(graphLayout.height)}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Comparison graph">
 					<defs>
@@ -315,17 +311,14 @@ function formatNumber(value: number, digits: number): string {
 						</marker>
 					</defs>
 					<g class="edges">
-						<g v-for="edge in graphLayout.edges" :key="`${edge.from}-${edge.to}`" :style="{ opacity: edge.opacity }">
-							<path :d="edge.path" :stroke="edge.stroke" :stroke-width="edge.strokeWidth" marker-end="url(#debug-arrowhead)" />
-							<text :x="edge.labelX" :y="edge.labelY" class="edge-label">
-								<tspan :x="edge.labelX" dy="-0.4em">+{{ edge.forwardCount }}</tspan>
-								<tspan :x="edge.labelX" dy="1.2em">−{{ edge.reverseCount }}</tspan>
-							</text>
+						<g v-for="edge in graphLayout.edges" :key="`${edge.from}-${edge.to}-${edge.dashed ? 'i' : 'd'}`" :style="{ opacity: edge.opacity }">
+							<path :d="edge.path" :stroke="edge.dashed ? 'var(--color-gray-400)' : 'var(--color-gray-600)'" :stroke-width="edge.strokeWidth" :stroke-dasharray="edge.dashed ? '4 3' : undefined" :marker-end="edge.dashed ? undefined : 'url(#debug-arrowhead)'" />
+							<text v-if="edge.weight !== undefined" :x="edge.labelX" :y="edge.labelY" class="edge-label">{{ edge.weight.toFixed(2) }}</text>
 						</g>
 					</g>
 					<g class="nodes">
 						<g v-for="node in graphLayout.nodes" :key="node.id">
-							<rect :x="node.x - node.width / 2" :y="node.y - node.height / 2" :width="node.width" :height="node.height" rx="4" ry="4" class="node-rect" />
+							<rect :x="node.x - node.width / 2" :y="node.y - node.height / 2" :width="node.width" :height="node.height" rx="4" ry="4" class="node-rect" :style="{ fill: sccFill(node.sccTint) }" />
 							<text :x="node.x" :y="node.y" class="node-label">{{ node.source }}</text>
 						</g>
 					</g>
@@ -374,6 +367,10 @@ function formatNumber(value: number, digits: number): string {
 .debug-meta div {
 	display: flex;
 	flex-direction: column;
+}
+
+.debug-meta div.full {
+	grid-column: 1 / -1;
 }
 
 .debug-meta dt {
@@ -436,7 +433,6 @@ function formatNumber(value: number, digits: number): string {
 	overflow-x: auto;
 	background: var(--color-white);
 	border: var(--border-thin);
-	/* Full-bleed: extend past <main>'s 36rem cap to the viewport edges. */
 	margin-left: calc(50% - 50vw);
 	margin-right: calc(50% - 50vw);
 }
@@ -463,7 +459,6 @@ function formatNumber(value: number, digits: number): string {
 }
 
 .debug-graph .node-rect {
-	fill: var(--color-white);
 	stroke: var(--color-green-600);
 	stroke-width: 1;
 }
