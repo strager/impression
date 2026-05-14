@@ -2,7 +2,7 @@
 
 ## Goal
 
-Identify a user's top-5 set from N cards (N ≤ 27), where N is determined by the previous Identify phase. Top-5 is treated as an unordered set. Comparisons are pairwise. Minimize the number of comparisons the user is asked to answer.
+Identify a user's top-K set from N cards (N ≤ 27), where K is configurable as a range `[kMin, kMax]` (default `[3, 5]`) and N is determined by the previous Identify phase. The algorithm returns the largest K in the range whose boundary is stable given the user's answers; in clean data it converges on `kMax`, while genuinely ambiguous boundaries fall back to a smaller K with clean partition structure. Top-K is treated as an unordered set. Comparisons are pairwise. Minimize the number of comparisons the user is asked to answer.
 
 ## Core data structure
 
@@ -41,21 +41,23 @@ If no eligible pairs remain, the session terminates (see Termination). The algor
 
 **Step 2: Score each eligible pair.** The score combines three additive terms:
 
-score = w_b · boundary + w_c · decay(edges) · closure − w_s · sampling
+score = w_b · (boundary + wins_deficit_boost) + w_c · decay(edges) · closure − w_s · sampling
 
-1. **Boundary relevance.** Compute the current best top-5 set under min-disagreement-partition (see below). Then enumerate near-optimal alternatives — top-5 sets whose disagreement count is within a small tolerance of the optimum. A pair scores `boundary` equal to the count of near-optimal sets that split it (some include A and exclude B, or vice versa). Pairs that don't split any near-optimal set score 0 on this term — they can still win on closure expansion when the partition is essentially decided but more graph structure is needed (e.g., to resolve a boundary-straddling cycle).
+1. **Boundary relevance.** Compute the current best top-K set for *every* K in `[kMin, kMax]` under min-disagreement-partition (see below). Concatenate the near-optimal sets across all K's into one pool. A pair scores `boundary` equal to the count of pooled near-optimal sets that split it (some include A and exclude B, or vice versa). Aggregating across K's means a pair that disambiguates the K=4 boundary contributes too, not just K=kMax — important because a smaller K is an acceptable termination outcome.
 
-2. **Closure expansion.** Estimate how much new evidence the closure would gain if the comparison resolves either way. A pair where both cards have many existing connections to disjoint subgraphs has high closure expansion (asking it chains together two regions of the graph). For direction A → B, the gain is approximated by enumerating pairs (a, b) where a ∈ {A} ∪ strong-ancestors(A) and b ∈ {B} ∪ strong-descendants(B) — "strong" meaning closure weight ≥ τ. For each such (a, b), assume a single-hop on each side (combined path length 1 + 1{a≠A} + 1{b≠B}) and credit the difference between the prob-OR-combined new weight and the existing W(a, b). The two directions A→B and B→A are summed. This is a heuristic approximation, not exact path enumeration; precision isn't critical because this term mainly serves to seed asks in regions of the graph the partition hasn't yet touched. The `decay(edges)` factor — e.g., `exp(−edges / (k·N))` — reduces this term's influence as the closure saturates.
+   A small **wins-deficit boost** is added to the boundary term: each endpoint that's in the current K=kMax strict optimum but hasn't yet met the wins floor (see Termination) counts as one extra virtual split. Without this boost the algorithm would stop probing the K=kMax boundary the moment the partition was uniquely decided, and the wins floor would never be reached.
+
+2. **Closure expansion.** Estimate how much new evidence the closure would gain if the comparison resolves either way. A pair where both cards have many existing connections to disjoint subgraphs has high closure expansion (asking it chains together two regions of the graph). For direction A → B, the gain is approximated by enumerating pairs (a, b) where a ∈ {A} ∪ strong-ancestors(A) and b ∈ {B} ∪ strong-descendants(B) — "strong" meaning closure weight ≥ τ. For each such (a, b), assume a single-hop on each side (combined path length 1 + 1{a≠A} + 1{b≠B}) and credit the difference between the prob-OR-combined new weight and the existing W(a, b). The two directions A→B and B→A are summed. This is a heuristic approximation, not exact path enumeration; precision isn't critical because this term mainly serves to seed asks in regions of the graph the partition hasn't yet touched. The `decay(edges)` factor — `exp(−edges / (k·N))` — reduces this term's influence as the closure saturates.
 
 3. **Sampling balance.** Mildly penalize pairs involving cards that have already been compared many times, to avoid the failure mode of re-asking about cards the user has clear opinions on. This is a soft penalty, not a hard cap — it only matters as a tiebreaker between otherwise equivalent pairs.
 
-The exact weights (w_b, w_c, w_s) are a tuning knob to be set after observing real sessions in the visualization. A reasonable starting point: w_b = w_c = 1, w_s = 0.1 — boundary relevance and closure expansion contribute on roughly equal footing early, with closure expansion fading as edges accumulate, and sampling balance acting purely as a tiebreaker.
+The default weights are w_b = w_c = 1, w_s = 0.1 — boundary relevance and closure expansion contribute on roughly equal footing early, with closure expansion fading as edges accumulate, and sampling balance acting purely as a tiebreaker.
 
-**Step 3: Pick the highest-scoring pair.** If multiple pairs tie, break ties by sampling balance, then arbitrarily.
+**Step 3: Pick the highest-scoring pair.** If multiple pairs tie, break ties by sampling balance, then RNG.
 
 ## Min-disagreement-partition computation
 
-This is the algorithm's notion of "best top-5 set given current data." For each candidate set S of size 5, sum the _closure weights_ W(B, A) over all pairs where A ∈ S and B ∉ S — i.e., the total "evidence weight" of contradictions to the partition:
+This is the algorithm's notion of "best top-K set given current data," computed independently for each K in `[kMin, kMax]`. For each candidate set S of size K, sum the _closure weights_ W(B, A) over all pairs where A ∈ S and B ∉ S — i.e., the total "evidence weight" of contradictions to the partition:
 
 cost(S) = Σ\_{A ∈ S, B ∉ S} W(B, A)
 
@@ -63,28 +65,56 @@ A direct contradiction (some non-top card was directly judged to beat a top card
 
 Two consequences fall out:
 
-- Borderline partitions stay tied longer. More candidate top-5 sets remain near-optimal, which keeps boundary-relevance scoring finding pairs to ask about.
+- Borderline partitions stay tied longer. More candidate top-K sets remain near-optimal, which keeps boundary-relevance scoring finding pairs to ask about.
 - Convergence shifts away from "the closure has no holes" and toward "the partition is stable" — see Termination.
 
-The set with the minimum total cost is the current best top-5. With N ≤ 27, brute-force enumeration over C(N, 5) candidate sets is fast enough — at N=27, that's ~80,000 sets to evaluate per recomputation. With weighted contradictions, costs are real numbers rather than integers.
+The set with the minimum total cost is the current best top-K at that K. With N ≤ 27 and K ≤ 5, brute-force enumeration over C(N, K) candidate sets is fast enough — at N=27, K=5 that's ~80,000 sets to evaluate per K per recomputation.
 
-Track all sets within tolerance ε of the minimum (e.g., ε = 1, equivalent to "one full direct contradiction's worth"). These are the "near-optimal sets" the selection rule uses.
+For each K, two derived collections are tracked:
+
+- **Strict optima**: sets within `optEps` (≈ 1e-9) of the minimum — used by the unique-optimum termination check.
+- **Near-optimal sets**: sets within tolerance ε of the minimum (default ε = 1, equivalent to "one full direct contradiction's worth"). These drive the selection rule's boundary scoring.
+
+The cost gap between the strict optimum and the next strictly-worse set is the **margin** for that K — used by the boundary-stable termination check to guard against pure-transitive disambiguation.
 
 ## Termination conditions
 
-A `minTasks` floor (default: equal to `maxTasks`) gates the _early-exit_ paths — boundary stability and the unique-optimum form of irreducible-cycle detection. Below the floor, those checks are suppressed and the algorithm keeps probing pairs even when the analysis thinks it's done. The intent is to force enough comparisons that noise has a chance to surface as cycles or contradictory direct edges; with `minTasks = maxTasks` the algorithm always exhausts its budget. Tunable downward when efficiency matters more than noise robustness. The hard cap, "no eligible pairs", and the fallback irreducible-cycle path (which only fires when there are _no_ eligible pairs left at all) are _not_ gated by `minTasks` — those represent genuine impossibility of further work.
+Mid-session termination only checks K=kMax. Smaller K's stabilize easily (e.g. K=3 becomes unique long before K=5 has the evidence to disambiguate), so checking them mid-session would terminate prematurely with a too-small set. A smaller K is offered via a fallback path only at "stuck" exits — when no useful comparisons remain or the hard cap is hit.
 
-Per-card **exposure floors** gate the same early-exit paths as a separate, complementary check: every card must have appeared in at least `minExposuresPerCard` comparisons (default 2), and every card in the current optimal top-K must have appeared in at least `minExposuresTopK` comparisons (default 3). A unique optimum derived from only one sighting of a boundary card is suspect — a single fluky comparison can decide its placement — so we require at least one corroborating direct comparison for every card, and an extra one for cards we're about to declare top-K. Like `minTasks`, these floors only suppress the early-exit paths; the hard cap, "no eligible pairs", and the fallback irreducible-cycle path still fire when they apply.
+Three gates guard the K=kMax mid-session check:
+
+- **`minTasks` floor** (default 0 = no floor). Below this round count, mid-session checks are suppressed and the algorithm keeps probing pairs even when the analysis thinks it's done. Tunable upward to force more rounds — useful when the cost function is converging on noise.
+- **Per-card exposure floors.** Every card must have appeared in at least `minExposuresPerCard` comparisons (default 2), and every card in the current optimal top-K must have appeared in at least `minExposuresTopK` comparisons (default 3). A unique optimum derived from only one sighting of a boundary card is suspect — a single fluky comparison can decide its placement.
+- **Per-card wins floor** (`minWinsTopK`, default 2). Every card in the proposed top-K must have *directly beaten* at least `min(minWinsTopK, n − K)` other cards. Clamping to `n − K` keeps the floor achievable for small N: a top-K card can only directly beat cards outside the K, so the maximum possible wins is `n − K`. This adds a per-card credibility check beyond raw exposure — a card that's been compared but never won shouldn't credibly anchor a top-K slot.
+
+All three floors suppress only the mid-session check. The hard cap, "no eligible pairs", and the fallback irreducible-cycle path still fire when they apply (those represent genuine impossibility of further work).
 
 The session ends when **any** of these is true:
 
-1. **Boundary stability.** Only one top-5 set exists at the minimum disagreement cost, _and_ the cost gap from that optimum to the next-best set is at least ε (with default ε = 1, this means at least one full direct contradiction's worth of margin), _and_ there are no cycles touching the boundary region (defined as: no SCC of size ≥ 2 that contains both cards in the current top-5 and cards not in the current top-5). The margin gate is the key guard against premature exit: it ensures the optimum is separated from alternatives by something equivalent to a real direct comparison, not just a chain of decayed transitive contributions that happen to sum to a small fractional advantage. A single direct boundary edge (4→5 in a chain) is enough — its weight 1.0 ≥ ε. Pure transitive disambiguation (e.g., margin 0.3 from a length-2 path) is not. With weighted closure plus the margin gate, this is the dominant termination path.
+1. **Boundary stability (mid-session, K=kMax).** All of the following hold for the K=kMax partition:
+   - Exactly one set at the strict-optimum cost (unique optimum).
+   - Cost gap to the next-strictly-worse set is at least ε (default ε = 1, equivalent to at least one full direct contradiction's worth of margin).
+   - All gates above (`minTasks`, exposure floors, wins floor) are cleared.
+   - No SCC of size ≥ 2 straddles the K=kMax boundary (no cycle containing both top-K and non-top-K cards).
 
-2. **No eligible pairs remain.** Every remaining pair has been directly asked, or has closure weight ≥ τ in some direction. With weighted closure this is a much weaker (rarer) signal than under a binary closure, since weak implications stay eligible for as long as a direct comparison would meaningfully upgrade them. Unlike the boundary-stable / irreducible-cycle paths, this one is _not_ gated by `minTasks` — if there's nothing left to ask, we stop.
+   The margin gate is the key guard against premature exit: it ensures the optimum is separated from alternatives by something equivalent to a real direct comparison, not just a chain of decayed transitive contributions that happen to sum to a small fractional advantage. A single direct boundary edge (4→5 in a chain) is enough — its weight 1.0 ≥ ε. Pure transitive disambiguation (e.g., margin 0.3 from a length-2 path) is not.
 
-3. **Hard cap on comparisons.** A fixed budget — tunable. Default is `5N − 5` for N ≥ 10 (45 at N=10, 70 at N=15, 130 at N=27), with a piecewise floor at smaller N where `5N − 5` overshoots: 15 at N ≤ 6, 25 at N=7–8, 35 at N=9. The margin-gated boundary criterion needs more headroom than naive uniqueness to actually clear the gap on noisy data, so the cap sits comfortably above the expected convergence point rather than acting as a tight bound. If the cap is reached without earlier termination, accept the current best top-5 and surface to the user that some ambiguity remains.
+2. **Irreducible cycle at the K=kMax boundary (mid-session).** Same gates as boundary-stable, but an SCC of size ≥ 2 straddles the boundary and additional comparisons within it would not break it (all internal pairs are already directly compared). The data is genuinely intransitive and no further pairwise comparisons can resolve it.
 
-4. **Irreducible cycle at the boundary.** If an SCC of size ≥ 2 straddles the boundary (contains both top-5 and non-top-5 cards under the current best partition) and additional comparisons within it would not break it (i.e., all internal pairs are already directly compared), the data is genuinely intransitive and no further pairwise comparisons can resolve it. Terminate and either pick a partition arbitrarily from the optima or surface the ambiguity to the user. This condition is checked twice: once inside the unique-optimum path (gated by `minTasks`), and once as a fallback when no eligible pair remains and an SCC still straddles the boundary (not gated, since "nothing left to ask" is a genuine stop).
+3. **Hard cap on comparisons (`maxTasks`).** Default `max(15, 5N − 5)` — 15 at N ≤ 4, 20 at N=5, 25 at N=6, 30 at N=7, …, 130 at N=27. The margin-gated boundary criterion needs headroom to clear the gap on noisy data, so the cap sits above the expected convergence point.
+
+4. **No eligible pairs remain.** Every remaining pair has been directly asked, or has closure weight ≥ τ in some direction.
+
+When the hard cap or no-eligible-pairs trigger fires, the **smaller-K fallback** runs: search K from kMax down to kMin and accept the largest K with a unique optimum at cost ≥ ε margin and no boundary-straddling SCC. Exposure and wins floors are deliberately *not* applied at the fallback — we're forced to stop anyway, so accepting a K that just barely missed the mid-session floors beats reporting an ambiguous result. The fallback starts at kMax (not kMax-1): if mid-session was blocked only by floors but kMax otherwise satisfies the looser fallback criteria, that's the answer.
+
+The stop reason reported through the API reflects what actually *triggered* termination, not what the fallback ultimately accepted:
+
+- `"boundary-stable"`: mid-session check fired (all floors cleared, K=kMax confirmed).
+- `"irreducible-cycle"`: mid-session cycle-irreducibility fired, *or* no-eligible-pairs fired with a cycle straddling K=kMax.
+- `"max-tasks"`: hard cap hit. Effective K may be < kMax if the fallback found a smaller stable K.
+- `"no-eligible-pairs"`: ran out of pairs without a cycle at K=kMax. Effective K may be < kMax via fallback.
+
+So `"boundary-stable"` always means "the algorithm actively decided the boundary was stable mid-session with full floors satisfied" — never a fallback firing.
 
 ## Cold start
 
@@ -92,17 +122,22 @@ Before any informative selection can happen, the graph needs initial edges. For 
 
 ## What to instrument for tuning
 
-The algorithm has several tuning knobs that should be set empirically rather than guessed:
+The algorithm has several tuning knobs that should be set empirically rather than guessed. The convergence visualization at `/ranking-convergence` runs the algorithm against synthetic oracles (perfect, noisy, random-bottom, mushy, reversal) at various N and exposes most of these as live inputs:
 
-- The weighting between boundary relevance, closure expansion, and sampling balance in selection.
-- The tolerance ε for what counts as "near-optimal" in the partition view.
-- The hard cap on comparisons.
-- The `minTasks` floor — how aggressively to suppress early exit in exchange for more noise robustness.
-- The per-card exposure floors (`minExposuresPerCard`, `minExposuresTopK`) — minimum direct sightings required of any card / top-K card before convergence is allowed.
-- The decay base β for path weights (default 0.3).
-- The closure-weight eligibility threshold τ (default 0.7).
+- **K range** (`kMin`, `kMax`) — the output size range. Default `[3, 5]`.
+- **Selection weights** (`weightBoundary`, `weightClosure`, `weightSampling`) — defaults 1, 1, 0.1.
+- **`epsilon`** — near-optimal tolerance for the partition view. Default 1.
+- **`maxTasks`** — hard cap. Default `max(15, 5N − 5)`.
+- **`minTasks`** — floor on mid-session early-exit. Default 0.
+- **Per-card exposure floors** (`minExposuresPerCard`, `minExposuresTopK`) — minimum direct sightings per card / top-K card. Defaults 2, 3.
+- **Per-card wins floor** (`minWinsTopK`) — minimum direct wins per top-K card, clamped to `n − K`. Default 2.
+- **`decayBeta`** — path-weight decay base. Default 0.3.
+- **`closureWeightThreshold`** (τ) — closure-weight eligibility threshold. Default 0.7.
+- **`coldStartFraction`** — fraction of N used for warmup. Default 0.25.
 
-These should be tuned by running real sessions with the visualization and observing where the algorithm asks dumb questions or stops too early/late. The implementation should log enough state per session (graph at each step, candidate scores, chosen pair, whether the user's answer was the predicted one) to support this tuning.
+The convergence harness logs round count, effective K, stop reason, and remaining-estimate trajectory per seed; the per-session debug panel in the prioritize UI shows the graph and partition state at each step.
+
+See `docs/ideas.md` for design alternatives that were considered and rejected (with reasons), including stable-core intersection, hysteresis, output-time trimming, and pair re-asking.
 
 ## What's deliberately not in this design
 
@@ -116,5 +151,6 @@ These should be tuned by running real sessions with the visualization and observ
 
 When the session terminates, the algorithm returns:
 
-1. The top-5 set (the optimal partition under min-disagreement).
-2. The full comparison graph, for diagnostic and visualization use.
+1. The top-K set, where K is the `effectiveK` chosen by the termination logic (the largest stable K in `[kMin, kMax]`).
+2. The stop reason indicating how termination was triggered (see Termination conditions).
+3. The full comparison graph, for diagnostic and visualization use.
