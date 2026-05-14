@@ -633,24 +633,27 @@ export class Ranking<T> {
 			}
 		}
 
-		// Hard cap.
+		// Hard cap. The trigger reason ("max-tasks") flows through into the fallback — even if
+		// the fallback finds a stable K, we stopped *because* we hit the cap, not because the
+		// boundary was actively confirmed mid-session. "boundary-stable" stays reserved for
+		// mid-session firings where exposure / wins floors are also met.
 		if (this._records.length >= this._config.maxTasks) {
-			if (this._tryFallbackToSmallerK("boundary-stable")) return;
+			if (this._tryFallbackToSmallerK("max-tasks")) return;
 			this._effectiveK = this._kMax;
 			this._stopped = true;
 			this._stopReason = "max-tasks";
 			return;
 		}
 
-		// Eligibility fallback: when no pair would help, stop. Use the kMax top to check whether
-		// a boundary cycle straddles — if so, report irreducible-cycle (matches "nothing more to
-		// ask" intent regardless of which K we'd report).
+		// Eligibility fallback: when no pair would help, stop. The trigger reason flows through
+		// to the fallback for the same reason as max-tasks above.
 		const eligible = this._anyEligiblePair();
 		if (!eligible.any) {
-			if (this._tryFallbackToSmallerK("boundary-stable")) return;
+			const reason: StopReason = eligible.boundaryCycleStraddles ? "irreducible-cycle" : "no-eligible-pairs";
+			if (this._tryFallbackToSmallerK(reason)) return;
 			this._effectiveK = this._kMax;
 			this._stopped = true;
-			this._stopReason = eligible.boundaryCycleStraddles ? "irreducible-cycle" : "no-eligible-pairs";
+			this._stopReason = reason;
 		}
 	}
 

@@ -339,7 +339,9 @@ describe("Ranking — variable K range", () => {
 			r.recordTask(best, worst, [best, worst]);
 		}
 		expect(r.stopped).toBe(true);
-		expect(r.stopReason).toBe("boundary-stable");
+		// Stop reason reflects the trigger (max-tasks), not the fact that the fallback found a
+		// stable K=4 — "boundary-stable" stays reserved for mid-session firings.
+		expect(r.stopReason).toBe("max-tasks");
 		expect(r.effectiveK).toBe(4);
 		expect(new Set(r.topK)).toEqual(new Set(["a", "b", "c", "d"]));
 	});
