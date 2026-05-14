@@ -5,6 +5,9 @@
 // Identifies the top K items from N items through pairwise
 // comparisons. Maintains a directed preference graph; derived
 // transitive closure and SCCs drive selection and termination.
+// Supports a K range [kMin, kMax]: the session terminates at
+// the largest K whose boundary is stable, so a clear top-4 can
+// be returned when the 5th slot is irreducibly ambiguous.
 // See docs/ranking.md for the design specification.
 // ============================================================
 
@@ -14,8 +17,10 @@ import type { XorshiftRng } from "./ranking-math.ts";
 export type StopReason = "boundary-stable" | "no-eligible-pairs" | "irreducible-cycle" | "max-tasks";
 
 export interface RankingConfig {
-	/** Number of top items to identify. Default 5. */
+	/** Upper bound on the size of the returned top set. Default 5. */
 	k: number;
+	/** Lower bound on the size of the returned top set. 0 → match k (fixed-size output). Default 3. */
+	kMin: number;
 	/** Hard cap on total comparisons. Default 5N - 5 for N ≥ 10 (with a piecewise floor below). 0 → use n-dependent default. */
 	maxTasks: number;
 	/** Floor on total comparisons before any early-termination (boundary-stable / irreducible-cycle) can fire. Default 0 → match maxTasks (force exhaustion of the budget). */
@@ -24,6 +29,8 @@ export interface RankingConfig {
 	minExposuresPerCard: number;
 	/** Higher exposure floor applied only to cards in the current optimal top-K. Default 3. */
 	minExposuresTopK: number;
+	/** Per-top-K-card direct-wins floor — every card in the proposed top-K must have beaten at least this many opponents to credibly claim its slot. Clamped to min(this, n - K) since cards in the top-K can only directly beat cards below the line. Default 2. */
+	minWinsTopK: number;
 	/** Tolerance (in contradiction-weight units) for "near-optimal" in the partition view. Default 1. */
 	epsilon: number;
 	/** Weight on boundary-relevance term in scoring. Default 1. */
@@ -52,10 +59,12 @@ export interface PairRecord<T> {
 
 const DEFAULT_CONFIG: RankingConfig = {
 	k: 5,
+	kMin: 3,
 	maxTasks: 0,
 	minTasks: 0,
 	minExposuresPerCard: 2,
 	minExposuresTopK: 3,
+	minWinsTopK: 2,
 	epsilon: 1,
 	weightBoundary: 1,
 	weightClosure: 1,
@@ -109,16 +118,19 @@ export class Ranking<T> {
 
 	private _closureW: Float64Array;
 	private _sccs: number[][];
-	private _optimalSets: number[][];
-	private _bestSets: number[][];
-	// Termination requires this margin ≥ ε so weak transitive disambiguation alone can't end the session.
-	private _costMargin: number;
-
-	// Cached C(n, k) — depends only on (n, k), which are fixed for an instance.
-	private readonly _combinations: number[][];
+	// Per-K partition state. K ranges over [_kMin, _kMax] (clipped to [1, n]).
+	private readonly _kMin: number;
+	private readonly _kMax: number;
+	private readonly _combinationsByK: Map<number, number[][]>;
+	private _optimalSetsByK: Map<number, number[][]>;
+	private _bestSetsByK: Map<number, number[][]>;
+	// Cost gap from optimum to next-best (strictly worse) set per K. Termination requires this margin ≥ ε so
+	// weak transitive disambiguation alone can't end the session.
+	private _costMarginByK: Map<number, number>;
 
 	private _stopped: boolean;
 	private _stopReason: StopReason | null;
+	// During the session: _kMax (the K we're trying to converge to). At termination: the K we settled on.
 	private _effectiveK: number;
 
 	constructor(items: readonly T[], config?: Partial<RankingConfig>) {
@@ -134,13 +146,10 @@ export class Ranking<T> {
 		}
 		this._n = items.length;
 		if (this._config.maxTasks === 0) {
-			// 5n - 5 for n ≥ 10 (45 at n=10, 70 at n=15, 130 at n=27); piecewise floor
-			// for smaller n where 5n - 5 overshoots — the boundary problem is too small
-			// to need that much budget when k is close to n.
-			if (this._n <= 6) this._config.maxTasks = 15;
-			else if (this._n <= 8) this._config.maxTasks = 25;
-			else if (this._n === 9) this._config.maxTasks = 35;
-			else this._config.maxTasks = 5 * this._n - 5;
+			// 5n - 5, floored at 15 for very small n. The wins floor needs headroom for boundary
+			// confirmation comparisons, which the old tighter piecewise floor (25 at n=7-8) didn't
+			// allow.
+			this._config.maxTasks = Math.max(15, 5 * this._n - 5);
 		}
 		this._seed = this._config.seed;
 		this._rng = makeXorshift(this._seed);
@@ -153,19 +162,32 @@ export class Ranking<T> {
 		this._closureW = new Float64Array(this._n * this._n);
 		this._sccs = [];
 		for (let i = 0; i < this._n; i++) this._sccs.push([i]);
-		this._optimalSets = [];
-		this._bestSets = [];
-		this._costMargin = Infinity;
+
+		// Resolve K range. kMin = 0 means "fixed K" (legacy behavior).
+		const kMaxRaw = this._config.k;
+		const kMinRaw = this._config.kMin > 0 ? this._config.kMin : kMaxRaw;
+		this._kMax = Math.min(this._n, Math.max(1, kMaxRaw));
+		this._kMin = Math.min(this._kMax, Math.max(1, kMinRaw));
+		this._effectiveK = this._kMax;
+
+		this._combinationsByK = new Map();
+		for (let k = this._kMin; k <= this._kMax; k++) {
+			this._combinationsByK.set(k, enumerateCombinations(this._n, k));
+		}
+		this._optimalSetsByK = new Map();
+		this._bestSetsByK = new Map();
+		this._costMarginByK = new Map();
+		for (let k = this._kMin; k <= this._kMax; k++) {
+			this._optimalSetsByK.set(k, []);
+			this._bestSetsByK.set(k, []);
+			this._costMarginByK.set(k, Infinity);
+		}
 
 		this._stopped = false;
 		this._stopReason = null;
-		this._effectiveK = Math.min(this._config.k, this._n);
 
-		const ek = Math.min(this._config.k, this._n);
-		this._combinations = ek > 0 && ek <= this._n ? enumerateCombinations(this._n, ek) : [];
-
-		// Trivial case: k >= n.
-		if (this._config.k >= this._n) {
+		// Trivial case: every K in the range satisfies k >= n, so the entire item set is the answer.
+		if (kMaxRaw >= this._n) {
 			this._stopped = true;
 			this._stopReason = "boundary-stable";
 		}
@@ -279,21 +301,22 @@ export class Ranking<T> {
 		// Floor: we can't exit before minTasks, regardless of how clean the partition looks.
 		const minGap = Math.max(0, this._config.minTasks - this._records.length);
 		// Each comparison adds 2 exposures; a deficit of d needs at least ceil(d/2) more tasks.
-		const exposureGap = Math.ceil(this._exposureDeficit() / 2);
-		// Disambiguation: each near-optimal set roughly costs one well-placed comparison
-		// to push out of contention (since each direct edge contributes ~1.0 to cost differential).
-		// Plus margin-clearing: if costMargin < ε, we need additional comparisons to widen the gap.
-		const ambig = this._bestSets.length;
+		const exposureGap = Math.ceil(this._exposureDeficit(this._topForK(this._kMax)) / 2);
+		// Disambiguation: estimate against the K we're actively trying to converge to (kMax).
+		// Smaller K's may converge sooner and trigger an early stop; the estimate is for the
+		// pessimistic "still pushing for kMax" path so the user-facing number doesn't drop suddenly.
+		const ambig = (this._bestSetsByK.get(this._kMax) ?? []).length;
 		const ambigEstimate = ambig <= 1 ? 1 : ambig - 1;
-		const marginGap = Math.max(0, this._config.epsilon - this._costMargin);
+		const margin = this._costMarginByK.get(this._kMax) ?? Infinity;
+		const marginGap = Math.max(0, this._config.epsilon - margin);
 		const ambigPlusMargin = ambigEstimate + Math.ceil(marginGap);
 		return Math.min(budget, Math.max(minGap, exposureGap, ambigPlusMargin));
 	}
 
 	get topK(): readonly T[] {
-		const ek = Math.min(this._effectiveK, this._n);
-		const set = this._optimalSets.length > 0 ? this._optimalSets[0] : this._fallbackTopK(ek);
-		return set.slice(0, ek).map((i) => this._items[i]);
+		const k = this._effectiveK;
+		const set = this._topForK(k);
+		return set.slice(0, k).map((i) => this._items[i]);
 	}
 
 	get effectiveK(): number {
@@ -339,12 +362,14 @@ export class Ranking<T> {
 			}
 		}
 		const sccsT: T[][] = this._sccs.map((s) => s.map((i) => this._items[i]));
+		// Surface the K we're currently displaying — _effectiveK matches what topK returns.
+		const bestSetsForDisplay = this._bestSetsByK.get(this._effectiveK) ?? [];
 		return {
 			edges,
 			closureImplied: implied,
 			sccs: sccsT,
 			bestTopK: this.topK,
-			nearOptimalCount: this._bestSets.length,
+			nearOptimalCount: bestSetsForDisplay.length,
 			exposures: [...this._exposures],
 			config: { ...this._config },
 			round: this._records.length,
@@ -363,6 +388,12 @@ export class Ranking<T> {
 		return idx;
 	}
 
+	private _topForK(k: number): number[] {
+		const optimal = this._optimalSetsByK.get(k);
+		if (optimal !== undefined && optimal.length > 0) return optimal[0];
+		return this._fallbackTopK(k);
+	}
+
 	private _resetWithoutRecompute(): void {
 		this._edge = new Uint8Array(this._n * this._n);
 		this._exposures = new Array<number>(this._n).fill(0);
@@ -371,7 +402,7 @@ export class Ranking<T> {
 		this._rng = makeXorshift(this._seed);
 		this._stopped = false;
 		this._stopReason = null;
-		this._effectiveK = Math.min(this._config.k, this._n);
+		this._effectiveK = this._kMax;
 		if (this._config.k >= this._n) {
 			this._stopped = true;
 			this._stopReason = "boundary-stable";
@@ -488,53 +519,55 @@ export class Ranking<T> {
 		}
 		this._sccs = sccs;
 
-		// Min-disagreement-partition over C(n, k).
-		const k = Math.min(this._config.k, n);
-		this._effectiveK = k;
-		if (k <= 0 || k > n) {
-			this._bestSets = [];
-			return;
-		}
-		const sets = this._combinations;
-		const inS = new Uint8Array(n);
-		const complement = new Int32Array(n);
-		let cmin = Infinity;
-		const scored: { set: number[]; score: number }[] = [];
-		for (const s of sets) {
-			inS.fill(0);
-			for (const i of s) inS[i] = 1;
-			let compLen = 0;
-			for (let a = 0; a < n; a++) {
-				if (inS[a] === 0) complement[compLen++] = a;
-			}
-			// Sum closure weights from outside-S into S — weighted contradictions.
-			let cut = 0;
-			for (let ai = 0; ai < compLen; ai++) {
-				const aRow = complement[ai] * n;
-				for (const b of s) cut += this._closureW[aRow + b];
-			}
-			scored.push({ set: s, score: cut });
-			if (cut < cmin) cmin = cut;
-		}
+		// Min-disagreement-partition over C(n, K) for every K in [kMin, kMax].
 		const eps = this._config.epsilon;
 		const optEps = 1e-9; // tolerance for floating-point equality at the optimum
-		const best: number[][] = [];
-		const optimal: number[][] = [];
-		for (const sc of scored) {
-			if (sc.score <= cmin + optEps) optimal.push(sc.set);
-			if (sc.score <= cmin + eps) best.push(sc.set);
-		}
-		this._optimalSets = optimal;
-		this._bestSets = best;
+		const inS = new Uint8Array(n);
+		const complement = new Int32Array(n);
+		for (let k = this._kMin; k <= this._kMax; k++) {
+			const sets = this._combinationsByK.get(k);
+			if (sets === undefined || sets.length === 0) {
+				this._optimalSetsByK.set(k, []);
+				this._bestSetsByK.set(k, []);
+				this._costMarginByK.set(k, Infinity);
+				continue;
+			}
+			let cmin = Infinity;
+			const scored: { set: number[]; score: number }[] = [];
+			for (const s of sets) {
+				inS.fill(0);
+				for (const i of s) inS[i] = 1;
+				let compLen = 0;
+				for (let a = 0; a < n; a++) {
+					if (inS[a] === 0) complement[compLen++] = a;
+				}
+				// Sum closure weights from outside-S into S — weighted contradictions.
+				let cut = 0;
+				for (let ai = 0; ai < compLen; ai++) {
+					const aRow = complement[ai] * n;
+					for (const b of s) cut += this._closureW[aRow + b];
+				}
+				scored.push({ set: s, score: cut });
+				if (cut < cmin) cmin = cut;
+			}
+			const best: number[][] = [];
+			const optimal: number[][] = [];
+			for (const sc of scored) {
+				if (sc.score <= cmin + optEps) optimal.push(sc.set);
+				if (sc.score <= cmin + eps) best.push(sc.set);
+			}
+			this._optimalSetsByK.set(k, optimal);
+			this._bestSetsByK.set(k, best);
 
-		// Cost gap to the next-best (strictly worse) set. Used to gate termination so
-		// pure-transitive evidence (small fractional contributions) can't prematurely
-		// declare uniqueness — only direct evidence (≥ 1.0 per contradiction) clears ε=1.
-		let secondBest = Infinity;
-		for (const sc of scored) {
-			if (sc.score > cmin + optEps && sc.score < secondBest) secondBest = sc.score;
+			// Cost gap to the next-best (strictly worse) set. Used to gate termination so
+			// pure-transitive evidence (small fractional contributions) can't prematurely
+			// declare uniqueness — only direct evidence (≥ 1.0 per contradiction) clears ε=1.
+			let secondBest = Infinity;
+			for (const sc of scored) {
+				if (sc.score > cmin + optEps && sc.score < secondBest) secondBest = sc.score;
+			}
+			this._costMarginByK.set(k, secondBest - cmin);
 		}
-		this._costMargin = secondBest - cmin;
 	}
 
 	private _outNeighbors(v: number): number[] {
@@ -557,63 +590,93 @@ export class Ranking<T> {
 	private _checkTermination(): void {
 		if (this._stopped) return;
 		const n = this._n;
+		const eps = this._config.epsilon;
 
-		// Boundary stability: unique optimum + cost gap to next-best ≥ ε + no SCC straddling boundary.
-		// The margin gate prevents pure-transitive disambiguation (fractional contributions)
-		// from declaring uniqueness; a single direct boundary edge (margin = 1.0) is enough
-		// at default ε = 1. Check first because it's the cleanest possible termination —
-		// when both this and "no eligible pairs" hold, prefer reporting the boundary outcome.
-		// minTasks and per-card exposure floors gate this so we don't exit before gathering
-		// enough evidence to surface noise as cycles or contradictory direct edges.
-		if (this._records.length >= this._config.minTasks && this._optimalSets.length === 1 && this._costMargin >= this._config.epsilon && this._exposureFloorsMet()) {
-			const top = new Set(this._optimalSets[0]);
-			const straddling = this._findStraddlingSccs(top);
-			if (straddling.length === 0) {
-				this._stopped = true;
-				this._stopReason = "boundary-stable";
-				return;
-			}
-			// Boundary straddled by a cycle — check if every straddling SCC is irreducible
-			// (i.e. all internal pairs already directly compared).
-			let irreducible = true;
-			for (const comp of straddling) {
-				for (let a = 0; a < comp.length && irreducible; a++) {
-					for (let b = a + 1; b < comp.length; b++) {
-						const ia = comp[a];
-						const ib = comp[b];
-						if (this._edge[ia * n + ib] === 0 && this._edge[ib * n + ia] === 0) {
-							irreducible = false;
-							break;
+		// Mid-session stability check at K=kMax.
+		if (this._records.length >= this._config.minTasks) {
+			const optimal = this._optimalSetsByK.get(this._kMax) ?? [];
+			const margin = this._costMarginByK.get(this._kMax) ?? Infinity;
+			if (optimal.length === 1 && margin >= eps) {
+				const top = optimal[0];
+				if (this._exposureFloorsMet(top) && this._winsFloorsMet(top)) {
+					const topSet = new Set(top);
+					const straddling = this._findStraddlingSccs(topSet);
+					if (straddling.length === 0) {
+						this._effectiveK = this._kMax;
+						this._stopped = true;
+						this._stopReason = "boundary-stable";
+						return;
+					}
+					// Boundary straddled by a cycle — check if every straddling SCC is irreducible
+					// (i.e. all internal pairs already directly compared).
+					let irreducible = true;
+					for (const comp of straddling) {
+						for (let a = 0; a < comp.length && irreducible; a++) {
+							for (let b = a + 1; b < comp.length; b++) {
+								const ia = comp[a];
+								const ib = comp[b];
+								if (this._edge[ia * n + ib] === 0 && this._edge[ib * n + ia] === 0) {
+									irreducible = false;
+									break;
+								}
+							}
 						}
+						if (!irreducible) break;
+					}
+					if (irreducible) {
+						this._effectiveK = this._kMax;
+						this._stopped = true;
+						this._stopReason = "irreducible-cycle";
+						return;
 					}
 				}
-				if (!irreducible) break;
-			}
-			if (irreducible) {
-				this._stopped = true;
-				this._stopReason = "irreducible-cycle";
-				return;
 			}
 		}
 
 		// Hard cap.
 		if (this._records.length >= this._config.maxTasks) {
+			if (this._tryFallbackToSmallerK("boundary-stable")) return;
+			this._effectiveK = this._kMax;
 			this._stopped = true;
 			this._stopReason = "max-tasks";
 			return;
 		}
 
-		// Eligibility fallback: when the optimum isn't unique but no pair would help.
+		// Eligibility fallback: when no pair would help, stop. Use the kMax top to check whether
+		// a boundary cycle straddles — if so, report irreducible-cycle (matches "nothing more to
+		// ask" intent regardless of which K we'd report).
 		const eligible = this._anyEligiblePair();
 		if (!eligible.any) {
-			if (eligible.boundaryCycleStraddles) {
-				this._stopped = true;
-				this._stopReason = "irreducible-cycle";
-			} else {
-				this._stopped = true;
-				this._stopReason = "no-eligible-pairs";
-			}
+			if (this._tryFallbackToSmallerK("boundary-stable")) return;
+			this._effectiveK = this._kMax;
+			this._stopped = true;
+			this._stopReason = eligible.boundaryCycleStraddles ? "irreducible-cycle" : "no-eligible-pairs";
 		}
+	}
+
+	/**
+	 * "Stuck" exit fallback. When we can't make further progress mid-session, search from kMax
+	 * downward for the largest K with a unique optimum, margin ≥ ε, and no boundary-straddling
+	 * SCC. Exposure / wins floors are deliberately relaxed here — we're forced to stop anyway,
+	 * so accepting a kMax that just barely missed the mid-session floors beats falling to a
+	 * smaller K. We *do* start at kMax (not kMax-1): if the mid-session gate was blocked by
+	 * minTasks or floors but kMax is otherwise stable at termination, that's the answer.
+	 * Returns true if a stop was emitted.
+	 */
+	private _tryFallbackToSmallerK(reason: StopReason): boolean {
+		const eps = this._config.epsilon;
+		for (let k = this._kMax; k >= this._kMin; k--) {
+			const optimal = this._optimalSetsByK.get(k) ?? [];
+			const margin = this._costMarginByK.get(k) ?? Infinity;
+			if (optimal.length !== 1 || margin < eps) continue;
+			const topSet = new Set(optimal[0]);
+			if (this._findStraddlingSccs(topSet).length > 0) continue;
+			this._effectiveK = k;
+			this._stopped = true;
+			this._stopReason = reason;
+			return true;
+		}
+		return false;
 	}
 
 	private _anyEligiblePair(): { any: boolean; boundaryCycleStraddles: boolean } {
@@ -625,7 +688,9 @@ export class Ranking<T> {
 				}
 			}
 		}
-		const top = this._optimalSets.length > 0 ? new Set(this._optimalSets[0]) : new Set<number>();
+		// Check straddling against the kMax optimum (the K we'd otherwise report).
+		const optimalKMax = this._optimalSetsByK.get(this._kMax) ?? [];
+		const top = optimalKMax.length > 0 ? new Set(optimalKMax[0]) : new Set<number>();
 		return { any: false, boundaryCycleStraddles: this._findStraddlingSccs(top).length > 0 };
 	}
 
@@ -645,11 +710,11 @@ export class Ranking<T> {
 		return result;
 	}
 
-	private _exposureFloorsMet(): boolean {
+	private _exposureFloorsMet(topIndices: readonly number[]): boolean {
 		const minBase = this._config.minExposuresPerCard;
 		const minTop = this._config.minExposuresTopK;
 		if (minBase <= 0 && minTop <= 0) return true;
-		const top = this._optimalSets.length > 0 ? new Set(this._optimalSets[0]) : new Set<number>();
+		const top = new Set(topIndices);
 		for (let i = 0; i < this._n; i++) {
 			const required = top.has(i) ? minTop : minBase;
 			if (this._exposures[i] < required) return false;
@@ -657,11 +722,27 @@ export class Ranking<T> {
 		return true;
 	}
 
-	private _exposureDeficit(): number {
+	private _winsFloorsMet(topIndices: readonly number[]): boolean {
+		const k = topIndices.length;
+		const required = Math.min(this._config.minWinsTopK, Math.max(0, this._n - k));
+		if (required <= 0) return true;
+		const n = this._n;
+		for (const i of topIndices) {
+			const row = i * n;
+			let wins = 0;
+			for (let j = 0; j < n && wins < required; j++) {
+				if (this._edge[row + j] === 1) wins++;
+			}
+			if (wins < required) return false;
+		}
+		return true;
+	}
+
+	private _exposureDeficit(topIndices: readonly number[]): number {
 		const minBase = this._config.minExposuresPerCard;
 		const minTop = this._config.minExposuresTopK;
 		if (minBase <= 0 && minTop <= 0) return 0;
-		const top = this._optimalSets.length > 0 ? new Set(this._optimalSets[0]) : new Set<number>();
+		const top = new Set(topIndices);
 		let deficit = 0;
 		for (let i = 0; i < this._n; i++) {
 			const required = top.has(i) ? minTop : minBase;
@@ -708,24 +789,64 @@ export class Ranking<T> {
 			ancByV[v] = this._ancestors(v);
 			descByV[v] = this._descendants(v);
 		}
-		// Membership masks: bestSetMask[s][v] = 1 if v ∈ bestSets[s]. Faster than s.includes(v) inside O(n²) loop.
-		const numBest = this._bestSets.length;
+		// Concatenate near-optimal sets from every K in the range into one mask block. Splitting
+		// any of them is informative — a pair that resolves the K=4 boundary helps too, since a
+		// smaller stable K is now an acceptable termination outcome.
+		const allBest: number[][] = [];
+		for (let k = this._kMin; k <= this._kMax; k++) {
+			const sets = this._bestSetsByK.get(k);
+			if (sets === undefined) continue;
+			for (const s of sets) allBest.push(s);
+		}
+		const numBest = allBest.length;
 		const bestSetMasks = new Uint8Array(numBest * n);
 		for (let si = 0; si < numBest; si++) {
 			const row = si * n;
-			for (const i of this._bestSets[si]) bestSetMasks[row + i] = 1;
+			for (const i of allBest[si]) bestSetMasks[row + i] = 1;
+		}
+		// Wins-floor deficit: keep collecting boundary evidence even after K=kMax has a unique
+		// optimum. Once the partition is "decided", boundary score drops to 0 for every pair and
+		// the algorithm would otherwise stop probing — so the wins floor would never be reached
+		// without an extra nudge. Pairs involving a candidate top-K card that's short on wins get
+		// treated as if they split an extra near-optimal set, restoring selection pressure on the
+		// boundary until each top-K card has demonstrated it's actually above others.
+		// Use the union of all K=kMax strict optima (sets within optEps of minimum cost), not
+		// near-optimal — strict optima cover tied-boundary cases (e.g., the algorithm hasn't
+		// disambiguated which of several cards is 5th) without pulling in clearly-not-top cards
+		// that just happen to be inside ε-near-optimal alternatives.
+		const winsDeficitByCard = new Int8Array(n);
+		const kMaxOpt = this._optimalSetsByK.get(this._kMax) ?? [];
+		if (kMaxOpt.length >= 1) {
+			const k = kMaxOpt[0].length;
+			const required = Math.min(this._config.minWinsTopK, Math.max(0, n - k));
+			if (required > 0) {
+				const candidates = new Set<number>();
+				for (const s of kMaxOpt) for (const idx of s) candidates.add(idx);
+				for (const idx of candidates) {
+					const row = idx * n;
+					let wins = 0;
+					for (let j = 0; j < n && wins < required; j++) {
+						if (this._edge[row + j] === 1) wins++;
+					}
+					if (wins < required) winsDeficitByCard[idx] = 1;
+				}
+			}
 		}
 		for (let i = 0; i < n; i++) {
 			for (let j = i + 1; j < n; j++) {
 				if (!this._isEligible(i, j)) continue;
-				// Count near-optimal sets that split (i, j). Pairs that split no near-optimal set
-				// score 0 here — they can still win on closure expansion when the partition is
-				// effectively decided but more graph structure is needed (e.g., to break cycles).
+				// Count near-optimal sets that split (i, j) across every K in the range. Pairs
+				// that split no near-optimal set score 0 here — they can still win on closure
+				// expansion when partitions are effectively decided but more graph structure is
+				// needed (e.g., to break cycles).
 				let boundary = 0;
 				for (let si = 0; si < numBest; si++) {
 					const row = si * n;
 					if (bestSetMasks[row + i] !== bestSetMasks[row + j]) boundary++;
 				}
+				// Each wins-floor-deficit endpoint counts as an additional virtual split — keeps
+				// the algorithm picking boundary-confirming pairs once the partition is decided.
+				boundary += winsDeficitByCard[i] + winsDeficitByCard[j];
 				const closure = this._closureExpansion(i, j, ancByV, descByV);
 				const sampling = this._exposures[i] + this._exposures[j];
 				const score = this._config.weightBoundary * boundary + this._config.weightClosure * closureMult * closure - this._config.weightSampling * sampling;

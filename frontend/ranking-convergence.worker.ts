@@ -85,6 +85,7 @@ function runTest(req: WorkerRequest): RunResult {
 	const ranking = new Ranking(items, {
 		k: req.config.k,
 		seed: req.seed,
+		...(req.config.kMin !== undefined ? { kMin: req.config.kMin } : {}),
 		...(req.maxTasks !== undefined ? { maxTasks: req.maxTasks } : {}),
 		...(req.minTasks !== undefined ? { minTasks: req.minTasks } : {}),
 		...(req.epsilon !== undefined ? { epsilon: req.epsilon } : {}),

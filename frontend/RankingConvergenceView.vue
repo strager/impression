@@ -18,7 +18,7 @@ interface TestDef {
 	trueStrength: number[];
 	oracleSpec: OracleSpec;
 	expectedTopK: number[];
-	config: { k: number };
+	config: { k: number; kMin?: number };
 }
 
 function descendingStrength(n: number): number[] {

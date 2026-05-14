@@ -17,7 +17,7 @@ export interface WorkerRequest {
 	trueStrength: number[];
 	oracleSpec: OracleSpec;
 	expectedTopK: number[];
-	config: { k: number };
+	config: { k: number; kMin?: number };
 	epsilon?: number;
 	maxTasks?: number;
 	minTasks?: number;

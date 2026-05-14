@@ -135,7 +135,7 @@ describe("Ranking — margin gate on boundary stability", () => {
 
 	it("does terminate boundary-stable when the margin clears epsilon", () => {
 		// Same chain, but with ε = 1.0 the margin (1.0) is exactly at the gate.
-		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, minExposuresPerCard: 0, minExposuresTopK: 0, maxTasks: 99 });
+		const r = new Ranking(["a", "b", "c"], { k: 1, seed: 1, epsilon: 1, minTasks: 0, minExposuresPerCard: 0, minExposuresTopK: 0, minWinsTopK: 0, maxTasks: 99 });
 		r.recordTask("a", "b", ["a", "b"]);
 		r.recordTask("b", "c", ["b", "c"]);
 		expect(r.stopped).toBe(true);
@@ -293,6 +293,86 @@ describe("Ranking — clone", () => {
 		// With the RNG-determinism fix in _pickNextPair, original and clone must agree on
 		// the next pair — verifies clone preserves the RNG state that drives tie-breaks.
 		expect(copy.selectTask().items).toEqual(r.selectTask().items);
+	});
+});
+
+describe("Ranking — fallback prefers kMax when stable", () => {
+	it("with minTasks=maxTasks, returns K=kMax (not kMax-1) on clean data", () => {
+		// minTasks=maxTasks forces full budget. Mid-session check is blocked the entire run;
+		// termination goes through the no-eligible-pairs or max-tasks path → fallback. The
+		// fallback must check K=kMax first (not start at kMax-1) — otherwise it grabs the
+		// uniquely-stable K=kMax-1 set and reports K=4 when K=5 is also uniquely stable.
+		const n = 8;
+		const items = makeItems(n);
+		const strength = Array.from({ length: n }, (_, i) => n - i);
+		const oracle = perfectOracle(strength);
+		const budget = 5 * n - 5;
+		const r = new Ranking(items, { k: 5, seed: 1, minTasks: budget, maxTasks: budget });
+		while (!r.stopped) {
+			const { items: pair } = r.selectTask();
+			const { best, worst } = oracle(pair[0], pair[1]);
+			r.recordTask(best, worst);
+		}
+		expect(r.effectiveK).toBe(5);
+		const top = new Set(r.topK);
+		for (let i = 0; i < 5; i++) expect(top.has(String(i))).toBe(true);
+	});
+});
+
+describe("Ranking — variable K range", () => {
+	// Scenario: n=6, all 14 pairs except (e, f) compared. Top-4 {a,b,c,d} is uniquely optimal
+	// (any partition that drops one of them pays ≥ 1.0 in direct contradictions). K=5 has two
+	// tied optima — {a,b,c,d,e} and {a,b,c,d,f} both cost 0 — and the only pair that would
+	// disambiguate (e vs f) is never reached because the comparison budget is exhausted first.
+	const ambiguousFifthPairs: [string, string][] = [
+		["a", "b"], ["a", "c"], ["a", "d"], ["a", "e"], ["a", "f"],
+		["b", "c"], ["b", "d"], ["b", "e"], ["b", "f"],
+		["c", "d"], ["c", "e"], ["c", "f"],
+		["d", "e"], ["d", "f"],
+	];
+
+	it("falls back to top-4 at max-tasks when top-5 is ambiguous (default kMin=3)", () => {
+		const items = ["a", "b", "c", "d", "e", "f"];
+		const r = new Ranking(items, { k: 5, seed: 1, maxTasks: 14 });
+		for (const [best, worst] of ambiguousFifthPairs) {
+			if (r.stopped) break;
+			r.recordTask(best, worst, [best, worst]);
+		}
+		expect(r.stopped).toBe(true);
+		expect(r.stopReason).toBe("boundary-stable");
+		expect(r.effectiveK).toBe(4);
+		expect(new Set(r.topK)).toEqual(new Set(["a", "b", "c", "d"]));
+	});
+
+	it("kMin overridden to kMax: no fallback, terminates with max-tasks at kMax", () => {
+		const items = ["a", "b", "c", "d", "e", "f"];
+		const r = new Ranking(items, { k: 5, kMin: 5, seed: 1, maxTasks: 14 });
+		for (const [best, worst] of ambiguousFifthPairs) {
+			if (r.stopped) break;
+			r.recordTask(best, worst, [best, worst]);
+		}
+		expect(r.stopped).toBe(true);
+		expect(r.stopReason).toBe("max-tasks");
+		expect(r.effectiveK).toBe(5);
+		expect(r.topK.length).toBe(5);
+	});
+
+	it("prefers kMax when the full top-kMax stabilizes naturally", () => {
+		// Fully ordered chain; K=5 converges cleanly and the K range doesn't affect output.
+		const n = 8;
+		const items = makeItems(n);
+		const strength = Array.from({ length: n }, (_, i) => n - i);
+		const oracle = perfectOracle(strength);
+		const r = new Ranking(items, { k: 5, seed: 1 });
+		while (!r.stopped) {
+			const { items: pair } = r.selectTask();
+			const { best, worst } = oracle(pair[0], pair[1]);
+			r.recordTask(best, worst);
+		}
+		expect(r.stopReason).toBe("boundary-stable");
+		expect(r.effectiveK).toBe(5);
+		const top = new Set(r.topK);
+		for (let i = 0; i < 5; i++) expect(top.has(String(i))).toBe(true);
 	});
 });
 
