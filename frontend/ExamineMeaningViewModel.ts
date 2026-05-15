@@ -364,12 +364,22 @@ export class ExamineMeaningViewModel {
 		entry.userAnswer = entry.prefilledAnswer;
 		entry.autoFilledPending = false;
 		this.persistEntries();
+		capture("autofill_edit_clicked", {
+			session_id: this.profileId,
+			card_id: this.cardId,
+			question_id: entry.questionId,
+		});
 	}
 
 	clearAutoFill(entry: ExamineEntry): void {
 		entry.userAnswer = "";
 		entry.autoFilledPending = false;
 		this.persistEntries();
+		capture("autofill_cleared", {
+			session_id: this.profileId,
+			card_id: this.cardId,
+			question_id: entry.questionId,
+		});
 	}
 
 	onAnsweredEntryInput(entry: ExamineEntry): void {
@@ -449,6 +459,12 @@ export class ExamineMeaningViewModel {
 	confirmDescriptions(): void {
 		this._descriptionsConfirmed.value = true;
 		this.persistDescriptions();
+		capture("descriptions_confirmed", {
+			session_id: this.profileId,
+			card_id: this.cardId,
+			selected_count: this._selectedDescriptionIds.value.size,
+			total_count: this.cardDescriptions.length,
+		});
 	}
 
 	persistEntries(): void {

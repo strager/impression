@@ -145,6 +145,11 @@ export class ExamineReflectViewModel {
 		if (examineData === null || !(this.cardId in examineData)) return;
 		const cardData = examineData[this.cardId];
 
+		capture("synthesis_retry", {
+			session_id: this.profileId,
+			card_id: this.cardId,
+		});
+
 		const questionOrder = new Map(EXAMINE_QUESTIONS.map((q, i) => [q.id, i]));
 		const answered = cardData.entries.filter((e) => e.submitted && e.userAnswer.trim() !== "" && questionOrder.has(e.questionId)).sort((a, b) => (questionOrder.get(a.questionId) ?? 0) - (questionOrder.get(b.questionId) ?? 0));
 		const questions = answered.map((e) => ({ questionId: e.questionId, answer: e.userAnswer }));
