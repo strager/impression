@@ -162,9 +162,9 @@ and included in the downloadable profile above the five Q&A blocks.
 The user can leave the field empty and click **Finish examining** to return to
 the sources-of-meaning overview.
 
-## Using "Stop Examining" for early exit
+## Using "Finish Examining" for early exit
 
-At any point during the examination, a **Stop Examining** button is visible below
+At any point during the examination, a **Finish Examining** button is visible below
 the active question. Clicking it saves whatever text is currently in the textarea
 (if any) and returns to the examine list. The user does not need to answer all
 five questions — they can stop whenever they feel they have reflected enough.
