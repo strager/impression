@@ -282,6 +282,24 @@ describe("posthog proxy integration", () => {
 		]);
 	});
 
+	it("rewrites proxy api_key in batch object body", async () => {
+		const body = JSON.stringify({ api_key: "proxy", batch: [{ event: "test" }], sent_at: "2026-05-15T00:00:00Z" });
+
+		const res = await fetch(`${baseUrl}/batch/`, {
+			method: "POST",
+			headers: {
+				origin: TEST_ORIGIN,
+				"content-type": "application/json",
+			},
+			body,
+		});
+
+		expect(res.status).toBe(200);
+		expect(lastUpstreamRequest).toBeDefined();
+		const upstreamBody = JSON.parse(await lastUpstreamRequest!.text());
+		expect(upstreamBody).toEqual({ api_key: "phc_test", batch: [{ event: "test" }], sent_at: "2026-05-15T00:00:00Z" });
+	});
+
 	it("rewrites proxy token in flags object body", async () => {
 		const body = JSON.stringify({ token: "proxy", distinct_id: "x" });
 
